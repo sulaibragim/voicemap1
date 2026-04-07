@@ -771,7 +771,7 @@ const QuickNoteModal = ({ type, onClose, onSave, showToast }: { type: string, on
               mimeType: blob.type || 'audio/webm'
             }
           },
-          `Please transcribe this short audio note. It is a "${type}". Transcribe the audio EXACTLY in the language it was spoken. Return only the transcribed text.`
+          `Please transcribe this short audio note. It is a "${type}". Transcribe the audio EXACTLY in the language it was spoken. If the audio is empty, silent, or contains no speech, return strictly "[Тишина]". Do not invent or hallucinate speech. Return only the transcribed text.`
         ]
       });
 
@@ -1077,7 +1077,7 @@ const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToast }: {
       `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-preview',
+        model: 'gemini-3-flash-preview',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -1835,6 +1835,7 @@ export default function App() {
             }
           },
           "Please analyze this personal audio note or voice journal. " +
+          "CRITICAL: If the audio is empty, silent, or contains no speech, you MUST return a JSON object with title '[Тишина]' and empty fields. Do not invent or hallucinate speech. " +
           "1. Transcribe the audio EXACTLY in the language it was spoken. " +
           "2. Group the transcript into neat, readable paragraphs. " +
           "3. Provide a short, warm summary of the entry. " +
@@ -2045,11 +2046,7 @@ export default function App() {
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
       <div 
-        className="relative h-full transition-all duration-300 ease-in-out"
-        style={{ 
-          width: isAssistantOpen ? 'calc(100% - 448px)' : '100%',
-          transform: 'translateZ(0)' // Creates a new containing block for fixed/absolute elements
-        }}
+        className="relative h-full transition-all duration-300 ease-in-out w-full"
       >
         <div className="h-full w-full overflow-y-auto">
           {renderView()}
@@ -2058,7 +2055,7 @@ export default function App() {
         {/* Floating AI Assistant Button */}
         <button
           onClick={() => setIsAssistantOpen(true)}
-          className={`fixed bottom-32 right-8 w-14 h-14 bg-primary text-on-primary-fixed rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(175,162,255,0.4)] hover:scale-110 transition-transform z-[150] cursor-pointer ${isAssistantOpen ? 'hidden' : ''}`}
+          className={`fixed bottom-24 md:bottom-32 right-4 md:right-8 w-14 h-14 bg-primary text-on-primary-fixed rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(175,162,255,0.4)] hover:scale-110 transition-transform z-[150] cursor-pointer ${isAssistantOpen ? 'hidden' : ''}`}
         >
           <Brain className="w-6 h-6" />
         </button>

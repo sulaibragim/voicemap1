@@ -93,7 +93,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, recor
       `;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-preview',
+        model: 'gemini-3-flash-preview',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -194,11 +194,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, recor
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-preview',
+        model: 'gemini-3-flash-preview',
         contents: {
           parts: [
             { inlineData: { data: base64Audio, mimeType: mimeType } },
-            { text: 'Transcribe this voice message in Russian.' }
+            { text: 'Transcribe this voice message in Russian. If the audio is empty, silent, or contains no speech, return strictly "[Тишина]". Do not invent or hallucinate speech.' }
           ]
         }
       });
@@ -208,6 +208,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, recor
       // Update the temporary message with transcript
       setMessages(prev => prev.map(m => m.id === tempId ? { ...m, text: transcript } : m));
       
+      if (transcript.trim() === '[Тишина]') {
+        setIsProcessing(false);
+        return;
+      }
+
       // Now handle it as a normal text message
       await handleSend(transcript, true);
     } catch (error) {
@@ -228,15 +233,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, recor
       {isOpen && (
         <>
           <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-0 right-0 h-full w-full max-w-md bg-surface-bright border-l border-white/5 z-[301] flex flex-col shadow-2xl"
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            style={{ transformOrigin: 'bottom right' }}
+            className="fixed bottom-24 md:bottom-32 right-4 md:right-8 w-[calc(100vw-2rem)] sm:w-[380px] max-h-[75vh] bg-surface-bright border border-white/10 rounded-2xl z-[301] flex flex-col shadow-2xl overflow-hidden"
           >
-            <div className="flex items-center justify-between p-6 border-b border-white/5 bg-surface-container-low">
+            <div className="flex items-center justify-between p-4 border-b border-white/5 bg-surface-container-low shrink-0">
               <div>
-                <h2 className="font-headline text-xl font-bold text-primary">AI Ассистент</h2>
+                <h2 className="font-headline text-lg font-bold text-primary">AI Ассистент</h2>
                 <p className="text-xs text-on-surface-variant">Поиск и анализ ваших записей</p>
               </div>
               <button onClick={onClose} className="p-2 rounded-full hover:bg-white/10 transition-colors text-on-surface-variant hover:text-white">
@@ -244,7 +250,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, recor
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="overflow-y-auto p-4 space-y-4 min-h-0">
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                   <div 
@@ -296,7 +302,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({ isOpen, onClose, recor
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-4 border-t border-white/5 bg-surface-container-low">
+            <div className="p-4 border-t border-white/5 bg-surface-container-low shrink-0">
               {isRecording ? (
                 <div className="flex items-center gap-4 bg-error/10 border border-error/30 rounded-full p-2 pr-4">
                   <button 
