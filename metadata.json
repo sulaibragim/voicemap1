@@ -1,0 +1,7 @@
+{
+  "name": "VoiceMap",
+  "description": "AI-powered voice recording and transcription app.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

@@ -1,0 +1,106 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: recordings
+    // Document ID: {recordingId}
+    // Fields:
+    //   - userId: string (required, immutable) - ID of the user who owns the recording
+    //   - title: string (required, max 200 chars) - Title of the recording
+    //   - date: string (required, max 50 chars) - Date string
+    //   - duration: string (required, max 20 chars) - Duration string
+    //   - tags: list of strings (required, max 50 items, max 50 chars each) - Tags
+    //   - summary: string (required, max 5000 chars) - AI Summary
+    //   - tasks: list of objects (required, max 100 items) - Tasks
+    //   - promises: list of strings (required, max 100 items, max 500 chars each) - Promises
+    //   - transcript: list of objects (required, max 5000 items) - Transcript
+    //   - audioUrl: string (optional, max 1000 chars) - Audio URL
+    //   - createdAt: timestamp (required, immutable) - Creation timestamp
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    function uidUnchanged() {
+      return !('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return !('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function validStringLength(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+        request.resource.data[field].size() >= minLen &&
+        request.resource.data[field].size() <= maxLen;
+    }
+
+    function isValidList(listData, maxSize) {
+      return listData is list && listData.size() <= maxSize;
+    }
+
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) ||
+             (request.resource.data[field] is string &&
+              request.resource.data[field].size() >= minLen &&
+              request.resource.data[field].size() <= maxLen);
+    }
+
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidRecording(data) {
+      return hasRequiredFields(['userId', 'title', 'date', 'duration', 'tags', 'summary', 'tasks', 'promises', 'transcript', 'createdAt']) &&
+             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
+             data.title is string && data.title.size() >= 0 && data.title.size() <= 200 &&
+             data.date is string && data.date.size() >= 0 && data.date.size() <= 50 &&
+             data.duration is string && data.duration.size() >= 0 && data.duration.size() <= 20 &&
+             isValidList(data.tags, 50) &&
+             data.summary is string && data.summary.size() >= 0 && data.summary.size() <= 50000 &&
+             isValidList(data.tasks, 100) &&
+             isValidList(data.promises, 100) &&
+             isValidList(data.transcript, 5000) &&
+             data.createdAt is timestamp &&
+             (!( 'audioUrl' in data ) || (data.audioUrl is string && data.audioUrl.size() <= 1000));
+    }
+
+    match /recordings/{recordingId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && 
+                    isValidRecording(request.resource.data) && 
+                    request.resource.data.userId == request.auth.uid;
+      allow update: if isDocOwner() && 
+                    isValidRecording(request.resource.data) && 
+                    uidNotModified() && 
+                    areImmutableFieldsUnchanged(['createdAt']);
+      allow delete: if isDocOwner();
+    }
+  }
+}
