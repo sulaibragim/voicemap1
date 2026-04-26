@@ -1,106 +1,116 @@
 rules_version = '2';
 
+// ================================================================
+// VoiceMap — Firestore Security Rules
+// Структура: users/{uid}/recordings, notes, spaces (subcollections)
+// Владелец определяется по uid в пути — userId в полях не нужен.
+// ================================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: recordings
-    // Document ID: {recordingId}
-    // Fields:
-    //   - userId: string (required, immutable) - ID of the user who owns the recording
-    //   - title: string (required, max 200 chars) - Title of the recording
-    //   - date: string (required, max 50 chars) - Date string
-    //   - duration: string (required, max 20 chars) - Duration string
-    //   - tags: list of strings (required, max 50 items, max 50 chars each) - Tags
-    //   - summary: string (required, max 5000 chars) - AI Summary
-    //   - tasks: list of objects (required, max 100 items) - Tasks
-    //   - promises: list of strings (required, max 100 items, max 500 chars each) - Promises
-    //   - transcript: list of objects (required, max 5000 items) - Transcript
-    //   - audioUrl: string (optional, max 1000 chars) - Audio URL
-    //   - createdAt: timestamp (required, immutable) - Creation timestamp
-    //
-    // ===============================================================
 
-    // ===============================================================
-    // Helper Functions
-    // ===============================================================
+    // ── Вспомогательные функции ──────────────────────────────────
 
-    function isAuthenticated() {
+    function isAuth() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
     }
 
-    function isDocOwner() {
-      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    // Проверяет, что строковое поле присутствует и не длиннее maxLen
+    function validStr(data, field, maxLen) {
+      return field in data &&
+             data[field] is string &&
+             data[field].size() <= maxLen;
     }
 
-    function uidUnchanged() {
-      return !('userId' in request.resource.data) || request.resource.data.userId == request.auth.uid;
+    // Опциональное строковое поле — если есть, то не длиннее maxLen
+    function validOptStr(data, field, maxLen) {
+      return !(field in data) ||
+             (data[field] is string && data[field].size() <= maxLen);
     }
 
-    function uidNotModified() {
-      return !('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId;
+    // Опциональный список — если есть, то не длиннее maxSize
+    function validOptList(data, field, maxSize) {
+      return !(field in data) ||
+             (data[field] is list && data[field].size() <= maxSize);
     }
 
-    function hasRequiredFields(fields) {
-      return request.resource.data.keys().hasAll(fields);
-    }
-
-    function validStringLength(field, minLen, maxLen) {
-      return request.resource.data[field] is string &&
-        request.resource.data[field].size() >= minLen &&
-        request.resource.data[field].size() <= maxLen;
-    }
-
-    function isValidList(listData, maxSize) {
-      return listData is list && listData.size() <= maxSize;
-    }
-
-    function isValidOptionalString(field, minLen, maxLen) {
-      return !(field in request.resource.data) ||
-             (request.resource.data[field] is string &&
-              request.resource.data[field].size() >= minLen &&
-              request.resource.data[field].size() <= maxLen);
-    }
-
-    function areImmutableFieldsUnchanged(fields) {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
-    }
-
-    // ===============================================================
-    // Domain Validators
-    // ===============================================================
+    // ── Валидаторы типов ─────────────────────────────────────────
 
     function isValidRecording(data) {
-      return hasRequiredFields(['userId', 'title', 'date', 'duration', 'tags', 'summary', 'tasks', 'promises', 'transcript', 'createdAt']) &&
-             data.userId is string && data.userId.size() > 0 && data.userId.size() < 100 &&
-             data.title is string && data.title.size() >= 0 && data.title.size() <= 200 &&
-             data.date is string && data.date.size() >= 0 && data.date.size() <= 50 &&
-             data.duration is string && data.duration.size() >= 0 && data.duration.size() <= 20 &&
-             isValidList(data.tags, 50) &&
-             data.summary is string && data.summary.size() >= 0 && data.summary.size() <= 50000 &&
-             isValidList(data.tasks, 100) &&
-             isValidList(data.promises, 100) &&
-             isValidList(data.transcript, 5000) &&
-             data.createdAt is timestamp &&
-             (!( 'audioUrl' in data ) || (data.audioUrl is string && data.audioUrl.size() <= 1000));
+      return validStr(data, 'id',       100) &&
+             validStr(data, 'title',    200) &&
+             validStr(data, 'date',      50) &&
+             validStr(data, 'duration',  30) &&
+             ('tags' in data && data.tags is list && data.tags.size() <= 50) &&
+             validStr(data, 'summary', 50000) &&
+             ('transcript' in data && data.transcript is list && data.transcript.size() <= 5000) &&
+             validOptStr(data, 'audioUrl', 2000) &&
+             validOptStr(data, 'mood', 100) &&
+             validOptList(data, 'ideas', 200) &&
+             validOptList(data, 'actionItems', 200) &&
+             validOptList(data, 'mentions', 200) &&
+             validOptList(data, 'keyMoments', 200) &&
+             validOptList(data, 'openQuestions', 200) &&
+             validOptList(data, 'bigQuestions', 200) &&
+             validOptList(data, 'condensedTranscript', 5000) &&
+             validOptList(data, 'appendAudios', 50) &&
+             validOptList(data, 'participants', 50) &&
+             validOptList(data, 'richActionItems', 200) &&
+             validOptStr(data, 'r2Key', 500);
     }
 
-    match /recordings/{recordingId} {
-      allow read: if isDocOwner();
-      allow create: if isAuthenticated() && 
-                    isValidRecording(request.resource.data) && 
-                    request.resource.data.userId == request.auth.uid;
-      allow update: if isDocOwner() && 
-                    isValidRecording(request.resource.data) && 
-                    uidNotModified() && 
-                    areImmutableFieldsUnchanged(['createdAt']);
-      allow delete: if isDocOwner();
+    function isValidNote(data) {
+      return validStr(data, 'id',      100) &&
+             validStr(data, 'content', 5000) &&
+             validStr(data, 'date',    50) &&
+             ('type' in data && data.type in ['Идея', 'Задача', 'Напоминание']);
+    }
+
+    function isValidSpace(data) {
+      return validStr(data, 'id',    100) &&
+             validStr(data, 'name',  100) &&
+             validStr(data, 'emoji',  10) &&
+             validStr(data, 'color',  50);
+    }
+
+    // ── Правила доступа к документам ─────────────────────────────
+
+    // Пользователь может читать свой профиль-документ (если понадобится)
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // Recordings
+    match /users/{uid}/recordings/{recordingId} {
+      allow read:   if isOwner(uid);
+      allow create: if isOwner(uid) && isValidRecording(request.resource.data);
+      allow update: if isOwner(uid) && isValidRecording(request.resource.data);
+      allow delete: if isOwner(uid);
+    }
+
+    // Notes
+    match /users/{uid}/notes/{noteId} {
+      allow read:   if isOwner(uid);
+      allow create: if isOwner(uid) && isValidNote(request.resource.data);
+      allow update: if isOwner(uid) && isValidNote(request.resource.data);
+      allow delete: if isOwner(uid);
+    }
+
+    // Spaces
+    match /users/{uid}/spaces/{spaceId} {
+      allow read:   if isOwner(uid);
+      allow create: if isOwner(uid) && isValidSpace(request.resource.data);
+      allow update: if isOwner(uid) && isValidSpace(request.resource.data);
+      allow delete: if isOwner(uid);
+    }
+
+    // Запрещаем всё остальное явно
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

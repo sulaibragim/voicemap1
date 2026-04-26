@@ -3,1946 +3,564 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import {
-  Search, UserCircle, Mic, AudioLines, FileEdit, Lightbulb, Check,
-  Brain, Bell, Plus, Folder, CheckCircle2, Circle, ArrowRight,
-  PlayCircle, FolderOpen, Target, Settings, Pin, Clock,
-  ArrowLeft, Keyboard, FileText, ListTodo, MessageSquare, Users, Calendar, Play, Pause, Volume2, X, Loader2, Trash2, Square
-} from 'lucide-react';
-import { GoogleGenAI, Type } from '@google/genai';
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
+import { CheckCircle2, Brain, Loader2 } from 'lucide-react';
+import { fetchDailyTip, transcribeRecording, uploadAudioToR2, deleteAudioFromR2 } from './lib/api';
 
-// Types
-export interface Task {
-  description: string;
-  assignee?: string;
-  deadline?: string;
-}
+import type { Note, NoteType, Recording, Space, AppSettings } from './types';
+import { defaultAppSettings } from './types';
+import { useReminders } from './hooks/useReminders';
+import { usePeople } from './lib/usePeople';
+import { useAuth } from './hooks/useAuth';
+import { useFirestoreData } from './hooks/useFirestoreData';
+import { LoginScreen } from './components/auth/LoginScreen';
 
-export interface TranscriptItem {
-  speaker: string;
-  timestamp: string;
-  text: string;
-}
+import { Header } from './components/layout/Header';
+import { BottomNav } from './components/layout/BottomNav';
 
-export interface Note {
-  id: string;
-  type: string;
-  content: string;
-  date: string;
-}
+import { LiveSessionCard } from './components/dashboard/LiveSessionCard';
+import { QuickNoteCard } from './components/dashboard/QuickNoteCard';
+import { FocusTodayCard } from './components/dashboard/FocusTodayCard';
+import { IdeasCard } from './components/dashboard/IdeasCard';
+import { AITipCard } from './components/dashboard/AITipCard';
+import { ActivityChartCard } from './components/dashboard/ActivityChartCard';
+import { BrainStatsCard } from './components/dashboard/WeeklyGoalsCard';
+import { WeeklyDigestCard } from './components/dashboard/WeeklyDigestCard';
+import { RecentRecordings } from './components/dashboard/RecentRecordings';
 
-export interface Recording {
-  id: string;
-  title: string;
-  date: string;
-  duration: string;
-  tags: string[];
-  summary: string;
-  transcript: TranscriptItem[];
-  keyMoments?: string[];
-  audioUrl?: string;
-  mood?: string;
-  ideas?: string[];
-  actionItems?: string[];
-  mentions?: string[];
-}
+import { NotesGallery } from './components/notes/NotesGallery';
+import { QuickNoteModal } from './components/notes/QuickNoteModal';
+
+import { RecordingsLibrary } from './components/recording/RecordingsLibrary';
+import { LibraryMap } from './components/recording/LibraryMap';
+import { SpacesLibrary } from './components/recording/SpacesLibrary';
+import { SpacePickerModal } from './components/recording/SpacePickerModal';
+import { RecordingSession } from './components/recording/RecordingSession';
+import { RecordingDetail } from './components/recording/RecordingDetail';
+
+import { AnalyticsView } from './components/analytics/AnalyticsView';
+import { FocusView } from './components/analytics/FocusView';
+import { TagsView } from './components/analytics/TagsView';
+import { SettingsView } from './components/analytics/SettingsView';
+import { RemindersView } from './components/reminders/RemindersView';
+
+import { ChatSidebar } from './components/ChatSidebar';
 
 // Mock initial data
 const initialRecordings: Recording[] = [
   {
     id: '1',
-    title: 'Идея для нового проекта: Умный блокнот',
-    date: 'Вчера, 10:00',
-    duration: '05:15',
-    tags: ['#Идеи', '#Проект'],
-    summary: 'Размышлял о том, как было бы круто иметь голосовой блокнот, который не просто записывает текст, но и понимает контекст. Чтобы можно было надиктовать мысли на ходу, а он сам разложил их по полочкам: выделил задачи, идеи и настроение.',
-    actionItems: [
-      'Набросать дизайн-макет главного экрана',
-      'Посмотреть API для распознавания речи'
-    ],
-    ideas: [
-      'Добавить функцию "Спросить ИИ о записи", чтобы можно было общаться со своими же мыслями',
-      'Сделать анализ настроения по голосу'
-    ],
-    mentions: ['Notion', 'Google AI Studio'],
-    mood: 'Вдохновленное ✨',
+    title: 'Стратегический митинг: Запуск VoiceMap Pro',
+    date: 'Сегодня, 10:30',
+    duration: '38:47',
+    tags: ['#Митинг', '#Стартап'],
+    summary: 'Обсуждали план запуска платной версии VoiceMap Pro. Максим представил технический стек для новых фич — командные пространства и шаринг записей. Алина показала обновлённый дизайн онбординга, который сокращает time-to-value с 5 минут до 90 секунд. Договорились о дате мягкого запуска — 15 мая, с ограниченным бета-доступом для первых 500 пользователей.',
+    actionItems: ['Подготовить лендинг для Pro-версии', 'Настроить Stripe для приёма платежей', 'Провести нагрузочное тестирование перед запуском', 'Написать письмо существующим пользователям о бете Pro'],
+    ideas: ['Annual Plan со скидкой 40% для ранних пользователей', 'Командный тариф с общим пространством и аналитикой', 'Реферальная программа: приведи друга — получи месяц бесплатно'],
+    mentions: ['Максим', 'Алина', 'Stripe', 'Product Hunt'],
+    mood: 'Энергичное 🚀',
     transcript: [
-      { speaker: 'Я', timestamp: '00:00', text: 'Так, пришла в голову классная идея. Что если сделать персональный голосовой блокнот? Не для бизнеса, а именно для себя.' },
-      { speaker: 'Я', timestamp: '00:15', text: 'Часто бывает, что идешь по улице, пришла мысль, а записать неудобно. Хочется просто нажать кнопку, наговорить поток сознания, а ИИ потом сам все структурирует.' },
-      { speaker: 'Я', timestamp: '00:42', text: 'Надо будет посмотреть, как это можно интегрировать с Google AI Studio. И еще набросать дизайн-макет главного экрана на выходных.' },
-      { speaker: 'Я', timestamp: '01:05', text: 'Кстати, было бы круто, если бы он еще и настроение отслеживал. Типа, сегодня я был уставший, а вчера прям на подъеме.' }
+      { speaker: 'Я', timestamp: '00:00', text: 'Начнём. Сегодня финально согласуем план запуска Pro. Максим, расскажи про готовность с технической стороны.' },
+      { speaker: 'Максим', timestamp: '00:45', text: 'Бэкенд готов на 85%. Основные фичи — командные пространства и шаринг — работают в стейджинге. Нагрузочное тестирование ещё не делали, нужна неделя.' },
+      { speaker: 'Алина', timestamp: '03:20', text: 'Дизайн онбординга я переделала полностью. Новый флоу: три шага вместо восьми. По нашим тестам time-to-value падает с пяти минут до полутора.' },
+      { speaker: 'Я', timestamp: '07:10', text: 'Это огромно. Алина, можешь к пятнице сделать финальные макеты в Figma, чтобы Максим мог сразу начать вёрстку?' },
+      { speaker: 'Алина', timestamp: '07:30', text: 'Да, в пятницу сдам. Осталось только анимации доработать на экране записи.' },
+      { speaker: 'Максим', timestamp: '12:00', text: 'По Stripe — нужно решить, какую модель берём. Фиксированная подписка или pay-per-use? От этого зависит архитектура биллинга.' },
+      { speaker: 'Я', timestamp: '13:45', text: 'Берём подписку. Две ступени: Personal Pro за 9 долларов, Team за 29. Антон из фонда именно такую модель и советовал.' },
+      { speaker: 'Максим', timestamp: '15:20', text: 'Окей, тогда мне нужно ещё три дня на интеграцию Stripe Billing. К 28-му будет готово.' },
+      { speaker: 'Я', timestamp: '28:00', text: 'Итого: мягкий запуск 15 мая, первые 500 пользователей по приглашениям, затем открытый доступ. Все согласны?' },
+      { speaker: 'Алина', timestamp: '28:20', text: 'Да, звучит реалистично.' },
+      { speaker: 'Максим', timestamp: '28:35', text: 'Согласен. Главное — нагрузочный тест успеть до 10 мая.' },
     ],
-    keyMoments: ['Идея персонального голосового блокнота', 'Структурирование потока сознания с помощью ИИ', 'Отслеживание настроения']
-  }
+    keyMoments: ['Мягкий запуск Pro — 15 мая', 'Онбординг сокращён с 5 мин до 90 сек', 'Подписка Personal $9 / Team $29', 'Нагрузочный тест до 10 мая'],
+    participants: [
+      { name: 'Максим', speakerLabel: 'Максим', role: 'CTO' },
+      { name: 'Алина', speakerLabel: 'Алина', role: 'Lead Designer' },
+    ],
+    richActionItems: [
+      { text: 'Подготовить лендинг для Pro-версии', assignees: ['Я'], deadline: '2026-05-01' },
+      { text: 'Настроить Stripe для приёма платежей', assignees: ['Максим'], deadline: '2026-04-28' },
+      { text: 'Провести нагрузочное тестирование перед запуском', assignees: ['Максим', 'Я'], deadline: '2026-05-10' },
+      { text: 'Финальные макеты онбординга в Figma', assignees: ['Алина'], deadline: '2026-04-25' },
+    ],
+    openQuestions: [
+      'Делаем ли триальный период 14 дней для Pro?',
+      'Как обрабатываем пользователей которые превысили лимит бесплатного плана?',
+      'Нужна ли отдельная страница с changelog для Pro-фич?',
+    ],
+    bigQuestions: [
+      'Как балансировать между ростом free-пользователей и конверсией в Pro?',
+      'Стоит ли выходить на Product Hunt в день запуска или подождать?',
+    ],
+  },
+  {
+    id: '2',
+    title: 'Звонок с инвестором: Seed Round — Дмитрий Волков',
+    date: 'Вчера, 15:00',
+    duration: '24:18',
+    tags: ['#Стартап', '#Инвестиции'],
+    summary: 'Питч-колл с Дмитрием Волковым из фонда Elbrus. Реакция на продукт очень позитивная — Дмитрий сам ведёт голосовые заметки и сразу понял ценность. Главные вопросы: unit economics, retention на 90 день и конкуренция с Otter.ai. Попросил прислать data room до конца недели, следующий шаг — встреча с партнёрами фонда.',
+    actionItems: ['Собрать data room: метрики, финмодель, кэп-таблица', 'Подготовить ответ на вопрос про Otter.ai и дифференциацию', 'Написать Дмитрию письмо с резюме и ссылкой на data room'],
+    ideas: ['Показать в питче кейс "запись → задачи → трекинг" как замену Notion + Asana', 'Добавить слайд про командное использование — там самый высокий LTV'],
+    mentions: ['Дмитрий', 'Elbrus', 'Otter.ai', 'Notion', 'Y Combinator'],
+    mood: 'Воодушевлённое 🌟',
+    transcript: [
+      { speaker: 'Дмитрий', timestamp: '00:00', text: 'Привет. Я посмотрел демо — честно говоря, сам пользуюсь голосовыми заметками, поэтому сразу понял о чём вы.' },
+      { speaker: 'Я', timestamp: '00:30', text: 'Отлично. Тогда вы точно чувствуете боль — наговорил идею, а потом она теряется где-то в заметках и никогда не реализуется.' },
+      { speaker: 'Дмитрий', timestamp: '01:15', text: 'Именно. Покажите мне цифры. Retention, DAU, стоимость привлечения.' },
+      { speaker: 'Я', timestamp: '02:00', text: 'Сейчас 1400 активных пользователей. Retention на 30 день — 41%, на 90 день пока 28%. DAU/MAU 0.34. CAC через контент — около 2 долларов.' },
+      { speaker: 'Дмитрий', timestamp: '04:30', text: 'Retention на 90 день можно улучшить. Что говорят пользователи которые уходят?' },
+      { speaker: 'Я', timestamp: '05:10', text: 'Основная причина — "забывают открывать приложение". Мы как раз делаем push-напоминания и виджет на главном экране.' },
+      { speaker: 'Дмитрий', timestamp: '08:45', text: 'Как вы позиционируете себя против Otter.ai? У них огромная база и транскрипция лучше.' },
+      { speaker: 'Я', timestamp: '09:20', text: 'Otter — инструмент для встреч и расшифровки. Мы — персональный AI-ассистент мышления. Разные сценарии использования. Наш пользователь не хочет просто транскрипт, он хочет чтобы мысли превращались в действия.' },
+      { speaker: 'Дмитрий', timestamp: '15:00', text: 'Понятно. Какой раунд, сколько, на что?' },
+      { speaker: 'Я', timestamp: '15:30', text: 'Seed, 800К долларов. 12 месяцев runway. Команда 3 человека фуллтайм, найм двух разработчиков и маркетолога.' },
+      { speaker: 'Дмитрий', timestamp: '18:20', text: 'Хорошо. Пришлите data room до конца недели. Если всё сойдётся — приглашу вас на встречу с партнёрами.' },
+    ],
+    keyMoments: ['Retention 30д — 41%, 90д — 28%', 'CAC $2 через контент', 'Seed $800K — 12 месяцев runway', 'Следующий шаг — встреча с партнёрами Elbrus'],
+    participants: [
+      { name: 'Дмитрий', speakerLabel: 'Дмитрий', role: 'Партнёр Elbrus Fund' },
+    ],
+    richActionItems: [
+      { text: 'Собрать data room: метрики, финмодель, кэп-таблица', assignees: ['Я'], deadline: '2026-04-27' },
+      { text: 'Подготовить ответ на вопрос про Otter.ai', assignees: ['Я'], deadline: '2026-04-26' },
+      { text: 'Написать Дмитрию письмо с резюме и data room', assignees: ['Я'], deadline: '2026-04-27' },
+    ],
+    openQuestions: [
+      'Принимают ли они конвертируемые займы или только equity?',
+      'Есть ли у фонда портфельные компании с синергией — чтобы предложить партнёрства?',
+    ],
+    bigQuestions: [
+      'Брать ли деньги от одного инвестора или делать синдикат?',
+      'Как не потерять продуктовый фокус после получения финансирования?',
+    ],
+  },
+  {
+    id: '3',
+    title: 'Планирование спринта: апрель — финальные две недели',
+    date: '21 апреля, 09:15',
+    duration: '31:05',
+    tags: ['#Митинг', '#Планирование'],
+    summary: 'Спринт-планирование на финальные две недели апреля. Приоритет номер один — завершить Pro-фичи и пройти внутреннее QA. Максим взял на себя Stripe и командные пространства, Алина — финальный дизайн и тесты на мобилке. Также договорились убрать из беклога три фичи которые откладывали уже третий спринт подряд — либо делаем сейчас, либо удаляем.',
+    actionItems: ['Закрыть все P0-баги до 28 апреля', 'Провести внутреннее QA-ревью Pro-фич', 'Обновить беклог: удалить залежавшиеся задачи', 'Написать release notes для Pro'],
+    ideas: ['Сделать внутренний TestFlight-билд для команды чтобы тестировать ежедневно', 'Changelog-страница в приложении — пользователи любят видеть что меняется'],
+    mentions: ['Максим', 'Алина', 'Jira', 'TestFlight', 'Stripe'],
+    mood: 'Деловое 💼',
+    transcript: [
+      { speaker: 'Я', timestamp: '00:00', text: 'Итак, последние две недели апреля. Цель одна — всё готово к мягкому запуску 15 мая. Максим, что у тебя на руках?' },
+      { speaker: 'Максим', timestamp: '00:40', text: 'Stripe интеграция — три дня. Командные пространства — пять дней. Плюс баги из прошлого спринта, там штук семь P1.' },
+      { speaker: 'Я', timestamp: '02:10', text: 'P1 нужно закрыть до 28-го. Это жёсткий дедлайн. Алина, у тебя?' },
+      { speaker: 'Алина', timestamp: '02:30', text: 'Финальные макеты в пятницу, как договорились. Потом мобильное тестирование — у нас на iOS 15 есть баги с анимациями. И release notes написать надо.' },
+      { speaker: 'Я', timestamp: '05:00', text: 'Давайте ещё беклог почистим. У нас три задачи которые перекочевывают из спринта в спринт уже три месяца.' },
+      { speaker: 'Максим', timestamp: '05:25', text: 'Оффлайн-режим, экспорт в PDF и интеграция с Google Calendar. Честно — первые два можно двигать на Q3, третье вообще удалить, у нас никто не просил.' },
+      { speaker: 'Алина', timestamp: '06:50', text: 'Согласна. Лучше меньше фич, но качественно доделанных, чем куча полуфабрикатов.' },
+      { speaker: 'Я', timestamp: '08:00', text: 'Принято. Удаляем Google Calendar из беклога, оффлайн и PDF двигаем на Q3.' },
+      { speaker: 'Максим', timestamp: '22:00', text: 'Ещё предлагаю сделать ежедневный TestFlight-билд чтобы самим пользоваться приложением. Лучший QA.' },
+      { speaker: 'Я', timestamp: '22:30', text: 'Отличная идея. Настрой автосборку через GitHub Actions.' },
+    ],
+    keyMoments: ['P1-баги закрыть до 28 апреля', 'Оффлайн и PDF экспорт — Q3', 'Google Calendar — удалить из беклога', 'Ежедневный TestFlight-билд'],
+    participants: [
+      { name: 'Максим', speakerLabel: 'Максим', role: 'CTO' },
+      { name: 'Алина', speakerLabel: 'Алина', role: 'Lead Designer' },
+    ],
+    richActionItems: [
+      { text: 'Закрыть все P0-баги', assignees: ['Максим'], deadline: '2026-04-28' },
+      { text: 'Stripe интеграция', assignees: ['Максим'], deadline: '2026-04-26' },
+      { text: 'Финальный дизайн и мобильные баги', assignees: ['Алина'], deadline: '2026-04-25' },
+      { text: 'Настроить ежедневный TestFlight билд через GitHub Actions', assignees: ['Максим', 'Алина'], deadline: '2026-04-24' },
+      { text: 'Обновить беклог — удалить залежавшиеся задачи', assignees: ['Я'], deadline: '2026-04-23' },
+    ],
+    openQuestions: [
+      'Успеем ли сделать оффлайн-режим до конца Q2 или реально Q3?',
+      'Нужен ли отдельный QA-специалист или справляемся своими силами?',
+    ],
+    bigQuestions: [
+      'Как приоритизировать фичи когда каждая кажется важной — нужен чёткий фреймворк.',
+      'Когда нанимать первого полноценного QA инженера?',
+    ],
+  },
+  {
+    id: '4',
+    title: 'Брейншторм: монетизация и growth-каналы',
+    date: '18 апреля, 20:00',
+    duration: '17:33',
+    tags: ['#Идеи', '#Стартап'],
+    summary: 'Вечерний сольный брейншторм по монетизации и каналам роста. Думал о том, что у нас уже есть сильный органический рост через контент, но мы не масштабируем его системно. Главная идея: сделать VoiceMap "видимым" продуктом — чтобы каждая публичная запись или дайджест тащила новых пользователей. Записал несколько неочевидных гипотез для тестирования.',
+    actionItems: ['Запустить A/B тест онбординга с 2 и 4 шагами', 'Создать шаблон для публичного дайджеста', 'Написать пост в LinkedIn про "думать голосом"'],
+    ideas: [
+      'Публичные дайджесты — пользователь публикует выжимку недели, каждый пост тащит новую аудиторию',
+      'Viral loop: "Создано в VoiceMap" watermark на шаренных записях',
+      'Embeddable виджет — вставить голосовую запись в любой блог или сайт',
+      'API для разработчиков — платный доступ к транскрипции и AI-анализу',
+      'Integromat/Zapier коннектор — автоматически отправлять задачи из записей в Todoist или Notion',
+    ],
+    mentions: ['LinkedIn', 'Twitter', 'Zapier', 'Notion', 'Ali Abdaal', 'Andrew Huberman'],
+    mood: 'Творческое 🎨',
+    transcript: [
+      { speaker: 'Я', timestamp: '00:00', text: 'Окей, вечер, тихо, давай думать про рост. У нас 1400 пользователей, CAC два доллара через контент — это круто, но хочу понять как это масштабировать.' },
+      { speaker: 'Я', timestamp: '01:30', text: 'Основная проблема — продукт невидимый. Пользователь пишет заметки для себя и никто снаружи это не видит. Нет вирального механизма.' },
+      { speaker: 'Я', timestamp: '03:00', text: 'Идея первая: публичные дайджесты. Пользователь может в конце недели опубликовать выжимку своих мыслей — как newsletter, но автоматически из записей.' },
+      { speaker: 'Я', timestamp: '05:20', text: 'Это двойная ценность: пользователю — структурированное резюме, нам — вирусность. Каждый пост в LinkedIn или Twitter это реклама.' },
+      { speaker: 'Я', timestamp: '07:45', text: 'Вторая идея — embeddable плеер. Вставил запись в блог, и там стоит бейджик "Записано в VoiceMap". Работает как у Spotify.' },
+      { speaker: 'Я', timestamp: '10:10', text: 'API — это вообще отдельный рынок. Разработчики платят за транскрипцию, мы получаем B2B выручку и word of mouth среди технарей.' },
+      { speaker: 'Я', timestamp: '13:00', text: 'Zapier интеграция — кажется быстрой победой. Люди постоянно просят "как отправить задачи из записи в Todoist". Если это будет в один клик, retention вырастет.' },
+      { speaker: 'Я', timestamp: '15:30', text: 'Итого три приоритета на тест: публичные дайджесты, Zapier коннектор, A/B онбординга. Всё остальное — позже.' },
+    ],
+    keyMoments: ['Продукт невидимый — нет вирального механизма', 'Публичные дайджесты как viral loop', 'API для разработчиков — отдельный рынок', 'Zapier коннектор — быстрая победа для retention'],
+    richActionItems: [
+      { text: 'Запустить A/B тест онбординга (2 vs 4 шага)', assignees: ['Я'], deadline: '2026-04-30' },
+      { text: 'Сделать MVP публичных дайджестов', assignees: ['Максим'], deadline: '2026-05-07' },
+      { text: 'Написать пост в LinkedIn "Как я думаю голосом"', assignees: ['Я'], deadline: '2026-04-25' },
+    ],
+    openQuestions: [
+      'Как монетизировать API — по количеству запросов или по объёму аудио?',
+      'Нужна ли отдельная команда для B2B или один менеджер справится?',
+    ],
+    bigQuestions: [
+      'Строить ли PLG-движок или делать ставку на контент и SEO?',
+      'Когда правильный момент для запуска публичного API?',
+    ],
+  },
+  {
+    id: '5',
+    title: '1:1 с Максимом: состояние команды и выгорание',
+    date: '16 апреля, 14:00',
+    duration: '22:10',
+    tags: ['#Митинг', '#Личное'],
+    summary: 'Откровенный разговор с Максимом. Признался что последние две недели чувствует усталость — слишком много параллельных задач. Договорились пересмотреть его нагрузку: убрать его из нескольких встреч и сфокусировать на двух ключевых задачах. Также обсудили его долю в компании — Максим хочет прозрачности по вестингу.',
+    actionItems: ['Пересмотреть нагрузку Максима — убрать лишние встречи', 'Подготовить и подписать вестинг-соглашение с Максимом', 'Ввести правило "два фокусных дня" без встреч'],
+    ideas: ['No-meeting среда и пятница для глубокой работы', 'Квартальные 1:1 с каждым членом команды по карьере и целям'],
+    mentions: ['Максим', 'Алина'],
+    mood: 'Вдумчивое 🤔',
+    transcript: [
+      { speaker: 'Я', timestamp: '00:00', text: 'Как ты в целом? Не как по задачам, а именно как человек.' },
+      { speaker: 'Максим', timestamp: '00:20', text: 'Честно? Устал. Последние две недели каждый день в 9 встреча, потом задачи, потом снова встреча. Нет времени на нормальный deep work.' },
+      { speaker: 'Я', timestamp: '01:30', text: 'Это моя ответственность. Я втащил тебя в слишком много процессов. Давай пересмотрим.' },
+      { speaker: 'Максим', timestamp: '02:00', text: 'Я хочу фокусироваться на двух вещах: архитектура и код-ревью. Всё остальное — статусы, маркетинговые встречи, обсуждения дизайна — меня не должно касаться.' },
+      { speaker: 'Я', timestamp: '04:10', text: 'Согласен. Убираю тебя из всех встреч где не нужно техническое решение. Это будет среда и пятница — твои дни без встреч.' },
+      { speaker: 'Максим', timestamp: '07:00', text: 'И ещё один вопрос — по доле. Я три месяца в компании, хочу понять как работает вестинг, что я реально получу.' },
+      { speaker: 'Я', timestamp: '07:45', text: 'Абсолютно справедливо. Стандартный вестинг 4 года, клиф один год. Твоя доля 8%. Давай на этой неделе подпишем нормальное соглашение, не просто слова.' },
+      { speaker: 'Максим', timestamp: '10:20', text: 'Отлично. Это важно для меня — не сумма, а прозрачность.' },
+    ],
+    keyMoments: ['Максим устал от перегруза встречами', 'Вводим no-meeting среду и пятницу', 'Доля Максима 8%, вестинг 4 года клиф 1 год', 'Нужно подписать вестинг-соглашение'],
+    participants: [
+      { name: 'Максим', speakerLabel: 'Максим', role: 'CTO' },
+    ],
+    richActionItems: [
+      { text: 'Убрать Максима из нерелевантных встреч', assignees: ['Я'], deadline: '2026-04-24' },
+      { text: 'Подготовить вестинг-соглашение с Максимом', assignees: ['Я'], deadline: '2026-04-28' },
+      { text: 'Ввести no-meeting среду и пятницу для команды', assignees: ['Я', 'Максим'], deadline: '2026-04-24' },
+    ],
+    openQuestions: [
+      'Нужен ли юрист для оформления вестинга или можно через стандартный шаблон?',
+      'Как Алина относится к текущей нагрузке — стоит тоже провести 1:1?',
+    ],
+    bigQuestions: [
+      'Как масштабировать команду не потеряв культуру и скорость?',
+      'Когда переходить от "все делают всё" к чётким ролям и зонам ответственности?',
+    ],
+  },
 ];
 
-const Header = ({ currentView, setCurrentView, onLogout, onReset }: { currentView: string, setCurrentView: (view: string) => void, onLogout: () => void, onReset: () => void }) => (
-  <header className="w-full top-0 sticky bg-[#0e0e11] z-[100]">
-    <div className="flex justify-between items-center px-8 py-6 max-w-full bg-[#1c1c21]">
-      <div className="text-2xl font-black tracking-tighter text-[#7B61FF] uppercase font-headline cursor-pointer" onClick={() => setCurrentView('dashboard')}>
-        VOICEMAP
-      </div>
-      <div className="flex items-center gap-6">
-        <div className="hidden md:flex gap-8 font-label text-slate-400 text-xs font-bold tracking-widest uppercase">
-          <button onClick={() => setCurrentView('gallery')} className={`${currentView === 'gallery' ? 'text-[#7B61FF]' : 'hover:text-white transition-colors'} cursor-pointer`}>Архив</button>
-          <button onClick={() => setCurrentView('recording_session')} className={`${currentView === 'recording_session' ? 'text-[#7B61FF]' : 'hover:text-white transition-colors'} cursor-pointer`}>Запись</button>
-          <button onClick={() => setCurrentView('analytics')} className={`${currentView === 'analytics' ? 'text-[#7B61FF]' : 'hover:text-white transition-colors'} cursor-pointer`}>Аналитика</button>
-          <button onClick={() => setCurrentView('focus')} className={`${currentView === 'focus' ? 'text-[#7B61FF]' : 'hover:text-white transition-colors'} cursor-pointer`}>Фокус</button>
-        </div>
-        <div className="flex items-center gap-4">
-          <button onClick={onReset} className="text-xs font-bold text-slate-400 hover:text-white bg-white/5 px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
-            Сбросить демо
-          </button>
-          <Search className="text-slate-400 cursor-pointer hover:text-white transition-colors w-6 h-6" onClick={() => setCurrentView('library')} />
-          <button onClick={onLogout} title="Выйти" className="cursor-pointer">
-            <UserCircle className="text-[#7B61FF] w-6 h-6" />
-          </button>
-        </div>
-      </div>
-    </div>
-  </header>
-);
+const initialNotes: Note[] = [
+  { id: 'n1', type: 'Идея', content: 'Сделать тёмную тему с акцентом на фиолетовый — как космос. Пользователи любят эстетику.', date: '13 апреля, 11:20', priority: 'high' },
+  { id: 'n2', type: 'Задача', content: 'Написать документацию по API для партнёров. Без этого интеграции невозможны.', date: '13 апреля, 09:15', priority: 'high', isCompleted: false, kanbanStatus: 'in_progress' },
+  { id: 'n3', type: 'Напоминание', content: 'Позвонить Антону насчёт pitch deck', date: '12 апреля, 18:00', dueDate: '2026-04-14', dueTime: '10:00' },
+  { id: 'n4', type: 'Идея', content: 'Голосовой ввод снижает барьер для записи мыслей в 3 раза. Люди говорят быстрее, чем пишут.', date: '12 апреля, 16:45' },
+  { id: 'n5', type: 'Идея', content: 'Интеграция с календарём — автоматически создавать события из action items записей.', date: '11 апреля, 14:30', priority: 'medium' },
+  { id: 'n6', type: 'Задача', content: 'Обновить landing page — добавить новые скриншоты и testimonials от бета-пользователей.', date: '11 апреля, 10:00', priority: 'medium', isCompleted: false, kanbanStatus: 'new' },
+  { id: 'n7', type: 'Напоминание', content: 'Оплатить подписку на Figma до конца месяца', date: '10 апреля, 09:00', dueDate: '2026-04-30', dueTime: '12:00' },
+  { id: 'n8', type: 'Идея', content: 'Люди боятся звучать глупо на записи. Нужно убрать это психологическое барьер в UI — никакого "записываю" с красной кнопкой.', date: '10 апреля, 22:10' },
+  { id: 'n9', type: 'Идея', content: 'Режим "Встреча" — автоматически разделяет спикеров, создаёт протокол и рассылает участникам.', date: '9 апреля, 13:20', priority: 'high' },
+  { id: 'n10', type: 'Задача', content: 'Провести 5 пользовательских интервью по онбордингу. Нужно понять где люди теряются.', date: '9 апреля, 09:30', priority: 'high', isCompleted: true, kanbanStatus: 'done' },
+  { id: 'n11', type: 'Напоминание', content: 'Встреча с командой в пятницу в 15:00 — подготовить демо новых фич', date: '8 апреля, 17:00', dueDate: '2026-04-18', dueTime: '15:00' },
+  { id: 'n12', type: 'Идея', content: 'Самые крутые идеи приходят на пробежке. Нужен способ фиксировать их без остановки — AirPods + голос.', date: '8 апреля, 07:45' },
+  { id: 'n13', type: 'Идея', content: 'Публичные "дайджесты" — пользователь может публично поделиться выжимкой своих мыслей за неделю.', date: '7 апреля, 20:00', priority: 'low' },
+  { id: 'n14', type: 'Задача', content: 'Настроить аналитику событий в приложении — сейчас летим вслепую.', date: '7 апреля, 11:15', priority: 'high', isCompleted: false, kanbanStatus: 'new' },
+  { id: 'n15', type: 'Напоминание', content: 'Дедлайн подачи заявки в акселератор ФРИИ', date: '6 апреля, 10:00', dueDate: '2026-04-20', dueTime: '23:59' },
+  { id: 'n16', type: 'Идея', content: 'Retention важнее роста на ранних стадиях. Если люди уходят — не важно сколько пришло.', date: '6 апреля, 19:30' },
+  { id: 'n17', type: 'Идея', content: 'Офлайн-режим с локальной моделью транскрипции — для людей которые боятся облака.', date: '5 апреля, 16:00', priority: 'medium' },
+  { id: 'n18', type: 'Задача', content: 'Написать пост в LinkedIn о запуске беты VoiceMap. Пора заявить о себе публично.', date: '4 апреля, 12:00', priority: 'medium', isCompleted: true, kanbanStatus: 'done' },
+  { id: 'n19', type: 'Напоминание', content: 'Забрать загранпаспорт из МФЦ', date: '3 апреля, 09:00', dueDate: '2026-04-16', dueTime: '14:00' },
+  { id: 'n20', type: 'Идея', content: 'Голос — самый естественный интерфейс. Дети учатся говорить до того, как учатся писать. Мы просто возвращаемся к истокам.', date: '1 апреля, 23:00' },
+];
 
-const BottomNav = ({ currentView, setCurrentView }: { currentView: string, setCurrentView: (view: string) => void }) => (
-  <nav className="fixed bottom-0 left-0 w-full flex justify-around items-center px-6 pb-8 pt-4 bg-[#0e0e11]/80 backdrop-blur-xl border-t border-white/5 z-50 rounded-t-3xl shadow-[0_-8px_32px_rgba(123,97,255,0.06)]">
-    <div onClick={() => setCurrentView('gallery')} className={`flex flex-col items-center justify-center px-6 py-2 transition-all cursor-pointer ${currentView === 'gallery' ? 'bg-[#7B61FF]/10 text-[#7B61FF] rounded-xl' : 'text-slate-500 hover:bg-white/5'}`}>
-      <FolderOpen className="mb-1 w-6 h-6" />
-      <span className="font-label text-[10px] font-bold tracking-widest uppercase">Архив</span>
-    </div>
-    <div onClick={() => setCurrentView('recording_session')} className={`flex flex-col items-center justify-center px-6 py-2 transition-all cursor-pointer ${currentView === 'recording_session' ? 'bg-[#7B61FF]/10 text-[#7B61FF] rounded-xl scale-95' : 'text-slate-500 hover:bg-white/5'}`}>
-      <Mic className="mb-1 w-6 h-6" fill="currentColor" />
-      <span className="font-label text-[10px] font-bold tracking-widest uppercase">Запись</span>
-    </div>
-    <div onClick={() => setCurrentView('analytics')} className={`flex flex-col items-center justify-center px-6 py-2 transition-all cursor-pointer ${currentView === 'analytics' ? 'bg-[#7B61FF]/10 text-[#7B61FF] rounded-xl' : 'text-slate-500 hover:bg-white/5'}`}>
-      <Brain className="mb-1 w-6 h-6" />
-      <span className="font-label text-[10px] font-bold tracking-widest uppercase">Инсайты</span>
-    </div>
-    <div onClick={() => setCurrentView('focus')} className={`flex flex-col items-center justify-center px-6 py-2 transition-all cursor-pointer ${currentView === 'focus' ? 'bg-[#7B61FF]/10 text-[#7B61FF] rounded-xl' : 'text-slate-500 hover:bg-white/5'}`}>
-      <Target className="mb-1 w-6 h-6" />
-      <span className="font-label text-[10px] font-bold tracking-widest uppercase">Фокус</span>
-    </div>
-  </nav>
-);
+const initialSpaces: Space[] = [
+  { id: 'space-startup', name: 'Стартап', emoji: '🚀', color: '#7B61FF', createdAt: '2026-04-01' },
+  { id: 'space-meetings', name: 'Митинги', emoji: '💼', color: '#4FC3F7', createdAt: '2026-04-01' },
+  { id: 'space-personal', name: 'Личное', emoji: '❤️', color: '#F06292', createdAt: '2026-04-01' },
+  { id: 'space-ideas', name: 'Идеи', emoji: '💡', color: '#FFB74D', createdAt: '2026-04-01' },
+];
 
-const LiveSessionCard = ({ onStartRecording }: { onStartRecording: () => void }) => (
-  <motion.div 
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    className="col-span-12 lg:col-span-7 bg-surface-container rounded-3xl p-10 relative overflow-hidden group"
-  >
-    <div className="relative z-10">
-      <p className="font-label text-secondary text-xs font-extrabold tracking-[0.3em] mb-4">ЖИВАЯ СЕССИЯ</p>
-      <h1 className="font-headline text-5xl lg:text-7xl font-black tracking-tighter mb-8 max-w-md leading-[0.9]">ГОТОВЫ К ЗАПИСИ?</h1>
-      <div className="flex items-center gap-6">
-        <button onClick={onStartRecording} className="bg-gradient-to-br from-primary to-primary-dim p-6 rounded-full shadow-[0_0_40px_rgba(175,162,255,0.3)] hover:scale-105 transition-transform cursor-pointer">
-          <Mic className="text-on-primary-fixed w-10 h-10" fill="currentColor" />
-        </button>
-        <div>
-          <p className="font-body text-on-surface-variant text-sm">Нажмите, чтобы начать<br/>интеллектуальное архивирование</p>
-        </div>
-      </div>
-    </div>
-    <div className="absolute -right-20 -bottom-20 w-96 h-96 bg-primary/10 rounded-full blur-[100px] group-hover:bg-primary/20 transition-all duration-700"></div>
-    <div className="absolute right-12 top-12 opacity-20">
-      <AudioLines className="w-[120px] h-[120px] text-primary" />
-    </div>
-  </motion.div>
-);
-
-const QuickNoteCard = ({ onQuickNote }: { onQuickNote: (type: string) => void }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.1 }}
-      className="col-span-12 lg:col-span-5 bg-surface-container-high rounded-3xl p-10 flex flex-col justify-center items-center border border-white/5 relative overflow-hidden"
-    >
-      <div className="absolute top-8 left-8">
-        <FileEdit className="text-tertiary mb-4 w-6 h-6" />
-        <h2 className="font-headline text-3xl font-bold">Быстрая заметка</h2>
-      </div>
-
-      <div className="flex-grow flex flex-col items-center justify-center relative w-full h-full mt-16">
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              className="absolute inset-0 flex flex-wrap justify-center items-center gap-4 bg-surface-container-high/95 backdrop-blur z-10 rounded-3xl"
-            >
-              {[
-                { icon: Lightbulb, label: 'Идея', color: 'text-primary', border: 'border-primary/20', hoverBg: 'hover:bg-primary', hoverText: 'hover:text-on-primary' },
-                { icon: Check, label: 'Задача', color: 'text-secondary', border: 'border-secondary/20', hoverBg: 'hover:bg-secondary', hoverText: 'hover:text-on-secondary' },
-                { icon: Brain, label: 'Мысль', color: 'text-tertiary', border: 'border-tertiary/20', hoverBg: 'hover:bg-tertiary', hoverText: 'hover:text-on-tertiary' },
-                { icon: Bell, label: 'Напоминание', color: 'text-error', border: 'border-error/20', hoverBg: 'hover:bg-error', hoverText: 'hover:text-on-error' }
-              ].map((item, i) => (
-                <div key={i} onClick={() => { onQuickNote(item.label); setIsOpen(false); }} className="flex flex-col items-center gap-2 group cursor-pointer">
-                  <div className={`w-14 h-14 rounded-full bg-surface-container-highest flex items-center justify-center ${item.color} border ${item.border} ${item.hoverBg} ${item.hoverText} transition-all shadow-lg`}>
-                    <item.icon className="w-6 h-6" />
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">{item.label}</span>
-                </div>
-              ))}
-              <button onClick={() => setIsOpen(false)} className="absolute top-4 right-4 p-2 text-on-surface-variant hover:text-white cursor-pointer">
-                <X className="w-6 h-6" />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {!isOpen && (
-          <button onClick={() => setIsOpen(true)} className="w-32 h-32 rounded-full bg-primary text-on-primary-fixed shadow-[0_0_40px_rgba(175,162,255,0.4)] flex flex-col items-center justify-center hover:scale-105 transition-transform active:scale-95 group cursor-pointer">
-            <Mic className="w-10 h-10 mb-2" />
-            <span className="font-bold text-sm tracking-wider uppercase">Запись</span>
-          </button>
-        )}
-      </div>
-    </motion.div>
-  );
+const TAG_SPACE_MAP: Record<string, string> = {
+  '#Митинг': 'space-meetings',
+  '#Стартап': 'space-startup',
+  '#Личное': 'space-personal',
+  '#Идеи': 'space-ideas',
+  '#Проект': 'space-ideas',
+  '#HR': 'space-meetings',
+  '#Дизайн': 'space-meetings',
 };
 
-const FocusTodayCard = ({ recordings }: { recordings: Recording[] }) => {
-  const allTasks = recordings.flatMap(r => r.actionItems || []).slice(0, 3);
-
-  return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.2 }}
-      className="col-span-12 lg:col-span-4 bg-surface-container-low p-8 rounded-3xl border border-outline-variant/10"
-    >
-      <h3 className="font-label text-on-surface-variant text-[10px] font-black tracking-[0.2em] mb-6 uppercase">Фокус на сегодня</h3>
-      <div className="space-y-8">
-        {allTasks.length > 0 ? allTasks.map((task, i) => (
-          <div key={i} className={`relative pl-6 border-l-2 ${i === 0 ? 'border-secondary' : 'border-outline-variant'}`}>
-            <h4 className={`font-headline text-xl leading-tight ${i !== 0 ? 'text-on-surface/60' : ''}`}>{task}</h4>
-          </div>
-        )) : (
-          <div className="text-on-surface-variant text-sm">Нет задач на сегодня.</div>
-        )}
-      </div>
-    </motion.div>
-  );
-};
-
-const IdeasCard = ({ recordings }: { recordings: Recording[] }) => {
-  const allIdeas = recordings.flatMap(r => r.ideas || []).slice(0, 4);
-  
-  return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.3 }}
-      className="col-span-12 lg:col-span-8 bg-surface-container p-10 rounded-3xl overflow-hidden relative"
-    >
-      <div className="flex justify-between items-start mb-10">
-        <h3 className="font-headline text-4xl font-bold">Идеи & Инсайты</h3>
-        <span className="px-4 py-1 rounded-full bg-tertiary/10 text-tertiary font-bold text-[10px] tracking-widest uppercase">{allIdeas.length} Новых</span>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {allIdeas.length > 0 ? allIdeas.map((idea, i) => (
-          <div key={i} className="bg-surface-container-highest p-6 rounded-2xl flex items-start gap-4 hover:translate-y-[-4px] transition-transform">
-            <Brain className="text-secondary w-6 h-6 flex-shrink-0" />
-            <div>
-              <p className="font-body text-sm font-bold">{idea}</p>
-            </div>
-          </div>
-        )) : (
-          <div className="col-span-2 text-on-surface-variant text-sm">Нет новых идей.</div>
-        )}
-      </div>
-    </motion.div>
-  );
-};
-
-const AITipCard = ({ dailyTip, isGeneratingTip }: { dailyTip: { title: string, text: string } | null, isGeneratingTip: boolean }) => (
-  <motion.div 
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay: 0.4 }}
-    className="col-span-12 lg:col-span-5 relative"
-  >
-    <div className="bg-tertiary text-on-tertiary-container p-12 rounded-[40px] h-full flex flex-col justify-end editorial-shadow relative overflow-hidden">
-      {isGeneratingTip ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-tertiary/80 backdrop-blur-sm z-10">
-          <Loader2 className="w-8 h-8 animate-spin mb-4" />
-          <span className="text-sm font-bold tracking-widest uppercase">Генерация совета...</span>
-        </div>
-      ) : null}
-      <Lightbulb className="w-16 h-16 mb-6 opacity-30" />
-      <h3 className="font-headline text-xs font-black tracking-[0.3em] uppercase mb-4 text-on-tertiary-fixed">{dailyTip?.title || 'Совет дня от AI'}</h3>
-      <p className="font-headline text-3xl font-extrabold leading-tight italic">"{dailyTip?.text || 'Записывайте свои мысли чаще, чтобы ИИ мог давать более точные советы.'}"</p>
-    </div>
-  </motion.div>
-);
-
-const ActivityChartCard = ({ recordings }: { recordings: Recording[] }) => {
-  // Calculate total minutes
-  const totalSeconds = recordings.reduce((acc, r) => {
-    if (!r.duration) return acc;
-    const [m, s] = r.duration.split(':').map(Number);
-    return acc + (m * 60) + (s || 0);
-  }, 0);
-  const totalMinutes = Math.round(totalSeconds / 60);
-
-  // Simple mock distribution if we have recordings, otherwise empty
-  const data = recordings.length > 0 ? [
-    { name: 'ПН', value: Math.round(totalMinutes * 0.2) },
-    { name: 'ВТ', value: Math.round(totalMinutes * 0.3) },
-    { name: 'СР', value: Math.round(totalMinutes * 0.1) },
-    { name: 'ЧТ', value: Math.round(totalMinutes * 0.25) },
-    { name: 'ПТ', value: Math.round(totalMinutes * 0.15) },
-    { name: 'СБ', value: 0 },
-    { name: 'ВС', value: 0 },
-  ] : [
-    { name: 'ПН', value: 0 },
-    { name: 'ВТ', value: 0 },
-    { name: 'СР', value: 0 },
-    { name: 'ЧТ', value: 0 },
-    { name: 'ПТ', value: 0 },
-    { name: 'СБ', value: 0 },
-    { name: 'ВС', value: 0 },
-  ];
-
-  return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.5 }}
-      className="col-span-12 lg:col-span-7 bg-surface-container rounded-3xl p-10 flex flex-col"
-    >
-      <div className="flex justify-between items-end mb-8">
-        <div>
-          <h3 className="font-headline text-3xl font-bold mb-1">Активность записей</h3>
-          <p className="text-sm text-on-surface-variant font-body">Время общения в минутах по дням недели</p>
-        </div>
-        <div className="text-right">
-          <p className="text-4xl font-headline font-black text-primary">{totalMinutes}</p>
-          <p className="text-[10px] font-label font-bold text-outline tracking-widest uppercase">Минут за неделю</p>
-        </div>
-      </div>
-      <div className="flex-grow w-full h-48">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data}>
-            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#8E9299', fontSize: 10, fontWeight: 'bold' }} dy={10} />
-            <Tooltip 
-              cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-              contentStyle={{ backgroundColor: '#1c1c21', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
-              itemStyle={{ color: '#afa2ff', fontWeight: 'bold' }}
-            />
-            <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-              {data.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.value > 0 ? '#afa2ff' : 'rgba(175, 162, 255, 0.3)'} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-    </motion.div>
-  );
-};
-
-const WeeklyGoalsCard = ({ recordings }: { recordings: Recording[] }) => {
-  const goalRecordings = 10;
-  const currentRecordings = recordings.length;
-  const percentRecordings = Math.min(100, Math.round((currentRecordings / goalRecordings) * 100));
-
-  const goalTasks = 5;
-  const currentTasks = recordings.reduce((acc, r) => acc + (r.actionItems?.length || 0), 0);
-  const percentTasks = Math.min(100, Math.round((currentTasks / goalTasks) * 100));
-
-  return (
-  <motion.div 
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay: 0.6 }}
-    className="col-span-12 lg:col-span-4 space-y-8"
-  >
-    <div className="bg-surface-container-high p-8 rounded-3xl border border-white/5">
-      <h3 className="font-headline text-xl font-bold mb-6">Цели недели</h3>
-      <div className="space-y-6">
-        <div>
-          <div className="flex justify-between mb-2">
-            <span className="text-sm font-bold">{goalRecordings} записей</span>
-            <span className="text-sm text-secondary">{percentRecordings}%</span>
-          </div>
-          <div className="h-1 w-full bg-surface-container-highest rounded-full overflow-hidden">
-            <div className="h-full bg-secondary shadow-[0_0_10px_#4af8e3]" style={{ width: `${percentRecordings}%` }}></div>
-          </div>
-        </div>
-        <div>
-          <div className="flex justify-between mb-2">
-            <span className="text-sm font-bold">{goalTasks} задач из записей</span>
-            <span className="text-sm text-primary">{percentTasks}%</span>
-          </div>
-          <div className="h-1 w-full bg-surface-container-highest rounded-full overflow-hidden">
-            <div className="h-full bg-primary shadow-[0_0_10px_#afa2ff]" style={{ width: `${percentTasks}%` }}></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </motion.div>
-  );
-};
-
-const WeeklyDigestCard = ({ recordings, setCurrentView }: { recordings: Recording[], setCurrentView: (view: string) => void }) => {
-  const totalSeconds = recordings.reduce((acc, r) => {
-    if (!r.duration) return acc;
-    const [m, s] = r.duration.split(':').map(Number);
-    return acc + (m * 60) + (s || 0);
-  }, 0);
-  const totalMinutes = Math.round(totalSeconds / 60);
-  const totalTasks = recordings.reduce((acc, r) => acc + (r.actionItems?.length || 0), 0);
-  const totalIdeas = recordings.reduce((acc, r) => acc + (r.ideas?.length || 0), 0);
-
-  return (
-  <motion.div 
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay: 0.7 }}
-    className="col-span-12 lg:col-span-8 bg-surface-bright p-1 rounded-3xl overflow-hidden shadow-2xl"
-  >
-    <div className="bg-surface-container p-10 rounded-[22px] h-full">
-      <div className="flex flex-col md:flex-row justify-between gap-8">
-        <div className="md:w-1/2">
-          <h3 className="font-headline text-4xl font-black mb-4 leading-none">Недельный Дайджест</h3>
-          <p className="font-body text-on-surface-variant mb-6 italic">
-            {recordings.length > 0 
-              ? `Вы сделали ${recordings.length} записей. ИИ выделил ${totalTasks} задач и ${totalIdeas} идей.` 
-              : 'У вас пока нет записей на этой неделе. Начните записывать встречи, чтобы ИИ собрал дайджест.'}
-          </p>
-          <button onClick={() => setCurrentView('analytics')} className="flex items-center gap-2 text-primary font-bold font-label text-xs tracking-widest uppercase hover:gap-4 transition-all cursor-pointer">
-            Читать полный отчет <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="md:w-1/2 grid grid-cols-2 gap-4">
-          {[
-            { label: 'Всего минут', value: totalMinutes.toString() },
-            { label: 'Транскриптов', value: recordings.length.toString() },
-            { label: 'Задач', value: totalTasks.toString() },
-            { label: 'Идей', value: totalIdeas.toString() }
-          ].map((stat, i) => (
-            <div key={i} className="bg-surface-container-low p-4 rounded-xl border border-white/5">
-              <p className="text-xs text-outline mb-1">{stat.label}</p>
-              <p className="text-2xl font-headline font-bold">{stat.value}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  </motion.div>
-  );
-};
-
-const RecentRecordings = ({ recordings, onOpenLibrary, onOpenDetail }: { recordings: Recording[], onOpenLibrary: () => void, onOpenDetail: (id: string) => void }) => {
-  const recent = recordings.slice(0, 4);
-
-  return (
-  <motion.section 
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ delay: 0.8 }}
-    className="mb-20"
-  >
-    <div className="flex items-end justify-between mb-10">
-      <h2 className="font-headline text-5xl font-black tracking-tighter">Недавнее</h2>
-      <div className="flex gap-4 items-center">
-        <button onClick={onOpenLibrary} className="ml-4 text-primary font-bold text-sm hover:underline">Все записи</button>
-      </div>
-    </div>
-    
-    {recent.length === 0 ? (
-      <div className="bg-surface-container rounded-3xl p-12 text-center border border-white/5">
-        <div className="w-20 h-20 rounded-full bg-surface-container-highest flex items-center justify-center mx-auto mb-6 text-on-surface-variant">
-          <AudioLines className="w-10 h-10" />
-        </div>
-        <h3 className="font-headline text-2xl font-bold mb-2">Нет записей</h3>
-        <p className="text-on-surface-variant">Нажмите на кнопку микрофона, чтобы начать первую запись.</p>
-      </div>
-    ) : (
-      <div className="grid grid-cols-12 gap-8">
-        {recent[0] && (
-          <div className="col-span-12 lg:col-span-8 group cursor-pointer" onClick={() => onOpenDetail(recent[0].id)}>
-            <div className="relative rounded-[40px] overflow-hidden aspect-[16/9] mb-6 bg-surface-container-high border border-white/5 flex items-center justify-center">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-tertiary/20 opacity-50 group-hover:opacity-80 transition-opacity duration-700"></div>
-              <AudioLines className="w-32 h-32 text-primary/30 group-hover:scale-110 transition-transform duration-700" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-              <div className="absolute bottom-8 left-8 right-8 flex justify-between items-end">
-                <div>
-                  <span className="bg-primary text-on-primary-fixed px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-3 inline-block">Последняя</span>
-                  <h3 className="font-headline text-4xl font-bold text-white">{recent[0].title}</h3>
-                </div>
-                <div className="flex items-center gap-4 text-white">
-                  <PlayCircle className="w-10 h-10" />
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-4">
-              {(recent[0].tags || []).map((tag, i) => (
-                <span key={i} className="px-3 py-1 bg-surface-container-highest rounded-lg text-xs font-medium text-on-surface-variant">{tag}</span>
-              ))}
-            </div>
-          </div>
-        )}
-        
-        <div className="col-span-12 lg:col-span-4 space-y-8">
-          {recent.slice(1).map((item, i) => (
-            <div key={item.id} onClick={() => onOpenDetail(item.id)} className="flex gap-6 group cursor-pointer bg-surface-container p-4 rounded-2xl border border-transparent hover:border-white/10 transition-colors">
-              <div className="w-24 h-24 flex-shrink-0 rounded-2xl overflow-hidden bg-surface-container-highest flex items-center justify-center">
-                <AudioLines className="w-10 h-10 text-on-surface-variant group-hover:scale-110 transition-transform" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-[10px] font-label font-bold text-primary tracking-widest uppercase mb-1`}>{item.date}</p>
-                <h4 className={`font-headline text-lg font-bold group-hover:text-primary transition-colors leading-tight truncate`}>{item.title}</h4>
-                <p className="text-sm text-on-surface-variant mt-2 line-clamp-2">{item.summary}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
-  </motion.section>
-  );
-};
-
-const NotesGallery = ({ notes, onBack, setCurrentView, onLogout, onDeleteNote }: { notes: Note[], onBack: () => void, setCurrentView: (view: string) => void, onLogout: () => void, onDeleteNote: (id: string) => void }) => {
-  return (
-    <div className="min-h-screen bg-background text-on-surface flex font-body selection:bg-primary/30 w-full">
-      {/* Sidebar */}
-      <aside className="w-64 bg-surface-container-low border-r border-white/5 flex-col hidden md:flex">
-        <div className="p-8 cursor-pointer" onClick={onBack}>
-          <h1 className="text-2xl font-black tracking-tighter text-primary uppercase font-headline">The Archivist</h1>
-          <p className="text-[10px] text-on-surface-variant tracking-widest mt-1">V0.1.4-BETA</p>
-        </div>
-        <nav className="flex-1 px-4 space-y-2 mt-4">
-          <div onClick={() => setCurrentView('gallery')} className="flex items-center gap-4 px-4 py-3 bg-surface-container-highest border-l-2 border-primary rounded-r-lg text-primary cursor-pointer">
-            <FolderOpen className="w-5 h-5" />
-            <span className="font-bold text-xs tracking-widest uppercase">Archive</span>
-          </div>
-          <div onClick={() => setCurrentView('analytics')} className="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-white/5 rounded-lg cursor-pointer transition-colors">
-            <AudioLines className="w-5 h-5" />
-            <span className="font-bold text-xs tracking-widest uppercase">Analytics</span>
-          </div>
-          <div onClick={() => setCurrentView('tags')} className="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-white/5 rounded-lg cursor-pointer transition-colors">
-            <Target className="w-5 h-5" />
-            <span className="font-bold text-xs tracking-widest uppercase">Tags</span>
-          </div>
-          <div onClick={() => setCurrentView('settings')} className="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-white/5 rounded-lg cursor-pointer transition-colors">
-            <Settings className="w-5 h-5" />
-            <span className="font-bold text-xs tracking-widest uppercase">Settings</span>
-          </div>
-        </nav>
-        <div className="p-6">
-          <button onClick={() => setCurrentView('recording_session')} className="w-full py-4 bg-primary text-on-primary-fixed rounded-xl font-bold text-sm hover:scale-105 transition-transform shadow-[0_0_20px_rgba(175,162,255,0.2)] cursor-pointer">
-            New Recording
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 overflow-y-auto bg-background">
-         {/* Top Nav */}
-         <header className="flex justify-between items-center px-6 md:px-12 py-8">
-           <div className="flex items-center gap-4">
-             <button onClick={onBack} className="flex items-center justify-center w-10 h-10 rounded-full bg-surface-container hover:bg-white/10 transition-colors text-on-surface-variant hover:text-white">
-               <ArrowLeft className="w-5 h-5" />
-             </button>
-             <div className="md:hidden text-2xl font-black tracking-tighter text-primary uppercase font-headline cursor-pointer" onClick={onBack}>
-               ARCHIVIST
-             </div>
-           </div>
-           <div className="hidden md:flex gap-8 font-label text-slate-400 text-xs font-bold tracking-widest uppercase ml-auto mr-12">
-             <span onClick={() => setCurrentView('gallery')} className="text-primary cursor-pointer">Archive</span>
-             <span onClick={() => setCurrentView('analytics')} className="hover:text-white transition-colors cursor-pointer">Analytics</span>
-             <span onClick={() => setCurrentView('tags')} className="hover:text-white transition-colors cursor-pointer">Tags</span>
-           </div>
-           <div className="flex items-center gap-6">
-             <Settings onClick={() => setCurrentView('settings')} className="text-slate-400 cursor-pointer hover:text-white transition-colors w-5 h-5" />
-             <button onClick={onLogout} title="Выйти" className="cursor-pointer">
-               <UserCircle className="text-slate-400 hover:text-white transition-colors w-6 h-6" />
-             </button>
-           </div>
-         </header>
-
-         <div className="px-6 md:px-12 pb-20 max-w-6xl mx-auto">
-           {/* Header */}
-           <div className="mb-12">
-             <h1 className="font-headline text-5xl md:text-6xl font-black tracking-tighter mb-4">
-               Архив <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">быстрых мыслей</span>
-             </h1>
-             <p className="text-on-surface-variant text-lg max-w-2xl">
-               Ваши моментальные инсайты, организованные ИИ. Каждая заметка — это цифровой артефакт вашего сознания.
-             </p>
-           </div>
-
-           {/* Category Cards */}
-           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
-             <div className="bg-gradient-to-br from-surface-container-highest to-surface-container p-6 rounded-3xl border border-white/5 relative overflow-hidden group cursor-pointer hover:border-primary/30 transition-colors">
-               <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-6">
-                 <Lightbulb className="w-6 h-6" />
-               </div>
-               <h3 className="font-headline text-xl font-bold mb-2">Идеи</h3>
-               <div className="flex justify-between items-end">
-                 <span className="text-[10px] font-bold tracking-widest uppercase text-on-surface-variant">Collection</span>
-                 <span className="font-headline text-2xl font-black text-primary">{notes.filter(n => n.type === 'Идея').length}</span>
-               </div>
-             </div>
-             <div className="bg-gradient-to-br from-surface-container-highest to-surface-container p-6 rounded-3xl border border-white/5 relative overflow-hidden group cursor-pointer hover:border-secondary/30 transition-colors">
-               <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center text-secondary mb-6">
-                 <CheckCircle2 className="w-6 h-6" />
-               </div>
-               <h3 className="font-headline text-xl font-bold mb-2">Задачи</h3>
-               <div className="flex justify-between items-end">
-                 <span className="text-[10px] font-bold tracking-widest uppercase text-on-surface-variant">Urgent</span>
-                 <span className="font-headline text-2xl font-black text-secondary">{notes.filter(n => n.type === 'Задача').length}</span>
-               </div>
-             </div>
-             <div className="bg-gradient-to-br from-surface-container-highest to-surface-container p-6 rounded-3xl border border-white/5 relative overflow-hidden group cursor-pointer hover:border-tertiary/30 transition-colors">
-               <div className="w-12 h-12 rounded-full bg-tertiary/10 flex items-center justify-center text-tertiary mb-6">
-                 <Brain className="w-6 h-6" />
-               </div>
-               <h3 className="font-headline text-xl font-bold mb-2">Мысли</h3>
-               <div className="flex justify-between items-end">
-                 <span className="text-[10px] font-bold tracking-widest uppercase text-on-surface-variant">Stream</span>
-                 <span className="font-headline text-2xl font-black text-tertiary">{notes.filter(n => n.type === 'Мысль').length}</span>
-               </div>
-             </div>
-             <div className="bg-gradient-to-br from-surface-container-highest to-surface-container p-6 rounded-3xl border border-white/5 relative overflow-hidden group cursor-pointer hover:border-error/30 transition-colors">
-               <div className="w-12 h-12 rounded-full bg-error/10 flex items-center justify-center text-error mb-6">
-                 <Bell className="w-6 h-6" />
-               </div>
-               <h3 className="font-headline text-xl font-bold mb-2">Напоминания</h3>
-               <div className="flex justify-between items-end">
-                 <span className="text-[10px] font-bold tracking-widest uppercase text-on-surface-variant">Active</span>
-                 <span className="font-headline text-2xl font-black text-error">{notes.filter(n => n.type === 'Напоминание').length}</span>
-               </div>
-             </div>
-           </div>
-
-           {/* Search */}
-           <div className="bg-surface-container-high border border-white/5 rounded-2xl p-4 flex items-center gap-4 mb-12 focus-within:border-primary/50 transition-colors shadow-lg">
-             <Search className="w-6 h-6 text-on-surface-variant" />
-             <input 
-               type="text" 
-               placeholder="Поиск по архиву мыслей..." 
-               className="bg-transparent border-none outline-none flex-1 text-on-surface placeholder:text-on-surface-variant font-body"
-             />
-             <div className="flex gap-1">
-               <kbd className="bg-surface-container-highest px-2 py-1 rounded text-xs font-mono text-on-surface-variant border border-white/10">⌘</kbd>
-               <kbd className="bg-surface-container-highest px-2 py-1 rounded text-xs font-mono text-on-surface-variant border border-white/10">K</kbd>
-             </div>
-           </div>
-
-           {/* Grid */}
-           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-             {notes.length === 0 ? (
-               <div className="col-span-3 text-center py-20 text-on-surface-variant">
-                 <p>У вас пока нет быстрых заметок.</p>
-               </div>
-             ) : (
-               notes.map(note => (
-                 <div key={note.id} className="bg-surface-container-high rounded-[32px] p-8 border border-white/5 flex flex-col justify-between group cursor-pointer hover:bg-surface-container-highest transition-colors relative">
-                   <div className="mb-6">
-                     <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-4 ${
-                       note.type === 'Идея' ? 'bg-primary/10 text-primary' :
-                       note.type === 'Задача' ? 'bg-secondary/10 text-secondary' :
-                       note.type === 'Мысль' ? 'bg-tertiary/10 text-tertiary' :
-                       'bg-error/10 text-error'
-                     }`}>
-                       {note.type === 'Идея' && <Lightbulb className="w-5 h-5" fill="currentColor" />}
-                       {note.type === 'Задача' && <CheckCircle2 className="w-5 h-5" fill="currentColor" />}
-                       {note.type === 'Мысль' && <Brain className="w-5 h-5" fill="currentColor" />}
-                       {note.type === 'Напоминание' && <Bell className="w-5 h-5" fill="currentColor" />}
-                     </div>
-                     <h4 className="font-headline text-xl font-bold mb-2">{note.type}</h4>
-                     <p className="text-sm text-on-surface-variant line-clamp-3">{note.content}</p>
-                   </div>
-                   <div className="flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase text-on-surface-variant">
-                     <Clock className="w-3 h-3" /> {note.date}
-                   </div>
-                   <button 
-                     onClick={(e) => { e.stopPropagation(); onDeleteNote(note.id); }}
-                     className="absolute top-6 right-6 p-2 text-on-surface-variant hover:text-error opacity-0 group-hover:opacity-100 transition-all"
-                     title="Удалить заметку"
-                   >
-                     <Trash2 className="w-5 h-5" />
-                   </button>
-                 </div>
-               ))
-             )}
-           </div>
-         </div>
-      </main>
-    </div>
-  );
-};
-
-const QuickNoteModal = ({ type, onClose, onSave, showToast }: { type: string, onClose: () => void, onSave: (note: Note) => void, showToast: (msg: string, type: 'success' | 'error' | 'info') => void }) => {
-  // Audio recording state
-  const [isRecording, setIsRecording] = useState(false);
-  const [duration, setDuration] = useState(0);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<BlobPart[]>([]);
-
-  useEffect(() => {
-    let interval: any;
-    if (isRecording) {
-      interval = setInterval(() => setDuration(d => d + 1), 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isRecording]);
-
-  useEffect(() => {
-    // Automatically start recording when the modal opens
-    startRecording();
-    
-    // Cleanup on unmount
-    return () => {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-        mediaRecorderRef.current.stop();
-        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      chunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        stream.getTracks().forEach(track => track.stop());
-        await processAudio(blob);
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (err) {
-      console.error("Error accessing microphone:", err);
-      showToast("Не удалось получить доступ к микрофону.", 'error');
-      onClose();
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
-
-  const processAudio = async (blob: Blob) => {
-    setIsProcessing(true);
-    try {
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve, reject) => {
-        reader.onloadend = () => {
-          const result = reader.result as string;
-          resolve(result.split(',')[1]);
-        };
-        reader.onerror = reject;
-      });
-      reader.readAsDataURL(blob);
-      const base64Audio = await base64Promise;
-
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          {
-            inlineData: {
-              data: base64Audio,
-              mimeType: blob.type || 'audio/webm'
-            }
-          },
-          `Please transcribe this short audio note. It is a "${type}". Transcribe the audio EXACTLY in the language it was spoken. If the audio is empty, silent, or contains no speech, return strictly "[Тишина]". Do not invent or hallucinate speech. Return only the transcribed text.`
-        ]
-      });
-
-      const transcribedText = response.text || '';
-      
-      const newNote: Note = {
-        id: Date.now().toString(),
-        type,
-        content: transcribedText,
-        date: new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-      };
-      onSave(newNote);
-      onClose();
-    } catch (err) {
-      console.warn("Error processing audio note:", err);
-      showToast("Ошибка ИИ. Заметка сохранена как аудио.", 'error');
-      
-      const fallbackNote: Note = {
-        id: Date.now().toString(),
-        type,
-        content: "[Аудиозапись не распознана из-за ошибки сети или квоты]",
-        date: new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-      };
-      onSave(fallbackNote);
-      onClose();
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const s = (seconds % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  };
-
-  return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-surface-container-high border border-white/10 rounded-[32px] p-8 max-w-md w-full relative"
-      >
-        <button onClick={onClose} className="absolute top-6 right-6 text-on-surface-variant hover:text-white transition-colors">
-          <X className="w-6 h-6" />
-        </button>
-        <div className="text-center mb-6">
-          <h3 className="font-headline text-2xl font-bold mb-2">Новая {type.toLowerCase()}</h3>
-          <p className="text-on-surface-variant text-sm">Скажите вашу мысль</p>
-        </div>
-
-        <div className="flex flex-col items-center gap-6 py-4">
-          {isProcessing ? (
-            <div className="flex flex-col items-center gap-4">
-              <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-on-surface-variant text-sm animate-pulse">Обработка аудио ИИ...</p>
-            </div>
-          ) : (
-            <>
-              <div className="text-4xl font-mono font-light text-primary">
-                {formatTime(duration)}
-              </div>
-              
-              <button 
-                onClick={stopRecording}
-                className="w-20 h-20 rounded-full bg-surface-container-highest border border-white/10 text-error flex items-center justify-center hover:scale-105 transition-transform cursor-pointer relative"
-              >
-                <motion.div 
-                  animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }} 
-                  transition={{ repeat: Infinity, duration: 1.5 }}
-                  className="absolute w-full h-full rounded-full bg-error/20"
-                />
-                <Square className="w-8 h-8" fill="currentColor" />
-              </button>
-              <p className="text-xs text-on-surface-variant">
-                Нажмите для остановки и сохранения
-              </p>
-            </>
-          )}
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
-const RecordingsLibrary = ({ recordings, onBack, onOpenDetail, onDeleteRecording }: { recordings: Recording[], onBack: () => void, onOpenDetail: (id: string) => void, onDeleteRecording: (id: string) => void }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  const filteredRecordings = recordings.filter(r => 
-    r.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    r.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase())) ||
-    r.transcript.some(t => t.text.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
-
-  return (
-    <div className="min-h-screen bg-background text-on-surface flex flex-col font-body selection:bg-primary/30 w-full">
-      <header className="flex items-center px-6 md:px-12 py-8 border-b border-white/5 bg-surface-container-low sticky top-0 z-10">
-        <button onClick={onBack} className="flex items-center gap-2 text-on-surface-variant hover:text-white transition-colors mr-8 cursor-pointer">
-          <ArrowLeft className="w-5 h-5" />
-          <span className="font-bold text-xs tracking-widest uppercase">Назад</span>
-        </button>
-        <h1 className="text-2xl font-black tracking-tighter text-primary uppercase font-headline">Библиотека записей</h1>
-      </header>
-      <main className="flex-1 overflow-y-auto p-6 md:p-12 max-w-7xl mx-auto w-full">
-        <div className="flex justify-between items-end mb-10">
-          <div>
-             <h2 className="font-headline text-4xl font-bold mb-2">Все встречи и интервью</h2>
-             <p className="text-on-surface-variant">Длинные записи с транскрипцией и AI-анализом</p>
-          </div>
-          <div className="bg-surface-container-high border border-white/5 rounded-2xl p-3 flex items-center gap-3 w-72">
-             <Search className="w-5 h-5 text-on-surface-variant" />
-             <input 
-               type="text" 
-               placeholder="Поиск по записям..." 
-               className="bg-transparent border-none outline-none flex-1 text-sm text-on-surface"
-               value={searchQuery}
-               onChange={(e) => setSearchQuery(e.target.value)}
-             />
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          {filteredRecordings.map((item, i) => (
-            <div key={item.id} onClick={() => onOpenDetail(item.id)} className="bg-surface-container p-6 rounded-3xl border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-6 cursor-pointer hover:bg-surface-container-high transition-colors group">
-              <div className="flex items-center gap-6">
-                <div className={`w-14 h-14 rounded-full bg-surface-container-highest flex items-center justify-center text-primary group-hover:scale-110 transition-transform`}>
-                  <PlayCircle className="w-8 h-8" />
-                </div>
-                <div>
-                  <h3 className="font-headline text-xl font-bold mb-1">{item.title}</h3>
-                  <div className="flex items-center gap-4 text-xs text-on-surface-variant">
-                    <span className="flex items-center gap-1"><Calendar className="w-3 h-3"/> {item.date}</span>
-                    <span className="flex items-center gap-1"><Clock className="w-3 h-3"/> {item.duration}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center gap-8">
-                <div className="flex gap-2">
-                  {item.tags.map(tag => <span key={tag} className="px-3 py-1 bg-surface-container-highest rounded-lg text-xs font-medium text-on-surface-variant">{tag}</span>)}
-                </div>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); onDeleteRecording(item.id); }}
-                  className="text-on-surface-variant hover:text-error transition-colors p-2"
-                  title="Удалить запись"
-                >
-                  <Trash2 className="w-5 h-5" />
-                </button>
-                <button className="text-on-surface-variant group-hover:text-white transition-colors">
-                  <ArrowRight className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {filteredRecordings.length === 0 && (
-          <div className="text-center py-20">
-            <div className="w-24 h-24 rounded-full bg-surface-container-highest flex items-center justify-center mx-auto mb-6 text-on-surface-variant">
-              <AudioLines className="w-10 h-10" />
-            </div>
-            <h3 className="font-headline text-2xl font-bold mb-2">Записей не найдено</h3>
-            <p className="text-on-surface-variant max-w-md mx-auto">У вас пока нет записей или по вашему запросу ничего не найдено.</p>
-          </div>
-        )}
-      </main>
-    </div>
-  );
-};
-
-const RecordingSession = ({ onFinish, onCancel, showToast }: { onFinish: (blob: Blob, duration: number) => void, onCancel: () => void, showToast: (msg: string, type: 'success' | 'error' | 'info') => void }) => {
-  const [isRecording, setIsRecording] = useState(false);
-  const [duration, setDuration] = useState(0);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<BlobPart[]>([]);
-
-  useEffect(() => {
-    let interval: any;
-    if (isRecording) {
-      interval = setInterval(() => setDuration(d => d + 1), 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isRecording]);
-
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      chunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data);
-        }
-      };
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        onFinish(blob, duration);
-        stream.getTracks().forEach(track => track.stop());
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (err) {
-      console.error("Error accessing microphone:", err);
-      showToast("Не удалось получить доступ к микрофону.", 'error');
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
-
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const s = (seconds % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  };
-
-  return (
-    <div className="min-h-screen bg-background text-on-surface flex flex-col items-center justify-center font-body selection:bg-primary/30 w-full relative">
-      <div className="absolute top-8 left-8">
-        <button onClick={onCancel} className="flex items-center gap-2 text-on-surface-variant hover:text-white transition-colors cursor-pointer">
-          <ArrowLeft className="w-5 h-5" />
-          <span className="font-bold text-xs tracking-widest uppercase">Отмена</span>
-        </button>
-      </div>
-      
-      <div className="text-center mb-12">
-        <h2 className="font-headline text-4xl font-bold mb-4">Живая сессия</h2>
-        <p className="text-on-surface-variant">Запись встречи или интервью</p>
-      </div>
-
-      <div className="relative flex items-center justify-center mb-16">
-        {isRecording && (
-          <>
-            <motion.div 
-              animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }} 
-              transition={{ repeat: Infinity, duration: 2 }}
-              className="absolute w-64 h-64 rounded-full bg-error/20 blur-xl"
-            />
-            <motion.div 
-              animate={{ scale: [1, 1.5, 1], opacity: [0.2, 0.5, 0.2] }} 
-              transition={{ repeat: Infinity, duration: 2, delay: 0.2 }}
-              className="absolute w-64 h-64 rounded-full bg-error/10 blur-2xl"
-            />
-          </>
-        )}
-        <div className="w-48 h-48 rounded-full bg-surface-container-high border-4 border-surface-container flex items-center justify-center z-10 relative shadow-2xl">
-          <div className="text-5xl font-mono font-bold text-white tracking-wider">
-            {formatTime(duration)}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex gap-6">
-        {!isRecording ? (
-          <button onClick={startRecording} className="w-20 h-20 rounded-full bg-error text-white flex items-center justify-center hover:scale-105 transition-transform shadow-[0_0_30px_rgba(255,84,73,0.4)] cursor-pointer">
-            <Mic className="w-8 h-8" fill="currentColor" />
-          </button>
-        ) : (
-          <button onClick={stopRecording} className="w-20 h-20 rounded-full bg-surface-container-highest text-error flex items-center justify-center hover:scale-105 transition-transform border border-error/30 cursor-pointer">
-            <div className="w-6 h-6 rounded bg-error"></div>
-          </button>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToast }: { recording: Recording, onBack: () => void, onDelete: () => void, onUpdate: (r: Recording) => void, showToast: (msg: string, type: 'success' | 'error' | 'info') => void }) => {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [activeTab, setActiveTab] = useState<'transcript' | 'keyMoments'>('transcript');
-  const [isAppending, setIsAppending] = useState(false);
-  const [appendQuery, setAppendQuery] = useState('');
-  const [isProcessingAppend, setIsProcessingAppend] = useState(false);
-
-  const handleAppend = async () => {
-    if (!appendQuery.trim()) return;
-    setIsProcessingAppend(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const prompt = `
-        You are an AI assistant helping to update a personal voice notepad recording.
-        Current Recording:
-        Title: ${recording.title}
-        Summary: ${recording.summary}
-        Ideas: ${JSON.stringify(recording.ideas || [])}
-        Action Items: ${JSON.stringify(recording.actionItems || [])}
-        
-        The user wants to add the following thought/idea/task: "${appendQuery}"
-        
-        Update the recording's data. If it's an idea, add it to ideas. If it's a task, add it to actionItems. If it's general info, update the summary.
-        Return the updated JSON object with fields: "summary", "ideas" (array of strings), "actionItems" (array of strings).
-      `;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              summary: { type: Type.STRING },
-              ideas: { type: Type.ARRAY, items: { type: Type.STRING } },
-              actionItems: { type: Type.ARRAY, items: { type: Type.STRING } }
-            },
-            required: ['summary', 'ideas', 'actionItems']
-          }
-        }
-      });
-
-      const result = JSON.parse(response.text || '{}');
-      
-      const updatedRecording = {
-        ...recording,
-        summary: result.summary || recording.summary,
-        ideas: result.ideas || recording.ideas,
-        actionItems: result.actionItems || recording.actionItems
-      };
-      
-      onUpdate(updatedRecording);
-      setIsAppending(false);
-      setAppendQuery('');
-      showToast('Запись успешно дополнена', 'success');
-    } catch (error) {
-      console.error('Error appending to recording:', error);
-      showToast('Ошибка при дополнении записи', 'error');
-    } finally {
-      setIsProcessingAppend(false);
-    }
-  };
-
-  useEffect(() => {
-    if (audioRef.current) {
-      const audio = audioRef.current;
-      const setAudioData = () => {
-        setDuration(audio.duration);
-      };
-      const setAudioTime = () => setCurrentTime(audio.currentTime);
-      const handleEnded = () => setIsPlaying(false);
-
-      audio.addEventListener('loadeddata', setAudioData);
-      audio.addEventListener('timeupdate', setAudioTime);
-      audio.addEventListener('ended', handleEnded);
-
-      return () => {
-        audio.removeEventListener('loadeddata', setAudioData);
-        audio.removeEventListener('timeupdate', setAudioTime);
-        audio.removeEventListener('ended', handleEnded);
-      };
-    }
-  }, []);
-
-  const togglePlay = () => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-    }
-  };
-
-  const handleTimestampClick = (timestamp: string) => {
-    if (audioRef.current) {
-      const parts = timestamp.split(':');
-      let timeInSeconds = 0;
-      if (parts.length === 3) {
-        timeInSeconds = parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(parts[2]);
-      } else if (parts.length === 2) {
-        timeInSeconds = parseInt(parts[0]) * 60 + parseInt(parts[1]);
-      }
-      
-      audioRef.current.currentTime = timeInSeconds;
-      if (!isPlaying) {
-        audioRef.current.play();
-        setIsPlaying(true);
-      }
-    }
-  };
-
-  const formatTime = (seconds: number) => {
-    if (isNaN(seconds)) return "00:00";
-    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const s = Math.floor(seconds % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  };
-
-  const handleShare = async () => {
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: recording.title,
-          text: recording.summary,
-          url: window.location.href,
-        });
-      } else {
-        await navigator.clipboard.writeText(`${recording.title}\n\n${recording.summary}`);
-        showToast('Ссылка скопирована в буфер обмена', 'success');
-      }
-    } catch (err) {
-      console.error('Error sharing:', err);
-    }
-  };
-
-  const handleExport = () => {
-    const text = `Название: ${recording.title}\nДата: ${recording.date}\nДлительность: ${recording.duration}\nНастроение: ${recording.mood || 'Неизвестно'}\n\nСаммари:\n${recording.summary}\n\nИдеи:\n${(recording.ideas || []).map(i => `- ${i}`).join('\n')}\n\nЗадачи:\n${(recording.actionItems || []).map(t => `- ${t}`).join('\n')}\n\nТранскрипт:\n${recording.transcript.map(t => `[${t.timestamp}] ${t.speaker}: ${t.text}`).join('\n')}`;
-    const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${recording.title}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const parseTimestamp = (timestamp: string) => {
-    const parts = timestamp.split(':');
-    let timeInSeconds = 0;
-    if (parts.length === 3) {
-      timeInSeconds = parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(parts[2]);
-    } else if (parts.length === 2) {
-      timeInSeconds = parseInt(parts[0]) * 60 + parseInt(parts[1]);
-    }
-    return timeInSeconds;
-  };
-
-  const getActiveTranscriptIndex = () => {
-    if (!recording.transcript || recording.transcript.length === 0) return -1;
-    for (let i = recording.transcript.length - 1; i >= 0; i--) {
-      if (currentTime >= parseTimestamp(recording.transcript[i].timestamp)) {
-        return i;
-      }
-    }
-    return 0;
-  };
-
-  const activeTranscriptIndex = getActiveTranscriptIndex();
-
-  return (
-    <div className="min-h-screen bg-background text-on-surface flex flex-col font-body selection:bg-primary/30 w-full">
-      <header className="flex items-center justify-between px-6 md:px-12 py-6 border-b border-white/5 bg-surface-container-low sticky top-0 z-10">
-        <div className="flex items-center gap-6">
-          <button onClick={onBack} className="flex items-center justify-center w-10 h-10 rounded-full bg-surface-container hover:bg-white/10 transition-colors text-on-surface-variant hover:text-white cursor-pointer">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-xl font-bold font-headline">{recording.title}</h1>
-            <p className="text-xs text-on-surface-variant">{recording.date} • {recording.duration}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <button onClick={handleShare} className="px-4 py-2 bg-surface-container rounded-lg text-sm font-bold hover:bg-white/10 transition-colors cursor-pointer">Поделиться</button>
-          <button onClick={handleExport} className="px-4 py-2 bg-primary text-on-primary-fixed rounded-lg text-sm font-bold hover:scale-105 transition-transform cursor-pointer">Экспорт</button>
-          <button onClick={onDelete} className="px-4 py-2 bg-error/10 text-error rounded-lg text-sm font-bold hover:bg-error/20 transition-colors cursor-pointer flex items-center gap-2">
-            <Trash2 className="w-4 h-4" />
-            Удалить
-          </button>
-        </div>
-      </header>
-      
-      <main className="flex-1 overflow-y-auto p-6 md:p-12 max-w-[1440px] mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left Column: Player & AI Summary */}
-        <div className="lg:col-span-5 space-y-8">
-          {/* Audio Player */}
-          <div className="bg-surface-container p-8 rounded-[32px] border border-white/5">
-            {recording.audioUrl && (
-              <audio ref={audioRef} src={recording.audioUrl} className="hidden" />
-            )}
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center gap-4">
-                <button onClick={togglePlay} className="w-14 h-14 rounded-full bg-primary text-on-primary-fixed flex items-center justify-center hover:scale-105 transition-transform shadow-[0_0_20px_rgba(175,162,255,0.3)] cursor-pointer">
-                  {isPlaying ? <Pause className="w-6 h-6" fill="currentColor" /> : <Play className="w-6 h-6 ml-1" fill="currentColor" />}
-                </button>
-                <div>
-                  <p className="font-bold text-lg">{formatTime(currentTime)} / {recording.audioUrl ? formatTime(duration) : recording.duration}</p>
-                  <p className="text-xs text-on-surface-variant">Оригинальная аудиозапись</p>
-                </div>
-              </div>
-              <Volume2 className="text-on-surface-variant w-5 h-5" />
-            </div>
-            <div className="h-2 w-full bg-surface-container-highest rounded-full mb-2 relative cursor-pointer" onClick={(e) => {
-              if (audioRef.current && duration > 0) {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const pos = (e.clientX - rect.left) / rect.width;
-                audioRef.current.currentTime = pos * duration;
-              }
-            }}>
-              <div className="h-full bg-primary transition-all duration-100 rounded-full" style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}></div>
-              {duration > 0 && recording.transcript.map((t, i) => {
-                const time = parseTimestamp(t.timestamp);
-                const left = (time / duration) * 100;
-                return (
-                  <div 
-                    key={i} 
-                    className="absolute top-1/2 -translate-y-1/2 w-1 h-1 bg-white rounded-full shadow-sm"
-                    style={{ left: `${left}%` }}
-                    title={t.text.substring(0, 50) + '...'}
-                  />
-                );
-              })}
-            </div>
-            <div className="flex justify-between text-[10px] text-on-surface-variant font-mono">
-              <span>{formatTime(currentTime)}</span>
-              <span>{recording.audioUrl ? formatTime(duration) : recording.duration}</span>
-            </div>
-          </div>
-
-          {/* AI Summary */}
-          <div className="bg-surface-container-high p-8 rounded-[32px] border border-white/5">
-            <div className="flex items-center gap-3 mb-6">
-              <Brain className="w-6 h-6 text-tertiary" />
-              <h2 className="font-headline text-2xl font-bold">AI Саммари</h2>
-            </div>
-            
-            {recording.mood && (
-              <div className="mb-6">
-                <h3 className="flex items-center gap-2 font-bold text-sm mb-3 text-on-surface">
-                  <span className="text-xl">✨</span> Настроение
-                </h3>
-                <div className="inline-block px-4 py-2 bg-surface-container rounded-xl text-sm font-bold text-primary">
-                  {recording.mood}
-                </div>
-              </div>
-            )}
-
-            {recording.mentions && recording.mentions.length > 0 && (
-              <div className="mb-6">
-                <h3 className="flex items-center gap-2 font-bold text-sm mb-3 text-on-surface">
-                  <Target className="w-4 h-4 text-tertiary" /> Упоминания
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {recording.mentions.map((m, i) => (
-                    <span key={i} className="px-3 py-1 bg-tertiary/10 text-tertiary rounded-full text-xs font-bold">
-                      {m}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="mb-6">
-              <h3 className="font-bold text-sm mb-3 text-on-surface">Краткое содержание</h3>
-              <p className="text-sm text-on-surface-variant leading-relaxed">
-                {recording.summary}
-              </p>
-            </div>
-            
-            <div className="space-y-6">
-              {recording.ideas && recording.ideas.length > 0 && (
-                <div>
-                  <h3 className="flex items-center gap-2 font-bold text-sm mb-3 text-primary">
-                    <Brain className="w-4 h-4" /> Идеи и инсайты
-                  </h3>
-                  <ul className="space-y-2">
-                    {recording.ideas.map((idea, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-on-surface-variant bg-surface-container p-3 rounded-xl">
-                        <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0"></div>
-                        <span>{idea}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {recording.actionItems && recording.actionItems.length > 0 && (
-                <div>
-                  <h3 className="flex items-center gap-2 font-bold text-sm mb-3 text-secondary">
-                    <ListTodo className="w-4 h-4" /> Задачи / Что сделать
-                  </h3>
-                  <ul className="space-y-2">
-                    {recording.actionItems.map((task, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-on-surface-variant bg-surface-container p-3 rounded-xl">
-                        <div className="w-1.5 h-1.5 rounded-full bg-secondary mt-1.5 flex-shrink-0"></div>
-                        <span>{task}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Transcript */}
-        <div className="lg:col-span-7 bg-surface-container p-8 rounded-[32px] border border-white/5 flex flex-col h-[800px]">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <FileText className="w-6 h-6 text-primary" />
-              <h2 className="font-headline text-2xl font-bold">Транскрипт</h2>
-            </div>
-            <div className="bg-surface-container-highest rounded-lg p-1 flex text-xs font-bold">
-              <button 
-                onClick={() => setActiveTab('transcript')}
-                className={`px-4 py-1.5 rounded transition-colors ${activeTab === 'transcript' ? 'bg-surface-container-low shadow text-white' : 'text-on-surface-variant hover:text-white'}`}>
-                Текст
-              </button>
-              <button 
-                onClick={() => setActiveTab('keyMoments')}
-                className={`px-4 py-1.5 rounded transition-colors ${activeTab === 'keyMoments' ? 'bg-surface-container-low shadow text-white' : 'text-on-surface-variant hover:text-white'}`}>
-                Ключевые моменты
-              </button>
-            </div>
-          </div>
-          
-          {activeTab === 'transcript' ? (
-            <div className="flex-1 overflow-y-auto pr-4 space-y-8">
-              {recording.transcript.map((item, i) => {
-                const isActive = i === activeTranscriptIndex;
-                return (
-                <div key={i} className={`flex gap-4 p-4 rounded-2xl transition-colors ${isActive ? 'bg-primary/10 border border-primary/20' : 'hover:bg-surface-container-highest'}`}>
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold flex-shrink-0 mt-1 ${isActive ? 'bg-primary text-on-primary-fixed' : 'bg-primary/20 text-primary'}`}>
-                    {item.speaker.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <div className="flex items-baseline gap-2 mb-2">
-                      <span className={`font-bold text-base ${isActive ? 'text-primary' : ''}`}>{item.speaker}</span>
-                      <button 
-                        onClick={() => handleTimestampClick(item.timestamp)}
-                        className={`text-xs font-mono hover:underline cursor-pointer px-1.5 py-0.5 rounded transition-colors ${isActive ? 'bg-primary text-on-primary-fixed' : 'text-primary bg-primary/10'}`}
-                        title="Воспроизвести с этого момента"
-                      >
-                        {item.timestamp}
-                      </button>
-                    </div>
-                    <p className={`text-base leading-relaxed text-justify ${isActive ? 'text-on-surface' : 'text-on-surface-variant'}`}>
-                      {item.text}
-                    </p>
-                  </div>
-                </div>
-              )})}
-            </div>
-          ) : (
-            <div className="flex-1 overflow-y-auto pr-4 space-y-4">
-              {recording.keyMoments && recording.keyMoments.length > 0 ? (
-                <ul className="space-y-4">
-                  {recording.keyMoments.map((moment, i) => (
-                    <li key={i} className="flex items-start gap-3 text-base text-on-surface-variant bg-surface-container-high p-4 rounded-2xl border border-white/5">
-                      <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0"></div>
-                      <span className="leading-relaxed">{moment}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <div className="text-center py-20 text-on-surface-variant">
-                  <p>Ключевые моменты не найдены.</p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </main>
-
-      {/* Append UI */}
-      <AnimatePresence>
-        {isAppending && (
-          <motion.div 
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-0 left-0 w-full bg-surface-container-high border-t border-white/5 p-6 z-50 shadow-[0_-20px_40px_rgba(0,0,0,0.5)]"
-          >
-            <div className="max-w-3xl mx-auto">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-headline font-bold text-lg">Дополнить запись</h3>
-                <button onClick={() => setIsAppending(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="flex gap-4">
-                <input 
-                  type="text"
-                  value={appendQuery}
-                  onChange={(e) => setAppendQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleAppend()}
-                  placeholder="Например: Добавь задачу 'Купить билеты' или идею 'Сделать редизайн'"
-                  className="flex-1 bg-surface-container border border-white/10 rounded-xl px-4 py-3 focus:outline-none focus:border-primary/50 transition-colors"
-                  disabled={isProcessingAppend}
-                />
-                <button 
-                  onClick={handleAppend}
-                  disabled={!appendQuery.trim() || isProcessingAppend}
-                  className="bg-primary text-on-primary-fixed px-6 py-3 rounded-xl font-bold hover:scale-105 transition-transform disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {isProcessingAppend ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-                  Добавить
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {!isAppending && (
-        <button 
-          onClick={() => setIsAppending(true)}
-          className="fixed bottom-8 right-8 bg-surface-container-high border border-white/10 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 hover:bg-surface-container-highest transition-colors z-40 font-bold"
-        >
-          <Plus className="w-5 h-5 text-primary" /> Дополнить
-        </button>
-      )}
-    </div>
-  );
-};
-
-const AnalyticsView = ({ recordings, onBack }: { recordings: Recording[], onBack: () => void }) => {
-  const totalSeconds = recordings.reduce((acc, r) => {
-    if (!r.duration) return acc;
-    const [m, s] = r.duration.split(':').map(Number);
-    return acc + (m * 60) + (s || 0);
-  }, 0);
-  const totalMinutes = Math.round(totalSeconds / 60);
-
-  const activityData = recordings.length > 0 ? [
-    { name: 'ПН', value: Math.round(totalMinutes * 0.2) },
-    { name: 'ВТ', value: Math.round(totalMinutes * 0.3) },
-    { name: 'СР', value: Math.round(totalMinutes * 0.1) },
-    { name: 'ЧТ', value: Math.round(totalMinutes * 0.25) },
-    { name: 'ПТ', value: Math.round(totalMinutes * 0.15) },
-    { name: 'СБ', value: 0 },
-    { name: 'ВС', value: 0 },
-  ] : [
-    { name: 'ПН', value: 0 },
-    { name: 'ВТ', value: 0 },
-    { name: 'СР', value: 0 },
-    { name: 'ЧТ', value: 0 },
-    { name: 'ПТ', value: 0 },
-    { name: 'СБ', value: 0 },
-    { name: 'ВС', value: 0 },
-  ];
-
-  const tagCounts: Record<string, number> = {};
-  recordings.forEach(r => {
-    r.tags.forEach(tag => {
-      tagCounts[tag] = (tagCounts[tag] || 0) + 1;
-    });
-  });
-
-  const colors = ['#7B61FF', '#4af8e3', '#FF61A6', '#FFB061', '#54C5FF'];
-  const topicsData = Object.entries(tagCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([name, value], index) => ({
-      name,
-      value,
-      fill: colors[index % colors.length]
-    }));
-
-  if (topicsData.length === 0) {
-    topicsData.push({ name: 'Нет данных', value: 1, fill: '#333' });
+function assignSpaceId(r: Recording): Recording {
+  if (r.spaceId) return r;
+  const match = Object.entries(TAG_SPACE_MAP).find(([tag]) => r.tags.includes(tag));
+  return match ? { ...r, spaceId: match[1] } : r;
+}
+
+function suggestSpaceId(recording: Recording, spaces: Space[]): string | undefined {
+  for (const space of spaces) {
+    const nl = space.name.toLowerCase();
+    if (recording.tags.some(t => t.toLowerCase().includes(nl) || nl.includes(t.replace('#', '').toLowerCase()))) return space.id;
+    if (recording.title.toLowerCase().includes(nl) || recording.summary.toLowerCase().includes(nl)) return space.id;
   }
-
-  return (
-    <div className="min-h-screen bg-background text-on-surface flex flex-col font-body selection:bg-primary/30 w-full">
-      <header className="flex items-center px-6 md:px-12 py-8 border-b border-white/5 bg-surface-container-low sticky top-0 z-10">
-        <button onClick={onBack} className="flex items-center gap-2 text-on-surface-variant hover:text-white transition-colors mr-8 cursor-pointer">
-          <ArrowLeft className="w-5 h-5" />
-          <span className="font-bold text-xs tracking-widest uppercase">Назад</span>
-        </button>
-        <h1 className="text-2xl font-black tracking-tighter text-primary uppercase font-headline">Аналитика</h1>
-      </header>
-      <main className="flex-1 overflow-y-auto p-6 md:p-12 max-w-7xl mx-auto w-full">
-        <div className="grid grid-cols-12 gap-8 mb-8">
-          <div className="col-span-12 lg:col-span-8 bg-surface-container p-8 rounded-3xl border border-white/5">
-            <h3 className="font-headline text-2xl font-bold mb-6">Активность по дням</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={activityData}>
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#8E9299', fontSize: 10, fontWeight: 'bold' }} dy={10} />
-                  <Tooltip 
-                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                    contentStyle={{ backgroundColor: '#1c1c21', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
-                    itemStyle={{ color: '#afa2ff', fontWeight: 'bold' }}
-                  />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                    {activityData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.value > 80 ? '#afa2ff' : 'rgba(175, 162, 255, 0.3)'} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          <div className="col-span-12 lg:col-span-4 bg-surface-container p-8 rounded-3xl border border-white/5">
-            <h3 className="font-headline text-2xl font-bold mb-6">Темы</h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={topicsData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} stroke="none">
-                    {topicsData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#1c1c21', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#fff' }}
-                    itemStyle={{ color: '#fff', fontWeight: 'bold' }}
-                  />
-                  <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '12px', color: '#8E9299' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-        <div className="grid grid-cols-12 gap-8">
-          <div className="col-span-12 bg-surface-container p-8 rounded-3xl border border-white/5">
-            <h3 className="font-headline text-2xl font-bold mb-6">Ключевые инсайты</h3>
-            <div className="space-y-4">
-              {recordings.length > 0 ? (
-                <>
-                  <div className="bg-surface-container-high p-4 rounded-xl border border-white/5">
-                    <p className="text-on-surface-variant text-sm">Вы записали {recordings.length} сессий общей длительностью {totalMinutes} минут.</p>
-                  </div>
-                  {topicsData.length > 0 && topicsData[0].name !== 'Нет данных' && (
-                    <div className="bg-surface-container-high p-4 rounded-xl border border-white/5">
-                      <p className="text-on-surface-variant text-sm">Самая популярная тема ваших записей: "{topicsData[0].name}".</p>
-                    </div>
-                  )}
-                  <div className="bg-surface-container-high p-4 rounded-xl border border-white/5">
-                    <p className="text-on-surface-variant text-sm">ИИ выделил {recordings.reduce((acc, r) => acc + (r.actionItems?.length || 0), 0)} задач из ваших разговоров.</p>
-                  </div>
-                </>
-              ) : (
-                <div className="bg-surface-container-high p-4 rounded-xl border border-white/5">
-                  <p className="text-on-surface-variant text-sm">У вас пока нет записей для формирования инсайтов.</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
-};
-
-const FocusView = ({ recordings, onBack }: { recordings: Recording[], onBack: () => void }) => {
-  const allTasks = recordings.flatMap(r => (r.actionItems || []).map(t => ({ description: t, recordingTitle: r.title, recordingId: r.id })));
-
-  return (
-    <div className="min-h-screen bg-background text-on-surface flex flex-col font-body selection:bg-primary/30 w-full">
-      <header className="flex items-center px-6 md:px-12 py-8 border-b border-white/5 bg-surface-container-low sticky top-0 z-10">
-        <button onClick={onBack} className="flex items-center gap-2 text-on-surface-variant hover:text-white transition-colors mr-8 cursor-pointer">
-          <ArrowLeft className="w-5 h-5" />
-          <span className="font-bold text-xs tracking-widest uppercase">Назад</span>
-        </button>
-        <h1 className="text-2xl font-black tracking-tighter text-primary uppercase font-headline">Фокус</h1>
-      </header>
-      <main className="flex-1 overflow-y-auto p-6 md:p-12 max-w-7xl mx-auto w-full">
-        <div className="mb-10">
-          <h2 className="font-headline text-4xl font-bold mb-2">Все задачи</h2>
-          <p className="text-on-surface-variant">Задачи, извлеченные из ваших записей</p>
-        </div>
-        <div className="space-y-4">
-          {allTasks.length > 0 ? allTasks.map((task, i) => (
-            <div key={i} className="bg-surface-container p-6 rounded-3xl border border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-6 hover:bg-surface-container-high transition-colors">
-              <div className="flex items-start gap-4">
-                <div className="w-6 h-6 rounded-full border-2 border-outline-variant flex-shrink-0 mt-1 cursor-pointer hover:border-primary transition-colors"></div>
-                <div>
-                  <h3 className="font-headline text-xl font-bold mb-1">{task.description}</h3>
-                  <p className="text-xs text-on-surface-variant">Из записи: <span className="text-primary cursor-pointer hover:underline">{task.recordingTitle}</span></p>
-                </div>
-              </div>
-            </div>
-          )) : (
-            <div className="text-center py-20 text-on-surface-variant">
-              <Target className="w-16 h-16 mx-auto mb-4 opacity-20" />
-              <p>У вас пока нет задач.</p>
-            </div>
-          )}
-        </div>
-      </main>
-    </div>
-  );
-};
-
-const TagsView = ({ recordings, onBack }: { recordings: Recording[], onBack: () => void }) => {
-  const allTags = Array.from(new Set(recordings.flatMap(r => r.tags || [])));
-
-  return (
-    <div className="min-h-screen bg-background text-on-surface flex flex-col font-body selection:bg-primary/30 w-full">
-      <header className="flex items-center px-6 md:px-12 py-8 border-b border-white/5 bg-surface-container-low sticky top-0 z-10">
-        <button onClick={onBack} className="flex items-center gap-2 text-on-surface-variant hover:text-white transition-colors mr-8 cursor-pointer">
-          <ArrowLeft className="w-5 h-5" />
-          <span className="font-bold text-xs tracking-widest uppercase">Назад</span>
-        </button>
-        <h1 className="text-2xl font-black tracking-tighter text-primary uppercase font-headline">Теги</h1>
-      </header>
-      <main className="flex-1 overflow-y-auto p-6 md:p-12 max-w-7xl mx-auto w-full">
-        <div className="mb-10">
-          <h2 className="font-headline text-4xl font-bold mb-2">Управление тегами</h2>
-          <p className="text-on-surface-variant">Организуйте ваши записи по темам</p>
-        </div>
-        <div className="flex flex-wrap gap-4">
-          {allTags.length > 0 ? allTags.map((tag, i) => (
-            <div key={i} className="bg-surface-container px-6 py-4 rounded-2xl border border-white/5 flex items-center gap-3 cursor-pointer hover:bg-surface-container-high transition-colors">
-              <span className="text-primary font-bold">#</span>
-              <span className="font-headline text-lg">{tag.replace('#', '')}</span>
-              <span className="ml-2 text-xs text-on-surface-variant bg-surface-container-highest px-2 py-1 rounded-full">
-                {recordings.filter(r => r.tags.includes(tag)).length}
-              </span>
-            </div>
-          )) : (
-            <div className="text-center py-20 text-on-surface-variant w-full">
-              <Folder className="w-16 h-16 mx-auto mb-4 opacity-20" />
-              <p>У вас пока нет тегов.</p>
-            </div>
-          )}
-        </div>
-      </main>
-    </div>
-  );
-};
-
-const PlaceholderView = ({ title, onBack }: { title: string, onBack: () => void }) => (
-  <div className="min-h-screen bg-background text-on-surface flex flex-col font-body selection:bg-primary/30 w-full">
-    <header className="flex items-center px-6 md:px-12 py-8 border-b border-white/5 bg-surface-container-low sticky top-0 z-10">
-      <button onClick={onBack} className="flex items-center gap-2 text-on-surface-variant hover:text-white transition-colors mr-8 cursor-pointer">
-        <ArrowLeft className="w-5 h-5" />
-        <span className="font-bold text-xs tracking-widest uppercase">Назад</span>
-      </button>
-      <h1 className="text-2xl font-black tracking-tighter text-primary uppercase font-headline">{title}</h1>
-    </header>
-    <main className="flex-1 flex items-center justify-center p-6 md:p-12">
-      <div className="text-center">
-        <h2 className="font-headline text-4xl font-bold mb-4">В разработке</h2>
-        <p className="text-on-surface-variant">Этот раздел появится в следующих обновлениях.</p>
-      </div>
-    </main>
-  </div>
-);
-
-import { ChatSidebar } from './components/ChatSidebar';
+  return undefined;
+}
 
 export default function App() {
+  const { user: authUser, loading: authLoading, signInWithGoogle, logout } = useAuth();
+
+  const [appSettings, setAppSettings] = useState<AppSettings>(() => {
+    try {
+      const saved = localStorage.getItem('voicemap_settings');
+      return saved ? { ...defaultAppSettings, ...JSON.parse(saved) } : defaultAppSettings;
+    } catch { return defaultAppSettings; }
+  });
+
+  const updateSettings = (patch: Partial<AppSettings>) => {
+    setAppSettings(prev => {
+      const next = { ...prev, ...patch };
+      localStorage.setItem('voicemap_settings', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const {
+    recordings, notes, spaces, loading: dataLoading,
+    addRecording, updateRecordingItem, deleteRecordingItem, clearAllRecordings, setRecordingsLocal,
+    addNote, updateNoteItem, deleteNoteItem, clearAllNotes, setNotesLocal,
+    addSpace, updateSpaceItem, deleteSpaceItem,
+  } = useFirestoreData(authUser?.uid ?? null);
+
   const [currentView, setCurrentView] = useState('dashboard');
+  type NavEntry = { view: string; spaceMapActiveId?: string | null };
+  const [navStack, setNavStack] = useState<NavEntry[]>([]);
+  const [spaceMapActiveId, setSpaceMapActiveId] = useState<string | null>(null);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
-  const [quickNoteType, setQuickNoteType] = useState<string | null>(null);
-  const [recordings, setRecordings] = useState<Recording[]>(() => {
-    const saved = localStorage.getItem('voicemap_recordings');
-    return saved ? JSON.parse(saved) : initialRecordings;
-  });
-  const [notes, setNotes] = useState<Note[]>(() => {
-    const saved = localStorage.getItem('voicemap_notes');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [quickNoteType, setQuickNoteType] = useState<NoteType | null>(null);
+  const [spacePickerRecordingId, setSpacePickerRecordingId] = useState<string | null>(null);
   const [selectedRecordingId, setSelectedRecordingId] = useState<string | null>(null);
+
+  // Если запись_detail открыта но запись не найдена — возвращаемся на дашборд
+  // Проверяем только ПОСЛЕ завершения загрузки данных из Firestore
+  useEffect(() => {
+    if (currentView === 'recording_detail' && selectedRecordingId && !dataLoading) {
+      const found = recordings.find(r => r.id === selectedRecordingId);
+      if (!found) {
+        setCurrentView('dashboard');
+      }
+    }
+  }, [currentView, selectedRecordingId, recordings, dataLoading]);
+
+  // Фокус-задачи от ассистента
+  const [dailyFocus, setDailyFocus] = useState<Array<{ id: string; task: string; done: boolean }>>(() => {
+    try { return JSON.parse(localStorage.getItem('voicemap_daily_focus') || '[]'); }
+    catch { return []; }
+  });
+
+  // Профиль ассистента (имя, тон, правила)
+  const [assistantProfile, setAssistantProfile] = useState<import('./lib/assistantPrompt').AssistantProfile>(() => {
+    try {
+      const saved = localStorage.getItem('voicemap_assistant_profile');
+      return saved ? JSON.parse(saved) : { name: 'VoiceMap AI', tone: 'friendly', useEmoji: false, customRules: [] };
+    } catch { return { name: 'VoiceMap AI', tone: 'friendly', useEmoji: false, customRules: [] }; }
+  });
   const [isProcessing, setIsProcessing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [user, setUser] = useState<any>({ uid: 'local-user', displayName: 'Пользователь', email: 'user@example.com' });
+  const user = authUser ?? { uid: 'local-user', displayName: 'Пользователь', email: '', photoURL: null };
 
-  // Toast State
-  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
-
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  };
-
-  // Daily AI Tip State
-  const [dailyTip, setDailyTip] = useState<{title: string, text: string} | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [dailyTip, setDailyTip] = useState<{ title: string; text: string } | null>(null);
   const [isGeneratingTip, setIsGeneratingTip] = useState(false);
+  // Ref-флаг: предотвращает двойной вызов в React StrictMode и при пересчёте эффекта
+  const tipFetchingRef = useRef(false);
+
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, type });
+    toastTimerRef.current = setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  useReminders({
+    notes,
+    onUpdateNote: (updated) => updateNoteItem(updated),
+    showToast,
+  });
+
+  const { addFromRecording, getNames } = usePeople();
 
   useEffect(() => {
-    localStorage.setItem('voicemap_recordings', JSON.stringify(recordings));
-  }, [recordings]);
+    localStorage.setItem('voicemap_daily_focus', JSON.stringify(dailyFocus));
+  }, [dailyFocus]);
 
   useEffect(() => {
-    localStorage.setItem('voicemap_notes', JSON.stringify(notes));
-  }, [notes]);
+    localStorage.setItem('voicemap_assistant_profile', JSON.stringify(assistantProfile));
+  }, [assistantProfile]);
 
-  const handleLogin = async () => {
-    // No-op for now
-  };
+  useEffect(() => {
+    localStorage.setItem('voicemap_spaces', JSON.stringify(spaces));
+  }, [spaces]);
 
   const handleLogout = async () => {
-    // No-op for now
+    await logout();
   };
 
   useEffect(() => {
-    const fetchTip = async () => {
-      if (dailyTip || isGeneratingTip || recordings.length === 0) return;
-      
-      setIsGeneratingTip(true);
-      try {
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-        const context = recordings.slice(0, 3).map(r => `Title: ${r.title}\nSummary: ${r.summary}`).join('\n\n');
-        
-        const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: `Based on the following recent recordings context, generate a short, personalized daily advice for the user to improve their productivity, communication, or well-being. Return JSON with 'title' (short uppercase category like 'ПРОДУКТИВНОСТЬ') and 'text' (the advice itself, 1-2 sentences).\n\nContext:\n${context}`,
-          config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING },
-                text: { type: Type.STRING }
-              }
-            }
-          }
-        });
-        const result = JSON.parse(response.text || '{}');
+    if (dailyTip || tipFetchingRef.current || recordings.length === 0) return;
+    tipFetchingRef.current = true;
+    setIsGeneratingTip(true);
+    const context = recordings.slice(0, 3).map(r => `Title: ${r.title}\nSummary: ${r.summary}`).join('\n\n');
+    fetchDailyTip(context)
+      .then(result => {
         if (result.title && result.text) {
           setDailyTip(result);
         } else {
-          setDailyTip({
-            title: "ПРОДУКТИВНОСТЬ",
-            text: "Регулярно просматривайте свои записи, чтобы не упустить важные детали."
-          });
+          setDailyTip({ title: "ПРОДУКТИВНОСТЬ", text: "Регулярно просматривайте свои записи, чтобы не упустить важные детали." });
         }
-      } catch (err) {
-        // Silently handle quota errors for daily tips to avoid interrupting the user
-        setDailyTip({
-          title: "СОВЕТ ДНЯ",
-          text: "Используйте быстрые заметки, чтобы моментально фиксировать идеи и задачи."
-        });
-      } finally {
+      })
+      .catch(() => {
+        setDailyTip({ title: "СОВЕТ ДНЯ", text: "Используйте быстрые заметки, чтобы моментально фиксировать идеи и задачи." });
+      })
+      .finally(() => {
         setIsGeneratingTip(false);
-      }
-    };
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordings]);
 
-    fetchTip();
-  }, [recordings, dailyTip, isGeneratingTip]);
+  // Открыть запись с сохранением откуда пришли (для кнопки «Назад»)
+  const openRecording = (id: string) => {
+    setNavStack(prev => [...prev, { view: currentView, spaceMapActiveId }]);
+    setSelectedRecordingId(id);
+    setCurrentView('recording_detail');
+  };
+
+  const goBack = () => {
+    const entry = navStack[navStack.length - 1];
+    if (entry) {
+      setNavStack(prev => prev.slice(0, -1));
+      setCurrentView(entry.view);
+      if (entry.spaceMapActiveId !== undefined) setSpaceMapActiveId(entry.spaceMapActiveId);
+    } else {
+      setCurrentView('dashboard');
+    }
+  };
 
   const handleFinishRecording = async (blob: Blob, durationSeconds: number) => {
     setCurrentView('dashboard');
     setIsProcessing(true);
-    
+
+    // Временный blob URL — только для воспроизведения пока идёт загрузка в R2
+    const localBlobUrl = URL.createObjectURL(blob);
+    const recordingId = Date.now().toString();
+    const m = Math.floor(durationSeconds / 60).toString().padStart(2, '0');
+    const s = Math.floor(durationSeconds % 60).toString().padStart(2, '0');
+
     try {
       const reader = new FileReader();
       const base64Promise = new Promise<string>((resolve, reject) => {
-        reader.onloadend = () => {
-          const result = reader.result as string;
-          resolve(result.split(',')[1]);
-        };
+        reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
         reader.onerror = reject;
       });
       reader.readAsDataURL(blob);
       const base64Audio = await base64Promise;
 
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: [
-          {
-            inlineData: {
-              data: base64Audio,
-              mimeType: blob.type || 'audio/webm'
-            }
-          },
-          "Please analyze this personal audio note or voice journal. " +
-          "CRITICAL: If the audio is empty, silent, or contains no speech, you MUST return a JSON object with title '[Тишина]' and empty fields. Do not invent or hallucinate speech. " +
-          "1. Transcribe the audio EXACTLY in the language it was spoken. " +
-          "2. Group the transcript into neat, readable paragraphs. " +
-          "3. Provide a short, warm summary of the entry. " +
-          "4. Extract 3-5 key thoughts or moments. " +
-          "5. List any personal action items or to-dos mentioned. " +
-          "6. Identify the overall mood or emotional tone (e.g., Inspired, Tired, Reflective, Excited). " +
-          "7. Extract any creative ideas, 'shower thoughts', or insights. " +
-          "8. List any specific mentions (books, movies, people, places, tools). " +
-          "Return the response in JSON format."
-        ],
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING, description: "A short, catchy title for the recording" },
-              summary: { type: Type.STRING, description: "A short summary of what the conversation is about" },
-              keyMoments: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: "3-5 key moments or main ideas from the conversation"
-              },
-              actionItems: { 
-                type: Type.ARRAY, 
-                items: { type: Type.STRING } 
-              },
-              mood: { type: Type.STRING },
-              ideas: { 
-                type: Type.ARRAY, 
-                items: { type: Type.STRING } 
-              },
-              mentions: { 
-                type: Type.ARRAY, 
-                items: { type: Type.STRING } 
-              },
-              transcript: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    speaker: { type: Type.STRING, description: "Speaker name or identifier (e.g., Speaker 1)" },
-                    timestamp: { type: Type.STRING, description: "Approximate timestamp (e.g., 00:15)" },
-                    text: { type: Type.STRING, description: "The transcribed text, grouped into large, readable paragraphs" }
-                  }
-                }
-              },
-              tags: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING }
-              }
-            }
-          }
-        }
-      });
+      // Транскрипция и загрузка в R2 идут ПАРАЛЛЕЛЬНО — экономим время
+      const [transcribeResult, r2Result] = await Promise.allSettled([
+        transcribeRecording(base64Audio, blob.type || 'audio/webm', getNames()),
+        uploadAudioToR2(blob, recordingId),
+      ]);
 
-      const result = JSON.parse(response.text || '{}');
-      
-      const m = Math.floor(durationSeconds / 60).toString().padStart(2, '0');
-      const s = Math.floor(durationSeconds % 60).toString().padStart(2, '0');
-      
+      // Если R2 готов — используем постоянный URL, иначе blob (до следующей попытки)
+      const audioUrl = r2Result.status === 'fulfilled' ? r2Result.value.publicUrl : localBlobUrl;
+      const r2Key   = r2Result.status === 'fulfilled' ? r2Result.value.r2Key : undefined;
+      if (r2Result.status === 'rejected') {
+        console.warn('R2 upload failed:', r2Result.reason);
+      }
+
+      const result = transcribeResult.status === 'fulfilled' ? transcribeResult.value : null;
+      if (transcribeResult.status === 'rejected') {
+        console.warn('Transcription failed:', transcribeResult.reason);
+        showToast('Ошибка AI-обработки. Запись сохранена без транскрипта.', 'error');
+      }
+
       const newRecording: Recording = {
-        id: Date.now().toString(),
-        title: result.title || 'Новая запись',
+        id: recordingId,
+        title: result?.title || 'Новая запись',
         date: new Date().toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }),
         duration: `${m}:${s}`,
-        tags: result.tags || [],
-        summary: result.summary || '',
-        actionItems: result.actionItems || [],
-        mood: result.mood || 'Нейтральное',
-        ideas: result.ideas || [],
-        mentions: result.mentions || [],
-        transcript: result.transcript || [],
-        keyMoments: result.keyMoments || [],
-        audioUrl: URL.createObjectURL(blob),
+        tags: result?.tags || [],
+        summary: result?.summary || '',
+        actionItems: result?.actionItems || [],
+        mood: result?.mood || 'Нейтральное',
+        ideas: result?.ideas || [],
+        mentions: result?.mentions || [],
+        transcript: result?.transcript || [],
+        keyMoments: result?.keyMoments || [],
+        openQuestions: result?.openQuestions || [],
+        participants: result?.participants || [],
+        richActionItems: (result?.richActionItems || []).map(item => ({
+          text: item.text,
+          assignees: Array.isArray(item.assignees) && item.assignees.length > 0
+            ? item.assignees
+            : item.assignee ? [item.assignee] : [],
+          deadline: item.deadline,
+        })),
+        bigQuestions: result?.bigQuestions || [],
+        audioUrl,  // R2 URL или blob — сразу правильный
+        r2Key,
       };
 
-      setRecordings(prev => [newRecording, ...prev]);
-
+      // Сохраняем в Firestore уже с R2 URL (не blob!)
+      addRecording(newRecording);
+      addFromRecording(newRecording);
+      setNavStack(prev => [...prev, { view: 'dashboard', spaceMapActiveId: null }]);
       setSelectedRecordingId(newRecording.id);
-      setCurrentView('recording_detail');
+      setSpacePickerRecordingId(newRecording.id);
+
+      // Если R2 не успел — пробуем в фоне ещё раз и обновляем запись
+      if (r2Result.status === 'rejected') {
+        uploadAudioToR2(blob, recordingId).then(({ publicUrl, r2Key: key }) => {
+          updateRecordingItem({ ...newRecording, audioUrl: publicUrl, r2Key: key });
+        }).catch(err => console.warn('R2 retry failed:', err));
+      }
+
     } catch (err) {
-      // Log as warning to avoid red error box in UI for quota limits
-      console.warn("AI processing failed, falling back to local save:", err);
-      showToast("Ошибка при обработке записи ИИ. Запись сохранена локально.", 'error');
-      
-      const m = Math.floor(durationSeconds / 60).toString().padStart(2, '0');
-      const s = Math.floor(durationSeconds % 60).toString().padStart(2, '0');
-      
+      console.warn('handleFinishRecording unexpected error:', err);
+      showToast('Ошибка при сохранении записи.', 'error');
+
+      // Fallback: сохраняем без AI и без R2 (blob URL)
       const fallbackRecording: Recording = {
-        id: Date.now().toString(),
+        id: recordingId,
         title: 'Новая запись (Без ИИ)',
         date: new Date().toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }),
         duration: `${m}:${s}`,
         tags: ['#Без_ИИ'],
-        summary: 'Не удалось обработать запись с помощью ИИ из-за превышения квоты или ошибки сети.',
-        actionItems: [],
-        ideas: [],
-        mentions: [],
-        mood: 'Неизвестно',
-        transcript: [],
-        keyMoments: [],
-        audioUrl: URL.createObjectURL(blob),
+        summary: 'Не удалось обработать запись.',
+        actionItems: [], ideas: [], mentions: [],
+        mood: 'Неизвестно', transcript: [], keyMoments: [],
+        audioUrl: localBlobUrl,
       };
-      
-      setRecordings(prev => [fallbackRecording, ...prev]);
+
+      addRecording(fallbackRecording);
+      setNavStack(prev => [...prev, { view: 'dashboard', spaceMapActiveId: null }]);
       setSelectedRecordingId(fallbackRecording.id);
       setCurrentView('recording_detail');
+
+      uploadAudioToR2(blob, recordingId).then(({ publicUrl, r2Key }) => {
+        updateRecordingItem({ ...fallbackRecording, audioUrl: publicUrl, r2Key });
+      }).catch(e => console.warn('R2 upload failed for fallback:', e));
+
     } finally {
       setIsProcessing(false);
     }
@@ -1951,41 +569,121 @@ export default function App() {
   const handleResetDemo = () => {
     localStorage.removeItem('voicemap_recordings');
     localStorage.removeItem('voicemap_notes');
-    setRecordings(initialRecordings);
-    setNotes([]);
+    setRecordingsLocal(initialRecordings);
+    setNotesLocal(initialNotes);
     showToast('Демо-данные сброшены', 'success');
   };
 
   const renderView = () => {
     if (currentView === 'gallery') {
-      return <NotesGallery notes={notes} onBack={() => setCurrentView('dashboard')} setCurrentView={setCurrentView} onLogout={handleLogout} onDeleteNote={(id) => {
-        setNotes(prev => prev.filter(n => n.id !== id));
+      return <NotesGallery notes={notes} onBack={() => setCurrentView('dashboard')} setCurrentView={setCurrentView} onDeleteNote={(id) => {
+        deleteNoteItem(id);
         showToast('Заметка удалена', 'success');
-      }} />;
+      }} onUpdateNote={(updated) => {
+        updateNoteItem(updated);
+      }} showToast={showToast} />;
     }
 
     if (currentView === 'library') {
-      return <RecordingsLibrary recordings={recordings} onBack={() => setCurrentView('dashboard')} onOpenDetail={(id) => { setSelectedRecordingId(id); setCurrentView('recording_detail'); }} onDeleteRecording={(id) => {
-        setRecordings(prev => prev.filter(r => r.id !== id));
+      const openDetail = (id: string) => openRecording(id);
+      const deleteRecording = (id: string) => {
+        const target = recordings.find(r => r.id === id);
+        if (target?.audioUrl?.startsWith('blob:')) URL.revokeObjectURL(target.audioUrl);
+        target?.appendAudios?.forEach(a => {
+          if (a.url?.startsWith('blob:')) URL.revokeObjectURL(a.url);
+        });
+        // Удаляем аудио из R2 если есть ключ
+        if (target?.r2Key) {
+          deleteAudioFromR2(target.r2Key).catch(err => console.warn('R2 delete failed:', err));
+        }
+        deleteRecordingItem(id);
         showToast('Запись удалена', 'success');
-      }} />;
+      };
+      return (
+        <>
+          {/* Desktop: interactive map */}
+          <div className="hidden md:flex h-screen w-full">
+            <LibraryMap
+              recordings={recordings}
+              notes={notes}
+              onOpenDetail={openDetail}
+              onBack={() => setCurrentView('dashboard')}
+              onOpenNotes={() => setCurrentView('gallery')}
+              onOpenSpaces={() => setCurrentView('library_spaces')}
+              onUpdateNote={(updated) => updateNoteItem(updated)}
+            />
+          </div>
+          {/* Mobile: classic list */}
+          <div className="flex md:hidden w-full">
+            <RecordingsLibrary
+              recordings={recordings}
+              onBack={() => setCurrentView('dashboard')}
+              onOpenDetail={openDetail}
+              onDeleteRecording={deleteRecording}
+              onUpdateRecording={(updated) => updateRecordingItem(updated)}
+            />
+          </div>
+        </>
+      );
+    }
+
+    if (currentView === 'library_spaces') {
+      return (
+        <div className="flex h-screen w-full">
+          <SpacesLibrary
+            recordings={recordings}
+            spaces={spaces}
+            onBack={() => setCurrentView('library')}
+            onOpenDetail={openRecording}
+            activeSpaceId={spaceMapActiveId}
+            onSetActiveSpaceId={setSpaceMapActiveId}
+            onUpdateSpace={(updated) => updateSpaceItem(updated)}
+            onDeleteRecording={(id) => {
+              const target = recordings.find(r => r.id === id);
+              if (target?.audioUrl?.startsWith('blob:')) URL.revokeObjectURL(target.audioUrl);
+              deleteRecordingItem(id);
+              showToast('Запись удалена', 'success');
+            }}
+            onUpdateRecording={(updated) => updateRecordingItem(updated)}
+            onCreateSpace={(data) => {
+              const newSpace: Space = { ...data, id: 'space-' + Date.now(), createdAt: new Date().toISOString() };
+              addSpace(newSpace);
+            }}
+            onDeleteSpace={(id) => deleteSpaceItem(id)}
+            onMoveRecording={(recId, spaceId) => { const rec = recordings.find(r => r.id === recId); if (rec) updateRecordingItem({ ...rec, spaceId: spaceId ?? undefined }); }}
+          />
+        </div>
+      );
     }
 
     if (currentView === 'recording_detail' && selectedRecordingId) {
       const rec = recordings.find(r => r.id === selectedRecordingId);
       if (rec) {
-        return <RecordingDetail recording={rec} onBack={() => setCurrentView('library')} onDelete={() => {
-          setRecordings(prev => prev.filter(r => r.id !== rec.id));
-          setCurrentView('library');
+        return <RecordingDetail recording={rec} onBack={goBack} onDelete={() => {
+          if (rec.audioUrl?.startsWith('blob:')) URL.revokeObjectURL(rec.audioUrl);
+          rec.appendAudios?.forEach(a => {
+            if (a.url?.startsWith('blob:')) URL.revokeObjectURL(a.url);
+          });
+          if (rec.r2Key) {
+            deleteAudioFromR2(rec.r2Key).catch(err => console.warn('R2 delete failed:', err));
+          }
+          deleteRecordingItem(rec.id);
+          goBack();
           showToast('Запись удалена', 'success');
         }} onUpdate={(updatedRec) => {
-          setRecordings(prev => prev.map(r => r.id === updatedRec.id ? updatedRec : r));
-        }} showToast={showToast} />;
+          updateRecordingItem(updatedRec);
+        }} showToast={showToast} allRecordings={recordings} onOpenRecording={(id) => openRecording(id)} />;
       }
+      // Запись ещё грузится из Firestore — показываем спиннер
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        </div>
+      );
     }
 
     if (currentView === 'recording_session') {
-      return <RecordingSession onFinish={handleFinishRecording} onCancel={() => setCurrentView('dashboard')} showToast={showToast} />;
+      return <RecordingSession onFinish={handleFinishRecording} onCancel={() => setCurrentView('dashboard')} showToast={showToast} autoStopMinutes={appSettings.autoStopMinutes} />;
     }
 
     if (currentView === 'analytics') {
@@ -1993,47 +691,106 @@ export default function App() {
     }
 
     if (currentView === 'focus') {
-      return <FocusView recordings={recordings} onBack={() => setCurrentView('dashboard')} />;
+      return <FocusView
+        recordings={recordings}
+        notes={notes}
+        onBack={() => setCurrentView('dashboard')}
+        onOpenRecording={openRecording}
+        onUpdateNote={(updated) => updateNoteItem(updated)}
+        onToggleDone={(recId, taskIdx) => {
+          const rec = recordings.find(r => r.id === recId);
+          if (rec) {
+            const cur = rec.actionItemsDone || new Array(rec.actionItems?.length ?? 0).fill(false);
+            const next = [...cur];
+            while (next.length < (rec.actionItems?.length ?? 0)) next.push(false);
+            next[taskIdx] = !next[taskIdx];
+            updateRecordingItem({ ...rec, actionItemsDone: next });
+          }
+        }}
+      />;
     }
 
     if (currentView === 'tags') {
-      return <TagsView recordings={recordings} onBack={() => setCurrentView('dashboard')} />;
+      return <TagsView recordings={recordings} onBack={() => setCurrentView('dashboard')} onOpenRecording={openRecording} />;
+    }
+
+    if (currentView === 'reminders') {
+      return <RemindersView
+        recordings={recordings}
+        notes={notes}
+        onUpdateRecording={(updated) => updateRecordingItem(updated)}
+        onUpdateNote={(updated) => updateNoteItem(updated)}
+        onDeleteNote={(id) => deleteNoteItem(id)}
+        onOpenRecording={(id) => { openRecording(id); }}
+        onBack={() => setCurrentView('dashboard')}
+      />;
     }
 
     if (currentView === 'settings') {
-      return <PlaceholderView title="Настройки" onBack={() => setCurrentView('dashboard')} />;
+      return <SettingsView
+        recordings={recordings}
+        notes={notes}
+        onBack={() => setCurrentView('dashboard')}
+        onResetDemo={handleResetDemo}
+        onClearRecordings={() => clearAllRecordings()}
+        onClearNotes={() => clearAllNotes()}
+        showToast={showToast}
+        settings={appSettings}
+        onSettingsChange={updateSettings}
+      />;
     }
 
+    // Dashboard
     return (
       <div className="min-h-screen bg-background text-on-surface pb-32 font-body selection:bg-primary/30 relative">
-        <Header currentView={currentView} setCurrentView={setCurrentView} onLogout={handleLogout} onReset={handleResetDemo} />
-        <main className="max-w-[1440px] mx-auto px-8 pt-12">
-          <div className="grid grid-cols-12 gap-8 mb-12">
+        <Header currentView={currentView} setCurrentView={setCurrentView} onLogout={handleLogout} onReset={handleResetDemo} user={authUser ?? undefined} />
+        <main className="max-w-[1440px] mx-auto px-4 pt-6 lg:px-8 lg:pt-12">
+          <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12">
             <LiveSessionCard onStartRecording={() => setCurrentView('recording_session')} />
             <QuickNoteCard onQuickNote={(type) => setQuickNoteType(type)} />
           </div>
-          <div className="grid grid-cols-12 gap-8 mb-12">
-            <FocusTodayCard recordings={recordings} />
-            <IdeasCard recordings={recordings} />
+          <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12">
+            <FocusTodayCard
+              recordings={recordings}
+              notes={notes}
+              assistantTasks={dailyFocus}
+              onToggleAssistantTask={(id) => setDailyFocus(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))}
+              onOpenRecording={openRecording}
+              onToggleDone={(recId, taskIdx) => {
+                const rec = recordings.find(r => r.id === recId);
+                if (rec) {
+                  const cur = rec.actionItemsDone || new Array(rec.actionItems?.length ?? 0).fill(false);
+                  const next = [...cur];
+                  while (next.length < (rec.actionItems?.length ?? 0)) next.push(false);
+                  next[taskIdx] = !next[taskIdx];
+                  updateRecordingItem({ ...rec, actionItemsDone: next });
+                }
+              }}
+              onToggleNoteTask={(noteId) => {
+                const note = notes.find(n => n.id === noteId);
+                if (note) updateNoteItem({ ...note, isCompleted: true });
+              }}
+            />
+            <IdeasCard recordings={recordings} notes={notes} onOpenRecording={openRecording} />
           </div>
-          <div className="grid grid-cols-12 gap-8 mb-12 items-stretch">
+          <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12 items-stretch">
             <AITipCard dailyTip={dailyTip} isGeneratingTip={isGeneratingTip} />
-            <ActivityChartCard recordings={recordings} />
+            <ActivityChartCard recordings={recordings} notes={notes} onOpenRecording={openRecording} />
           </div>
-          <div className="grid grid-cols-12 gap-8 mb-12">
-            <WeeklyGoalsCard recordings={recordings} />
+          <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12">
+            <BrainStatsCard recordings={recordings} notes={notes} onNavigate={setCurrentView} onUpdateNote={note => updateNoteItem(note)} onUpdateRecording={(updated) => updateRecordingItem(updated)} onOpenRecording={openRecording} />
             <WeeklyDigestCard recordings={recordings} setCurrentView={setCurrentView} />
           </div>
-          <RecentRecordings recordings={recordings} onOpenLibrary={() => setCurrentView('library')} onOpenDetail={(id) => { setSelectedRecordingId(id); setCurrentView('recording_detail'); }} />
+          <RecentRecordings recordings={recordings} onOpenLibrary={() => setCurrentView('library')} onOpenDetail={openRecording} />
         </main>
         <BottomNav currentView={currentView} setCurrentView={setCurrentView} />
-        
+
         {quickNoteType && (
-          <QuickNoteModal 
-            type={quickNoteType} 
-            onClose={() => setQuickNoteType(null)} 
+          <QuickNoteModal
+            type={quickNoteType}
+            onClose={() => setQuickNoteType(null)}
             onSave={(note) => {
-              setNotes(prev => [note, ...prev]);
+              addNote(note);
               showToast('Заметка сохранена', 'success');
             }}
             showToast={showToast}
@@ -2043,19 +800,31 @@ export default function App() {
     );
   };
 
+  // Пока Firebase проверяет сессию — показываем сплеш
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    );
+  }
+
+  // Не авторизован — показываем экран входа
+  if (!authUser) {
+    return <LoginScreen onGoogleSignIn={signInWithGoogle} />;
+  }
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
-      <div 
-        className="relative h-full transition-all duration-300 ease-in-out w-full"
-      >
+      <div className="relative h-full transition-all duration-300 ease-in-out w-full">
         <div className="h-full w-full overflow-y-auto">
           {renderView()}
         </div>
-        
+
         {/* Floating AI Assistant Button */}
         <button
           onClick={() => setIsAssistantOpen(true)}
-          className={`fixed bottom-24 md:bottom-32 right-4 md:right-8 w-14 h-14 bg-primary text-on-primary-fixed rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(175,162,255,0.4)] hover:scale-110 transition-transform z-[150] cursor-pointer ${isAssistantOpen ? 'hidden' : ''}`}
+          className={`fixed bottom-24 md:bottom-32 right-4 md:right-8 w-14 h-14 bg-primary text-on-primary-fixed rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(175,162,255,0.4)] hover:scale-110 transition-transform z-[150] cursor-pointer ${isAssistantOpen ? 'hidden' : currentView === 'recording_detail' ? 'hidden md:flex' : ''}`}
         >
           <Brain className="w-6 h-6" />
         </button>
@@ -2068,8 +837,8 @@ export default function App() {
               animate={{ opacity: 1, y: 0, x: '-50%' }}
               exit={{ opacity: 0, y: 50, x: '-50%' }}
               className={`fixed bottom-8 left-1/2 z-[500] px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 font-bold text-sm ${
-                toast.type === 'error' ? 'bg-error text-white' : 
-                toast.type === 'success' ? 'bg-secondary text-on-secondary' : 
+                toast.type === 'error' ? 'bg-error text-white' :
+                toast.type === 'success' ? 'bg-secondary text-on-secondary' :
                 'bg-surface-container-highest text-white'
               }`}
             >
@@ -2080,17 +849,68 @@ export default function App() {
         </AnimatePresence>
       </div>
 
-      <ChatSidebar 
-        isOpen={isAssistantOpen} 
-        onClose={() => setIsAssistantOpen(false)} 
+      <ChatSidebar
+        isOpen={isAssistantOpen}
+        onClose={() => setIsAssistantOpen(false)}
         recordings={recordings}
-        onOpenRecording={(id) => {
-          setSelectedRecordingId(id);
-          setCurrentView('recording_detail');
-        }}
+        notes={notes}
+        spaces={spaces}
+        profile={assistantProfile}
+        onOpenRecording={openRecording}
         currentView={currentView}
         setCurrentView={setCurrentView}
+        onSetFocusTasks={(tasks) => {
+          const newTasks = tasks.map(task => ({ id: `${Date.now()}-${Math.random()}`, task, done: false }));
+          setDailyFocus(prev => [...newTasks, ...prev]);
+          showToast(`Добавлено ${tasks.length} фокус-задач`, 'success');
+        }}
+        onCreateNote={(data) => {
+          const note: import('./types').Note = {
+            id: Date.now().toString(),
+            type: data.type as import('./types').NoteType,
+            content: data.content,
+            date: new Date().toLocaleDateString('ru-RU'),
+            isCompleted: false,
+            dueDate: data.dueDate,
+            dueTime: data.dueTime,
+          };
+          addNote(note);
+          showToast('Заметка создана', 'success');
+        }}
+        onUpdateRecording={(id, updates) => {
+          const rec = recordings.find(r => r.id === id);
+          if (rec) updateRecordingItem({ ...rec, ...updates });
+          showToast('Запись обновлена', 'success');
+        }}
+        onLearnRule={(rule) => {
+          setAssistantProfile(prev => ({
+            ...prev,
+            customRules: [...prev.customRules.slice(-9), rule],
+          }));
+        }}
       />
+
+      {spacePickerRecordingId && (() => {
+        const rec = recordings.find(r => r.id === spacePickerRecordingId);
+        if (!rec) return null;
+        return (
+          <SpacePickerModal
+            recording={rec}
+            spaces={spaces}
+            suggestedSpaceId={suggestSpaceId(rec, spaces)}
+            onAssign={(spaceId) => {
+              if (spaceId) { const rec = recordings.find(r => r.id === spacePickerRecordingId); if (rec) updateRecordingItem({ ...rec, spaceId }); }
+              setSpacePickerRecordingId(null);
+              setCurrentView('recording_detail');
+            }}
+            onCreateAndAssign={(data) => {
+              const id = 'space-' + Date.now();
+              addSpace({ ...data, id, createdAt: new Date().toISOString() });
+              return id;
+            }}
+          />
+        );
+      })()}
 
       {isProcessing && (
         <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center">

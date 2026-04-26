@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">VoiceMap</string>
+    <string name="title_activity_main">VoiceMap</string>
+    <string name="package_name">com.voicemap.app</string>
+    <string name="custom_url_scheme">com.voicemap.app</string>
+</resources>
