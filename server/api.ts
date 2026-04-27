@@ -17,11 +17,17 @@ dotenv.config();
 
 // Инициализируем Firebase Admin (для верификации токенов)
 if (!getApps().length) {
-  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (serviceAccount) {
-    initializeApp({ credential: cert(JSON.parse(serviceAccount)) });
-  } else {
-    // В dev-режиме без сервисного аккаунта — пропускаем верификацию
+  try {
+    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if (serviceAccount && serviceAccount.includes('"private_key"')) {
+      initializeApp({ credential: cert(JSON.parse(serviceAccount)) });
+      console.log('[Firebase] Initialized with service account');
+    } else {
+      initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID || 'gen-lang-client-0179752723' });
+      console.log('[Firebase] Initialized without service account (dev mode)');
+    }
+  } catch (e) {
+    console.warn('[Firebase] Init failed, continuing without auth:', e);
     initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID || 'gen-lang-client-0179752723' });
   }
 }
@@ -491,9 +497,12 @@ app.delete('/api/r2/delete', requireAuth, async (req: Request, res: Response) =>
 });
 
 // ── Продакшн: отдаём собранный фронт ────────────────────────────────────────
+// process.cwd() = /app на Railway, надёжнее чем __dirname
+const distPath = path.join(process.cwd(), 'dist');
+console.log('[Static] distPath:', distPath, '| NODE_ENV:', process.env.NODE_ENV);
+
 if (process.env.NODE_ENV === 'production') {
-  const distPath = path.join(__dirname, '../dist');
-  app.use(express.static(distPath));
+  app.use(express.static(distPath, { maxAge: '1d' }));
   // SPA fallback — все не-API маршруты отдают index.html
   app.get('*', (_req: Request, res: Response) => {
     res.sendFile(path.join(distPath, 'index.html'));
@@ -501,5 +510,5 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 app.listen(PORT, () => {
-  console.log(`API server running on http://localhost:${PORT} [${process.env.NODE_ENV || 'development'}]`);
+  console.log(`API server running on port ${PORT} [${process.env.NODE_ENV || 'development'}]`);
 });
