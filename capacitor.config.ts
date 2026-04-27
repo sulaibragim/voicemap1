@@ -4,6 +4,11 @@ const config: CapacitorConfig = {
   appId: 'com.voicemap.app',
   appName: 'VoiceMap',
   webDir: 'dist',
+  // Загружаем приложение с Railway — авторизация работает, обновления без пересборки APK
+  server: {
+    url: 'https://voicemap1-production.up.railway.app',
+    cleartext: false,
+  },
   plugins: {
     SplashScreen: {
       launchShowDuration: 1500,
@@ -18,14 +23,8 @@ const config: CapacitorConfig = {
   android: {
     allowMixedContent: false,
     captureInput: true,
-    // Разрешаем запросы к Railway backend (HTTPS)
     webContentsDebuggingEnabled: false,
   },
-  // Для live-reload при разработке — раскомментируй и укажи свой IP:
-  // server: {
-  //   url: 'http://192.168.1.X:3000',
-  //   cleartext: true,
-  // },
 };
 
 export default config;
