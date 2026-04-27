@@ -3,6 +3,7 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   signInWithRedirect,
+  browserPopupRedirectResolver,
   getRedirectResult,
   signOut,
   onAuthStateChanged,
@@ -65,30 +66,18 @@ export function useAuth(): UseAuthReturn {
     provider.setCustomParameters({ prompt: 'select_account' });
 
     if (isCapacitor) {
-      // В Capacitor WebView redirect ломает sessionStorage — используем только popup.
-      // Если popup заблокирован — открываем системный браузер телефона.
-      try {
-        await signInWithPopup(auth, provider);
-      } catch (e: unknown) {
-        const code = (e as { code?: string }).code ?? '';
-        if (POPUP_BLOCKED_CODES.includes(code)) {
-          // Fallback: открываем OAuth в системном браузере через window.open
-          const authUrl = `https://voicemap1-production.up.railway.app/__/auth/handler`;
-          window.open(authUrl, '_system');
-          throw new Error('Войдите через браузер, который только что открылся');
-        }
-        throw e;
-      }
+      // browserPopupRedirectResolver форсирует настоящий popup без конвертации в redirect
+      await signInWithPopup(auth, provider, browserPopupRedirectResolver);
       return;
     }
 
     // Веб: сначала popup, при блокировке — redirect
     try {
-      await signInWithPopup(auth, provider);
+      await signInWithPopup(auth, provider, browserPopupRedirectResolver);
     } catch (e: unknown) {
       const code = (e as { code?: string }).code ?? '';
       if (POPUP_BLOCKED_CODES.includes(code)) {
-        await signInWithRedirect(auth, provider);
+        await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
       } else {
         throw e;
       }
