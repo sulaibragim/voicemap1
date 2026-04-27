@@ -34,6 +34,10 @@ function toAuthUser(u: User): AuthUser {
   };
 }
 
+// Определяем Capacitor — в нём redirect теряет sessionStorage
+const isCapacitor = typeof window !== 'undefined' &&
+  !!(window as unknown as { Capacitor?: unknown }).Capacitor;
+
 const POPUP_BLOCKED_CODES = [
   'auth/popup-blocked',
   'auth/popup-closed-by-user',
@@ -45,8 +49,9 @@ export function useAuth(): UseAuthReturn {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Проверяем результат redirect-входа после возврата на страницу
-    getRedirectResult(auth).catch(e => console.warn('Redirect result error:', e));
+    if (!isCapacitor) {
+      getRedirectResult(auth).catch(e => console.warn('Redirect result error:', e));
+    }
 
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser ? toAuthUser(firebaseUser) : null);
@@ -59,13 +64,30 @@ export function useAuth(): UseAuthReturn {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
 
+    if (isCapacitor) {
+      // В Capacitor WebView redirect ломает sessionStorage — используем только popup.
+      // Если popup заблокирован — открываем системный браузер телефона.
+      try {
+        await signInWithPopup(auth, provider);
+      } catch (e: unknown) {
+        const code = (e as { code?: string }).code ?? '';
+        if (POPUP_BLOCKED_CODES.includes(code)) {
+          // Fallback: открываем OAuth в системном браузере через window.open
+          const authUrl = `https://voicemap1-production.up.railway.app/__/auth/handler`;
+          window.open(authUrl, '_system');
+          throw new Error('Войдите через браузер, который только что открылся');
+        }
+        throw e;
+      }
+      return;
+    }
+
+    // Веб: сначала popup, при блокировке — redirect
     try {
-      // Сначала пробуем popup — быстрее и удобнее
       await signInWithPopup(auth, provider);
     } catch (e: unknown) {
       const code = (e as { code?: string }).code ?? '';
       if (POPUP_BLOCKED_CODES.includes(code)) {
-        // Попап заблокирован браузером — переключаемся на redirect
         await signInWithRedirect(auth, provider);
       } else {
         throw e;
