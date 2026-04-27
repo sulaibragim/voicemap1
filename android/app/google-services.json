@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "749077608006",
+    "project_id": "voicemapai-ba1db",
+    "storage_bucket": "voicemapai-ba1db.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:749077608006:android:2ce67068bad98c0453bc47",
+        "android_client_info": {
+          "package_name": "com.voicemap.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "749077608006-d74itojuj744jn7c6e1atrjsl5n9nv6g.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.voicemap.app",
+            "certificate_hash": "780d357374a0c35cdaf7ce05723ba46f62f3d68b"
+          }
+        },
+        {
+          "client_id": "749077608006-9v747vu3klr3i3j494bj2v8sn4jutphb.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAbKpmZdyXc_IIglpF5qd3pE4dkcdXhj_s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "749077608006-9v747vu3klr3i3j494bj2v8sn4jutphb.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
