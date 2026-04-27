@@ -2,13 +2,12 @@ import { useState, useEffect } from 'react';
 import {
   GoogleAuthProvider,
   signInWithPopup,
-  signInWithRedirect,
-  browserPopupRedirectResolver,
-  getRedirectResult,
+  signInWithCredential,
   signOut,
   onAuthStateChanged,
   type User,
 } from 'firebase/auth';
+import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import { auth } from '../firebase';
 
 export interface AuthUser {
@@ -35,25 +34,14 @@ function toAuthUser(u: User): AuthUser {
   };
 }
 
-// Определяем Capacitor — в нём redirect теряет sessionStorage
 const isCapacitor = typeof window !== 'undefined' &&
   !!(window as unknown as { Capacitor?: unknown }).Capacitor;
-
-const POPUP_BLOCKED_CODES = [
-  'auth/popup-blocked',
-  'auth/popup-closed-by-user',
-  'auth/cancelled-popup-request',
-];
 
 export function useAuth(): UseAuthReturn {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isCapacitor) {
-      getRedirectResult(auth).catch(e => console.warn('Redirect result error:', e));
-    }
-
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser ? toAuthUser(firebaseUser) : null);
       setLoading(false);
@@ -62,29 +50,26 @@ export function useAuth(): UseAuthReturn {
   }, []);
 
   const signInWithGoogle = async () => {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-
     if (isCapacitor) {
-      // browserPopupRedirectResolver форсирует настоящий popup без конвертации в redirect
-      await signInWithPopup(auth, provider, browserPopupRedirectResolver);
+      // Нативный Google Sign-In — нет WebView редиректов, работает надёжно
+      const googleUser = await GoogleAuth.signIn();
+      const credential = GoogleAuthProvider.credential(
+        googleUser.authentication.idToken
+      );
+      await signInWithCredential(auth, credential);
       return;
     }
 
-    // Веб: сначала popup, при блокировке — redirect
-    try {
-      await signInWithPopup(auth, provider, browserPopupRedirectResolver);
-    } catch (e: unknown) {
-      const code = (e as { code?: string }).code ?? '';
-      if (POPUP_BLOCKED_CODES.includes(code)) {
-        await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
-      } else {
-        throw e;
-      }
-    }
+    // Веб — стандартный popup
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    await signInWithPopup(auth, provider);
   };
 
   const logout = async () => {
+    if (isCapacitor) {
+      await GoogleAuth.signOut().catch(() => {});
+    }
     await signOut(auth);
   };
 
