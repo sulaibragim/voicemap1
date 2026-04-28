@@ -51,9 +51,9 @@ export const RecentRecordings = ({ recordings, onOpenLibrary, onOpenDetail }: Re
                   </div>
                 </div>
               </div>
-              <div className="flex gap-4">
+              <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
                 {(recent[0].tags || []).map((tag, i) => (
-                  <span key={i} className="px-3 py-1 bg-surface-container-highest rounded-lg text-xs font-medium text-on-surface-variant">{tag}</span>
+                  <span key={i} className="px-3 py-1 bg-surface-container-highest rounded-lg text-xs font-medium text-on-surface-variant whitespace-nowrap flex-shrink-0">{tag}</span>
                 ))}
               </div>
             </div>

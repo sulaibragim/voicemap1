@@ -742,7 +742,7 @@ export default function App() {
 
     // Dashboard
     return (
-      <div className="min-h-screen bg-background text-on-surface pb-32 font-body selection:bg-primary/30 relative">
+      <div className="min-h-screen bg-background text-on-surface pb-32 font-body selection:bg-primary/30 relative overflow-x-hidden">
         <Header currentView={currentView} setCurrentView={setCurrentView} onLogout={handleLogout} onReset={handleResetDemo} user={authUser ?? undefined} />
         <main className="max-w-[1440px] mx-auto px-4 pt-6 lg:px-8 lg:pt-12">
           <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12">
