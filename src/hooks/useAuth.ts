@@ -42,6 +42,15 @@ export function useAuth(): UseAuthReturn {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Инициализируем GoogleAuth плагин при старте (обязательно для Capacitor)
+    if (isCapacitor) {
+      GoogleAuth.initialize({
+        clientId: '749077608006-9v747vu3klr3i3j494bj2v8sn4jutphb.apps.googleusercontent.com',
+        scopes: ['profile', 'email'],
+        grantOfflineAccess: true,
+      }).catch((e: unknown) => console.warn('[GoogleAuth] initialize failed:', e));
+    }
+
     const unsub = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser ? toAuthUser(firebaseUser) : null);
       setLoading(false);
