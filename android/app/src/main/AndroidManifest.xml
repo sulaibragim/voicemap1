@@ -27,7 +27,7 @@
         <!-- Foreground Service для записи в фоне при заблокированном экране -->
         <service
             android:name=".RecordingService"
-            android:foregroundServiceType="microphone"
+            android:foregroundServiceType="microphone|mediaProjection"
             android:exported="false" />
 
         <provider
@@ -51,5 +51,6 @@
     <!-- Для Foreground Service записи в фоне -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
 </manifest>

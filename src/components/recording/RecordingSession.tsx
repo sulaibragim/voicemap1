@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, MicOff, Pause, Play, Square, ArrowLeft } from 'lucide-react';
+import { Mic, MicOff, Pause, Play, Square, ArrowLeft, Volume2 } from 'lucide-react';
 import { formatTime } from '../../lib/utils';
-import { useNativeRecorder } from '../../hooks/useNativeRecorder';
+import { useNativeRecorder, type AudioMode } from '../../hooks/useNativeRecorder';
 
 interface RecordingSessionProps {
   onFinish: (blob: Blob, duration: number) => void;
@@ -16,6 +16,7 @@ export const RecordingSession = ({ onFinish, onCancel, showToast, autoStopMinute
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [duration, setDuration] = useState(0);
+  const [audioMode, setAudioMode] = useState<AudioMode>('mic');
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -24,7 +25,7 @@ export const RecordingSession = ({ onFinish, onCancel, showToast, autoStopMinute
   const stopRecordingRef = useRef<(() => void) | null>(null);
   const nativeFilePathRef = useRef<string | null>(null);
 
-  const { isAvailable: isNative, startNativeRecording, stopNativeRecording } = useNativeRecorder();
+  const { isAvailable: isNative, startNativeRecording, pauseNativeRecording, resumeNativeRecording, stopNativeRecording } = useNativeRecorder();
 
   // Таймер — останавливается на паузе, автостоп по лимиту
   useEffect(() => {
@@ -61,7 +62,7 @@ export const RecordingSession = ({ onFinish, onCancel, showToast, autoStopMinute
     // На Android — нативный Foreground Service (запись при заблокированном экране)
     if (isNative) {
       try {
-        const result = await startNativeRecording();
+        const result = await startNativeRecording(audioMode);
         if (result) {
           nativeFilePathRef.current = result.filePath;
           setIsRecording(true);
@@ -138,7 +139,19 @@ export const RecordingSession = ({ onFinish, onCancel, showToast, autoStopMinute
   };
   stopRecordingRef.current = stopRecording;
 
-  const togglePause = () => {
+  const togglePause = async () => {
+    if (isNative) {
+      // Нативный режим — отправляем команду в Android-сервис
+      if (!isPaused) {
+        await pauseNativeRecording();
+        setIsPaused(true);
+      } else {
+        await resumeNativeRecording();
+        setIsPaused(false);
+      }
+      return;
+    }
+    // Веб-режим
     const mr = mediaRecorderRef.current;
     if (!mr) return;
     if (mr.state === 'recording') {
@@ -151,6 +164,11 @@ export const RecordingSession = ({ onFinish, onCancel, showToast, autoStopMinute
   };
 
   const toggleMute = () => {
+    if (isNative) {
+      // В нативном режиме мьют не поддерживается — сообщаем пользователю
+      showToast('Используй паузу для остановки записи', 'info');
+      return;
+    }
     const tracks = streamRef.current?.getAudioTracks();
     if (!tracks?.length) return;
     const newMuted = !isMuted;
@@ -185,10 +203,41 @@ export const RecordingSession = ({ onFinish, onCancel, showToast, autoStopMinute
       </div>
 
       {/* Заголовок */}
-      <div className="text-center mb-12">
+      <div className="text-center mb-8">
         <h2 className="font-headline text-4xl font-bold mb-4">Живая сессия</h2>
         <p className="text-on-surface-variant">Запись встречи или интервью</p>
       </div>
+
+      {/* Переключатель источника звука — только на Android, только до старта */}
+      {isNative && !isRecording && (
+        <div className="flex gap-2 mb-8 bg-surface-container rounded-2xl p-1">
+          {([
+            { mode: 'mic'     as AudioMode, label: 'Микрофон', icon: '🎙' },
+            { mode: 'both'    as AudioMode, label: 'Оба',      icon: '🎙+🔊' },
+            { mode: 'speaker' as AudioMode, label: 'Динамик',  icon: '🔊' },
+          ] as const).map(({ mode, label, icon }) => (
+            <button
+              key={mode}
+              onClick={() => setAudioMode(mode)}
+              className={`flex flex-col items-center px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                audioMode === mode
+                  ? 'bg-primary text-on-primary shadow-lg scale-105'
+                  : 'text-on-surface-variant hover:text-white'
+              }`}
+            >
+              <span className="text-lg mb-0.5">{icon}</span>
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {/* Показываем активный режим во время записи */}
+      {isNative && isRecording && (
+        <div className="mb-6 flex items-center gap-2 text-xs text-on-surface-variant">
+          <Volume2 className="w-3 h-3" />
+          <span>{audioMode === 'mic' ? 'Микрофон' : audioMode === 'both' ? 'Микрофон + Динамик' : 'Динамик'}</span>
+        </div>
+      )}
 
       {/* Круг с таймером + анимация */}
       <div className="relative flex items-center justify-center mb-10">

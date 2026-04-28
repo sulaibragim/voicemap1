@@ -71,8 +71,12 @@ export async function transcribeRecording(
     'LANGUAGE RULE: The transcript.text field must be in the EXACT language spoken in the audio. ALL other fields (title, summary, keyMoments, actionItems, ideas, mentions, tags, openQuestions, bigQuestions, mood, richActionItems) MUST be written in Russian only — no English. ' +
     '1. Transcribe the audio EXACTLY in the language it was spoken. ' +
     '2. Transcribe ALL speech verbatim — every word spoken, every speaker in the room, grouped by speaker turns. Do NOT summarize or condense the transcript. ' +
-    'Speaker diarization: if multiple speakers are present, label them sequentially as "Участник 1", "Участник 2", etc. ' +
-    'Each time the speaker changes, start a new transcript item with the appropriate label. For solo recordings use "Я". ' +
+    'SPEAKER DIARIZATION: This is critical. Listen carefully for changes in voice, tone, or speaking style. ' +
+    'If multiple voices are present — even subtle differences — assign separate speaker labels. ' +
+    'Use "Участник 1", "Участник 2", etc. initially. ' +
+    'If you hear a name spoken (e.g. "Слушай Катя", "Максим, как ты думаешь", answering each other by name), replace the label with that name. ' +
+    'NEVER merge different speakers into one. When in doubt about voice changes, create a new speaker entry. ' +
+    'Each time the speaker changes, start a new transcript item. For solo recordings use "Я". ' +
     '3. Provide a short, warm summary of the entry — IN RUSSIAN. ' +
     '4. Extract 3-5 key thoughts or moments — IN RUSSIAN. ' +
     '5. List EVERY action item, task, to-do, commitment, or thing that needs to be done — even if phrased casually like "надо бы", "не забыть", "нужно". Write action items IN RUSSIAN. If nothing was mentioned, return an empty array. ' +
