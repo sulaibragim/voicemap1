@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useMemo } from 'react';
 import { condenseTranscript } from '../../lib/api';
-import { ArrowLeft, Play, Pause, X, Loader2, Trash2, Plus, Scissors, AlignLeft, Share2, Download, Pencil, ChevronDown, Copy, FileText, Send } from 'lucide-react';
+import { ArrowLeft, Play, Pause, X, Loader2, Trash2, Plus, Scissors, AlignLeft, Share2, Download, Pencil, ChevronDown, Copy, FileText, Send, MoreHorizontal } from 'lucide-react';
 import { formatTime } from '../../lib/utils';
 import { AppendPanel } from './AppendPanel';
 import { AudioPlayer, parseTimestamp } from './AudioPlayer';
@@ -79,17 +79,12 @@ const AppendAudioPlayer = ({ url, label, addedAt }: { url: string; label: string
     else { ref.current.play().catch(() => setLoadError(true)); setPlaying(true); }
   };
 
-  // Аудио недоступно (blob URL или ошибка загрузки)
+  // Аудио недоступно (blob URL протух после перезагрузки или ошибка загрузки)
   if (isBlobUrl || loadError) {
     return (
-      <div className="bg-surface-container p-3 md:p-4 rounded-2xl border border-amber-400/10 flex items-center gap-3 opacity-50">
-        <div className="w-9 h-9 rounded-full bg-amber-400/10 flex items-center justify-center shrink-0">
-          <Play className="w-4 h-4 text-amber-400/50" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <span className="text-xs font-bold text-amber-400 truncate block">{label}</span>
-          <span className="text-[10px] text-on-surface-variant">{addedAt} · Аудио недоступно после перезагрузки</span>
-        </div>
+      <div className="bg-surface-container/50 px-3 py-2 rounded-xl flex items-center gap-2">
+        <span className="text-xs font-bold text-amber-400/70 truncate">{label}</span>
+        <span className="text-[10px] text-on-surface-variant shrink-0">{addedAt}</span>
       </div>
     );
   }
@@ -129,6 +124,7 @@ export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToa
   const [isAppending, setIsAppending] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const [mobileTab, setMobileTab] = useState<'summary' | 'transcript' | 'audio'>('summary');
   const touchStartXRef = useRef<number>(0);
@@ -453,7 +449,7 @@ ${actionItemsHtml}${ideasHtml}${keyMomentsHtml}${transcriptHtml}
                 />
               ) : (
                 <>
-                  <h1 className="text-sm md:text-xl font-bold font-headline line-clamp-1">{recording.title}</h1>
+                  <h1 className="text-sm md:text-xl font-bold font-headline line-clamp-2 md:line-clamp-1 leading-snug">{recording.title}</h1>
                   <button
                     onClick={() => { setIsEditingTitle(true); setEditTitleValue(recording.title); }}
                     className="flex-shrink-0 p-1 text-on-surface-variant hover:text-primary transition-colors cursor-pointer opacity-40 hover:opacity-100"
@@ -505,22 +501,23 @@ ${actionItemsHtml}${ideasHtml}${keyMomentsHtml}${transcriptHtml}
           </div>
         </div>
         <div className="flex items-center gap-1.5 md:gap-3 flex-shrink-0">
-          {/* Кнопка "Дополнить" — только на мобилке */}
+          {/* Кнопка "..." — только мобилка, открывает bottom sheet */}
           <button
-            onClick={() => setIsAppending(true)}
-            className="md:hidden bg-primary text-on-primary-fixed px-3 py-2 rounded-lg font-bold flex items-center gap-1.5 text-sm cursor-pointer"
+            onClick={() => setShowMobileMenu(true)}
+            className="md:hidden w-9 h-9 flex items-center justify-center bg-surface-container rounded-lg text-on-surface-variant hover:bg-white/10 transition-colors cursor-pointer"
+            aria-label="Действия"
           >
-            <Plus className="w-4 h-4" />
-            Дополнить
+            <MoreHorizontal className="w-5 h-5" />
           </button>
-          {/* Дропдаун экспорта */}
-          <div className="relative" ref={exportMenuRef}>
+
+          {/* Десктоп: дропдаун экспорта */}
+          <div className="relative hidden md:block" ref={exportMenuRef}>
             <button
               onClick={() => setShowExportMenu(v => !v)}
               className="flex items-center gap-1.5 px-3 py-2 bg-surface-container rounded-lg text-sm font-bold hover:bg-white/10 transition-colors cursor-pointer"
             >
               <Download className="w-4 h-4" />
-              <span className="hidden md:inline">Экспорт</span>
+              <span>Экспорт</span>
               <ChevronDown className="w-3.5 h-3.5" />
             </button>
             {showExportMenu && (
@@ -549,13 +546,14 @@ ${actionItemsHtml}${ideasHtml}${keyMomentsHtml}${transcriptHtml}
               </div>
             )}
           </div>
-          {/* Кнопка удалить */}
+
+          {/* Десктоп: кнопка удалить */}
           <button
             onClick={() => setShowDeleteConfirm(true)}
-            className="w-8 h-8 md:w-auto md:h-auto md:px-4 md:py-2 flex items-center justify-center gap-2 bg-error/10 text-error rounded-lg text-sm font-bold hover:bg-error/20 transition-colors cursor-pointer"
+            className="hidden md:flex items-center gap-2 px-4 py-2 bg-error/10 text-error rounded-lg text-sm font-bold hover:bg-error/20 transition-colors cursor-pointer"
           >
             <Trash2 className="w-4 h-4" />
-            <span className="hidden md:inline">Удалить</span>
+            Удалить
           </button>
         </div>
       </header>
@@ -842,6 +840,68 @@ ${actionItemsHtml}${ideasHtml}${keyMomentsHtml}${transcriptHtml}
           onTimestampClick={handleTimestampClick}
         />
       </main>
+
+      {/* Мобильный bottom sheet с действиями */}
+      {showMobileMenu && (
+        <div className="md:hidden fixed inset-0 z-50 flex flex-col justify-end">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowMobileMenu(false)} />
+          <div className="relative bg-surface-container-high rounded-t-3xl border-t border-white/10 pb-safe">
+            <div className="w-10 h-1 bg-white/20 rounded-full mx-auto mt-3 mb-4" />
+            <div className="px-4 pb-6 space-y-1">
+              <button
+                onClick={() => { setIsAppending(true); setShowMobileMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 bg-primary/10 text-primary rounded-2xl font-bold text-sm cursor-pointer"
+              >
+                <Plus className="w-5 h-5" /> Дополнить запись
+              </button>
+              <div className="h-2" />
+              <button
+                onClick={() => { handleShare(); setShowMobileMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 rounded-2xl text-sm cursor-pointer transition-colors"
+              >
+                <Share2 className="w-5 h-5 text-on-surface-variant" /> Поделиться
+              </button>
+              <button
+                onClick={() => { handleCopySummary(); setShowMobileMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 rounded-2xl text-sm cursor-pointer transition-colors"
+              >
+                <Copy className="w-5 h-5 text-on-surface-variant" /> Скопировать саммари
+              </button>
+              <button
+                onClick={() => { handleCopyTranscript(); setShowMobileMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 rounded-2xl text-sm cursor-pointer transition-colors"
+              >
+                <Copy className="w-5 h-5 text-on-surface-variant" /> Скопировать транскрипт
+              </button>
+              <button
+                onClick={() => { handleExportPDF(); setShowMobileMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 rounded-2xl text-sm cursor-pointer transition-colors"
+              >
+                <FileText className="w-5 h-5 text-on-surface-variant" /> Скачать PDF
+              </button>
+              <button
+                onClick={() => { handleExport(); setShowMobileMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 rounded-2xl text-sm cursor-pointer transition-colors"
+              >
+                <Download className="w-5 h-5 text-on-surface-variant" /> Скачать TXT
+              </button>
+              <button
+                onClick={() => { handleTelegram(); setShowMobileMenu(false); }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-white/5 rounded-2xl text-sm cursor-pointer transition-colors"
+              >
+                <Send className="w-5 h-5 text-[#2AABEE]" /> Отправить в Telegram
+              </button>
+              <div className="h-2" />
+              <button
+                onClick={() => { setShowMobileMenu(false); setShowDeleteConfirm(true); }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 bg-error/10 text-error rounded-2xl text-sm font-bold cursor-pointer transition-colors"
+              >
+                <Trash2 className="w-5 h-5" /> Удалить запись
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Модалка подтверждения удаления */}
       {showDeleteConfirm && (

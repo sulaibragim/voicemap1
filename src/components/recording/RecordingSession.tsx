@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mic, MicOff, Pause, Play, Square, ArrowLeft } from 'lucide-react';
 import { formatTime } from '../../lib/utils';
+import { useNativeRecorder } from '../../hooks/useNativeRecorder';
 
 interface RecordingSessionProps {
   onFinish: (blob: Blob, duration: number) => void;
@@ -21,6 +22,9 @@ export const RecordingSession = ({ onFinish, onCancel, showToast, autoStopMinute
   const chunksRef = useRef<BlobPart[]>([]);
   const durationRef = useRef(0);
   const stopRecordingRef = useRef<(() => void) | null>(null);
+  const nativeFilePathRef = useRef<string | null>(null);
+
+  const { isAvailable: isNative, startNativeRecording, stopNativeRecording } = useNativeRecorder();
 
   // Таймер — останавливается на паузе, автостоп по лимиту
   useEffect(() => {
@@ -49,16 +53,32 @@ export const RecordingSession = ({ onFinish, onCancel, showToast, autoStopMinute
   }, []);
 
   const startRecording = async () => {
+    durationRef.current = 0;
+    setDuration(0);
+    setIsPaused(false);
+    setIsMuted(false);
+
+    // На Android — нативный Foreground Service (запись при заблокированном экране)
+    if (isNative) {
+      try {
+        const result = await startNativeRecording();
+        if (result) {
+          nativeFilePathRef.current = result.filePath;
+          setIsRecording(true);
+          return;
+        }
+      } catch (err) {
+        console.warn('[NativeRecorder] Falling back to web recorder:', err);
+      }
+    }
+
+    // Веб-fallback — обычный MediaRecorder
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
-      durationRef.current = 0;
-      setDuration(0);
-      setIsPaused(false);
-      setIsMuted(false);
 
       mediaRecorder.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
@@ -79,11 +99,31 @@ export const RecordingSession = ({ onFinish, onCancel, showToast, autoStopMinute
     }
   };
 
-  const stopRecording = () => {
+  const stopRecording = async () => {
+    setIsRecording(false);
+    setIsPaused(false);
+
+    // Нативная остановка — читаем файл и передаём как Blob
+    if (isNative && nativeFilePathRef.current) {
+      await stopNativeRecording();
+      try {
+        const fileUrl = (window as unknown as { Capacitor?: { convertFileSrc: (p: string) => string } })
+          .Capacitor?.convertFileSrc(nativeFilePathRef.current) ?? `file://${nativeFilePathRef.current}`;
+        const response = await fetch(fileUrl);
+        const blob = await response.blob();
+        const audioBlob = new Blob([blob], { type: 'audio/mp4' });
+        nativeFilePathRef.current = null;
+        onFinish(audioBlob, durationRef.current);
+      } catch (e) {
+        console.error('[NativeRecorder] Failed to read file:', e);
+        showToast('Ошибка при сохранении записи', 'error');
+      }
+      return;
+    }
+
+    // Веб
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      setIsPaused(false);
     }
   };
   stopRecordingRef.current = stopRecording;

@@ -24,6 +24,12 @@
 
         </activity>
 
+        <!-- Foreground Service для записи в фоне при заблокированном экране -->
+        <service
+            android:name=".RecordingService"
+            android:foregroundServiceType="microphone"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -42,5 +48,8 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Для уведомлений (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Для Foreground Service записи в фоне -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
 </manifest>
