@@ -106,17 +106,27 @@ export const RecordingSession = ({ onFinish, onCancel, showToast, autoStopMinute
     // Нативная остановка — читаем файл и передаём как Blob
     if (isNative && nativeFilePathRef.current) {
       await stopNativeRecording();
+      // stopNativeRecording уже ждёт 800ms — файл должен быть готов
       try {
-        const fileUrl = (window as unknown as { Capacitor?: { convertFileSrc: (p: string) => string } })
-          .Capacitor?.convertFileSrc(nativeFilePathRef.current) ?? `file://${nativeFilePathRef.current}`;
+        const cap = (window as unknown as { Capacitor?: { convertFileSrc: (p: string) => string } }).Capacitor;
+        const fileUrl = cap?.convertFileSrc(nativeFilePathRef.current) ?? `file://${nativeFilePathRef.current}`;
         const response = await fetch(fileUrl);
+        if (!response.ok) throw new Error(`File fetch failed: ${response.status}`);
         const blob = await response.blob();
+        if (blob.size < 100) throw new Error('File too small — likely empty');
         const audioBlob = new Blob([blob], { type: 'audio/mp4' });
         nativeFilePathRef.current = null;
         onFinish(audioBlob, durationRef.current);
       } catch (e) {
-        console.error('[NativeRecorder] Failed to read file:', e);
-        showToast('Ошибка при сохранении записи', 'error');
+        console.error('[NativeRecorder] Failed to read file, fallback to web chunks:', e);
+        // Fallback — если нативный файл не читается, сохраняем что есть в chunksRef
+        nativeFilePathRef.current = null;
+        if (chunksRef.current.length > 0) {
+          const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+          onFinish(blob, durationRef.current);
+        } else {
+          showToast('Не удалось сохранить запись', 'error');
+        }
       }
       return;
     }
