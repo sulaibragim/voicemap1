@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Brain, Loader2 } from 'lucide-react';
-import { fetchDailyTip, transcribeRecording, uploadAudioToR2, deleteAudioFromR2 } from './lib/api';
+import { fetchDailyTip, transcribeRecording, retranscribeFromUrl, uploadAudioToR2, deleteAudioFromR2 } from './lib/api';
 
 import type { Note, NoteType, Recording, Space, AppSettings } from './types';
 import { defaultAppSettings } from './types';
@@ -672,7 +672,27 @@ export default function App() {
           showToast('Запись удалена', 'success');
         }} onUpdate={(updatedRec) => {
           updateRecordingItem(updatedRec);
-        }} showToast={showToast} allRecordings={recordings} onOpenRecording={(id) => openRecording(id)} />;
+        }} showToast={showToast} allRecordings={recordings} onOpenRecording={(id) => openRecording(id)} onRetranscribe={async () => {
+          // Повторная транскрипция: фетчим аудио с R2 через сервер и обрабатываем Gemini File API
+          const recording = recordings.find(r => r.id === selectedRecordingId);
+          if (!recording?.audioUrl) {
+            showToast('Нет аудиофайла для транскрипции', 'error');
+            return;
+          }
+          // Определяем mimeType по URL или ключу R2
+          const url = recording.audioUrl;
+          const mimeType = url.includes('.webm') ? 'audio/webm'
+            : url.includes('.ogg') ? 'audio/ogg'
+            : 'audio/mp4';
+          try {
+            const result = await retranscribeFromUrl(url, mimeType, getNames());
+            updateRecordingItem({ ...recording, ...result, title: result.title || recording.title });
+            showToast('Транскрипция готова ✓', 'success');
+          } catch (err) {
+            console.error('[retranscribe] failed:', err);
+            showToast('Ошибка повторной транскрипции', 'error');
+          }
+        }} />;
       }
       // Запись ещё грузится из Firestore — показываем спиннер
       return (

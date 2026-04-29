@@ -60,7 +60,7 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: '200mb' }));
 
 // Rate limit — 60 AI запросов в час на IP
 const aiLimiter = rateLimit({
@@ -146,7 +146,25 @@ app.post('/api/ai/tip', requireAuth, async (req, res) => {
   }
 });
 
+// Вспомогательная функция: загружает аудио-буфер в Gemini File API и возвращает fileUri
+async function uploadAudioToFileAPI(
+  ai: GoogleGenAI,
+  buffer: Buffer,
+  mimeType: string
+): Promise<{ fileUri: string; fileMimeType: string }> {
+  const fileBlob = new Blob([buffer], { type: mimeType });
+  const uploadedFile = await ai.files.upload({
+    file: fileBlob,
+    config: { mimeType, displayName: 'recording' },
+  });
+  return {
+    fileUri: uploadedFile.uri ?? '',
+    fileMimeType: uploadedFile.mimeType ?? mimeType,
+  };
+}
+
 // POST /api/ai/transcribe — audio transcription + analysis
+// Если base64 аудио > 15 МБ (строка > 20 000 000 символов) — используем Gemini File API
 app.post('/api/ai/transcribe', requireAuth, async (req, res) => {
   try {
     const { audio, mimeType, prompt } = req.body;
@@ -154,17 +172,75 @@ app.post('/api/ai/transcribe', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Invalid or missing audio data' });
     }
     const ai = getAI();
+
+    let audioPart: Record<string, unknown>;
+
+    if (audio.length > 20_000_000) {
+      // Большой файл — загружаем через File API
+      console.log(`[transcribe] Large audio (${Math.round(audio.length / 1_000_000)}MB base64), using File API`);
+      const buffer = Buffer.from(audio, 'base64');
+      const { fileUri, fileMimeType } = await uploadAudioToFileAPI(ai, buffer, mimeType || 'audio/webm');
+      audioPart = { fileData: { fileUri, mimeType: fileMimeType } };
+    } else {
+      // Маленький файл — используем inlineData
+      audioPart = { inlineData: { data: audio, mimeType: mimeType || 'audio/webm' } };
+    }
+
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: [
-        { inlineData: { data: audio, mimeType: mimeType || 'audio/webm' } },
-        prompt,
-      ],
+      contents: [audioPart, prompt],
       config: req.body.config,
     });
     res.json({ text: response.text });
   } catch (error) {
     console.error('Error in /api/ai/transcribe:', error);
+    res.status(500).json({ error: 'AI request failed' });
+  }
+});
+
+// POST /api/ai/retranscribe — повторная транскрипция по URL из R2
+// Фетчит аудио с публичного URL, загружает в Gemini File API, возвращает результат
+app.post('/api/ai/retranscribe', requireAuth, async (req, res) => {
+  try {
+    const { audioUrl, mimeType, prompt, config } = req.body as {
+      audioUrl: string;
+      mimeType: string;
+      prompt: string;
+      config: Record<string, unknown>;
+    };
+
+    if (!audioUrl || typeof audioUrl !== 'string') {
+      res.status(400).json({ error: 'audioUrl is required' });
+      return;
+    }
+
+    // Загружаем аудио с R2 на стороне сервера
+    console.log('[retranscribe] Fetching audio from:', audioUrl);
+    const fetchRes = await fetch(audioUrl);
+    if (!fetchRes.ok) {
+      res.status(502).json({ error: `Failed to fetch audio: ${fetchRes.status}` });
+      return;
+    }
+    const arrayBuffer = await fetchRes.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    console.log(`[retranscribe] Fetched ${Math.round(buffer.length / 1_000_000)}MB, uploading to File API`);
+
+    const ai = getAI();
+    const resolvedMime = mimeType || 'audio/mp4';
+    const { fileUri, fileMimeType } = await uploadAudioToFileAPI(ai, buffer, resolvedMime);
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        { fileData: { fileUri, mimeType: fileMimeType } },
+        prompt,
+      ],
+      config,
+    });
+
+    res.json({ text: response.text });
+  } catch (error) {
+    console.error('Error in /api/ai/retranscribe:', error);
     res.status(500).json({ error: 'AI request failed' });
   }
 });

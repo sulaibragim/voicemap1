@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useMemo } from 'react';
 import { condenseTranscript } from '../../lib/api';
-import { ArrowLeft, Play, Pause, X, Loader2, Trash2, Plus, Scissors, AlignLeft, Share2, Download, Pencil, ChevronDown, Copy, FileText, Send, MoreHorizontal } from 'lucide-react';
+import { ArrowLeft, Play, Pause, X, Loader2, Trash2, Plus, Scissors, AlignLeft, Share2, Download, Pencil, ChevronDown, Copy, FileText, Send, MoreHorizontal, RefreshCw } from 'lucide-react';
 import { formatTime } from '../../lib/utils';
 import { AppendPanel } from './AppendPanel';
 import { AudioPlayer, parseTimestamp } from './AudioPlayer';
@@ -17,6 +17,7 @@ interface RecordingDetailProps {
   showToast: (msg: string, type: 'success' | 'error' | 'info') => void;
   allRecordings?: Recording[];
   onOpenRecording?: (id: string) => void;
+  onRetranscribe?: () => Promise<void>;
 }
 
 // Поиск похожих записей по общим тегам, упоминаниям и ключевым словам идей
@@ -113,7 +114,7 @@ const AppendAudioPlayer = ({ url, label, addedAt }: { url: string; label: string
   );
 };
 
-export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToast, allRecordings = [], onOpenRecording }: RecordingDetailProps) => {
+export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToast, allRecordings = [], onOpenRecording, onRetranscribe }: RecordingDetailProps) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -122,6 +123,7 @@ export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToa
   const [transcriptMode, setTranscriptMode] = useState<'full' | 'condensed'>('full');
   const [isCondensing, setIsCondensing] = useState(false);
   const [isAppending, setIsAppending] = useState(false);
+  const [isRetranscribing, setIsRetranscribing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -347,6 +349,17 @@ ${actionItemsHtml}${ideasHtml}${keyMomentsHtml}${transcriptHtml}
       showToast('Не удалось сократить транскрипт', 'error');
     } finally {
       setIsCondensing(false);
+    }
+  };
+
+  // Повторный запуск транскрипции для записей без саммари/транскрипта
+  const handleRetranscribe = async () => {
+    if (!onRetranscribe) return;
+    setIsRetranscribing(true);
+    try {
+      await onRetranscribe();
+    } finally {
+      setIsRetranscribing(false);
     }
   };
 
@@ -611,6 +624,26 @@ ${actionItemsHtml}${ideasHtml}${keyMomentsHtml}${transcriptHtml}
             {/* Таб: Саммари */}
             {mobileTab === 'summary' && (
               <div className="p-4 space-y-4 pb-32">
+                {/* Баннер: транскрипция не была создана — мобилка */}
+                {!recording.summary && !recording.transcript?.length && recording.audioUrl && (
+                  <div className="bg-surface-container border border-yellow-500/30 rounded-2xl p-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-yellow-400 text-xl">⚠️</span>
+                      <div>
+                        <p className="text-sm font-bold text-on-surface">Транскрипция не была создана</p>
+                        <p className="text-xs text-on-surface-variant mt-0.5">Аудио сохранено — можно запустить повторно</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleRetranscribe}
+                      disabled={isRetranscribing}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-on-primary text-sm font-bold hover:opacity-90 disabled:opacity-50 transition-opacity cursor-pointer"
+                    >
+                      {isRetranscribing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                      {isRetranscribing ? 'Обработка...' : 'Повторить'}
+                    </button>
+                  </div>
+                )}
                 <div>
                   <p className="text-xs text-on-surface-variant mb-1.5">
                     {recording.date} · {recording.duration}
@@ -809,6 +842,27 @@ ${actionItemsHtml}${ideasHtml}${keyMomentsHtml}${transcriptHtml}
               {recording.appendAudios.map((ap, idx) => (
                 <AppendAudioPlayer key={idx} url={ap.url} label={ap.label} addedAt={ap.addedAt} />
               ))}
+            </div>
+          )}
+
+          {/* Баннер: транскрипция не была создана */}
+          {!recording.summary && !recording.transcript?.length && recording.audioUrl && (
+            <div className="bg-surface-container border border-yellow-500/30 rounded-2xl p-4 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="text-yellow-400 text-xl">⚠️</span>
+                <div>
+                  <p className="text-sm font-bold text-on-surface">Транскрипция не была создана</p>
+                  <p className="text-xs text-on-surface-variant mt-0.5">Аудио сохранено — можно запустить повторно</p>
+                </div>
+              </div>
+              <button
+                onClick={handleRetranscribe}
+                disabled={isRetranscribing}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-on-primary text-sm font-bold hover:opacity-90 disabled:opacity-50 transition-opacity cursor-pointer"
+              >
+                {isRetranscribing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                {isRetranscribing ? 'Обработка...' : 'Повторить'}
+              </button>
             </div>
           )}
 

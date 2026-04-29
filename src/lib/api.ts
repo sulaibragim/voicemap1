@@ -60,6 +60,28 @@ export async function transcribeRecording(
   mimeType: string,
   knownPeople: string[] = []
 ): Promise<TranscribeResult> {
+  const { prompt, config } = buildTranscribePayload(knownPeople);
+  const res = await post<AITextResponse>('/transcribe', { audio, mimeType, prompt, config });
+  const parsed = safeJsonParse<TranscribeResult>(res.text || '{}', {});
+  return {
+    title: parsed.title,
+    summary: parsed.summary,
+    keyMoments: parsed.keyMoments,
+    actionItems: parsed.actionItems,
+    mood: parsed.mood,
+    ideas: parsed.ideas,
+    mentions: parsed.mentions,
+    transcript: parsed.transcript,
+    tags: parsed.tags,
+    openQuestions: parsed.openQuestions,
+    participants: parsed.participants,
+    richActionItems: parsed.richActionItems,
+    bigQuestions: parsed.bigQuestions,
+  };
+}
+
+// Общий билдер payload для транскрипции (используется в transcribeRecording и retranscribeFromUrl)
+function buildTranscribePayload(knownPeople: string[] = []): { prompt: string; config: Record<string, unknown> } {
   const knownPeoplePrefix = knownPeople.length > 0
     ? `Known participants from previous recordings: ${knownPeople.join(', ')}. Use these names when identifying speakers. `
     : '';
@@ -146,7 +168,17 @@ export async function transcribeRecording(
     },
   };
 
-  const res = await post<AITextResponse>('/transcribe', { audio, mimeType, prompt, config });
+  return { prompt, config };
+}
+
+/** Повторная транскрипция записи по URL (файл фетчится на сервере и загружается в File API) */
+export async function retranscribeFromUrl(
+  audioUrl: string,
+  mimeType: string,
+  knownPeople: string[] = []
+): Promise<TranscribeResult> {
+  const { prompt, config } = buildTranscribePayload(knownPeople);
+  const res = await post<AITextResponse>('/retranscribe', { audioUrl, mimeType, prompt, config });
   const parsed = safeJsonParse<TranscribeResult>(res.text || '{}', {});
   return {
     title: parsed.title,
