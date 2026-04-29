@@ -5,6 +5,7 @@ import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import path from 'path';
@@ -161,6 +162,50 @@ async function uploadAudioToFileAPI(
     fileUri: uploadedFile.uri ?? '',
     fileMimeType: uploadedFile.mimeType ?? mimeType,
   };
+}
+
+// Общий билдер payload для транскрипции
+function buildTranscribePayload(knownPeople: string[] = []): { prompt: string; config: Record<string, unknown> } {
+  const knownPeoplePrefix = knownPeople.length > 0
+    ? `Known participants from previous recordings: ${knownPeople.join(', ')}. Use these names when identifying speakers. `
+    : '';
+
+  const prompt = knownPeoplePrefix +
+    'Please analyze this personal audio note or voice journal. ' +
+    'CRITICAL: If the audio is empty, silent, or contains no speech, return JSON with title \'[Тишина]\' and empty fields. ' +
+    'LANGUAGE RULE: transcript.text must be in the EXACT language spoken. ALL other fields MUST be in Russian. ' +
+    '1. Transcribe ALL speech verbatim, grouped by speaker turns. ' +
+    'SPEAKER DIARIZATION: Listen for voice changes. Label as "Участник 1", "Участник 2" etc. Replace with actual name if heard. ' +
+    'Each speaker change = new transcript item. Solo = "Я". ' +
+    '2. Short Russian summary. 3. 3-5 key moments in Russian. 4. ALL action items in Russian. ' +
+    '5. Mood in Russian. 6. Creative ideas in Russian. 7. Mentions (names, tools, places). ' +
+    '8. Open questions. 9. Map names to speaker labels. 10. Rich action items with assignee/deadline. ' +
+    '11. Big strategic questions. Return JSON.';
+
+  const config = {
+    responseMimeType: 'application/json',
+    responseSchema: {
+      type: 'OBJECT',
+      properties: {
+        title: { type: 'STRING' },
+        summary: { type: 'STRING' },
+        keyMoments: { type: 'ARRAY', items: { type: 'STRING' } },
+        actionItems: { type: 'ARRAY', items: { type: 'STRING' } },
+        mood: { type: 'STRING' },
+        ideas: { type: 'ARRAY', items: { type: 'STRING' } },
+        mentions: { type: 'ARRAY', items: { type: 'STRING' } },
+        transcript: { type: 'ARRAY', items: { type: 'OBJECT', properties: { speaker: { type: 'STRING' }, timestamp: { type: 'STRING' }, text: { type: 'STRING' } } } },
+        tags: { type: 'ARRAY', items: { type: 'STRING' } },
+        openQuestions: { type: 'ARRAY', items: { type: 'STRING' } },
+        participants: { type: 'ARRAY', items: { type: 'OBJECT', properties: { name: { type: 'STRING' }, speakerLabel: { type: 'STRING' }, role: { type: 'STRING' } } } },
+        richActionItems: { type: 'ARRAY', items: { type: 'OBJECT', properties: { text: { type: 'STRING' }, assignee: { type: 'STRING' }, deadline: { type: 'STRING' } } } },
+        bigQuestions: { type: 'ARRAY', items: { type: 'STRING' } },
+      },
+      required: ['title', 'summary', 'transcript', 'actionItems', 'ideas', 'keyMoments', 'mood', 'tags'],
+    },
+  };
+
+  return { prompt, config };
 }
 
 // POST /api/ai/transcribe — audio transcription + analysis
@@ -594,6 +639,110 @@ app.post('/api/r2/upload', requireAuth, async (req: Request, res: Response) => {
     console.error('Error in /api/r2/upload:', error);
     res.status(500).json({ error: 'Failed to upload file' });
   }
+});
+
+// POST /api/process-recording — загружает запись в R2, запускает транскрипцию в фоне,
+// сразу отвечает клиенту. Сервер сам пишет результат в Firestore через Firebase Admin.
+app.post('/api/process-recording', requireAuth, async (req: Request, res: Response) => {
+  const { recordingId, audioBase64, contentType, metadata } = req.body as {
+    recordingId: string;
+    audioBase64: string;
+    contentType: string;
+    metadata: {
+      title: string;
+      date: string;
+      duration: string;
+      knownPeople: string[];
+    };
+  };
+  const uid = (req as Request & { uid: string }).uid;
+
+  if (!recordingId || !audioBase64 || !contentType) {
+    res.status(400).json({ error: 'Missing required fields' });
+    return;
+  }
+
+  // Шаг 1: загружаем аудио в R2 прямо здесь
+  const ext = contentType.includes('webm') ? 'webm'
+    : contentType.includes('ogg') ? 'ogg'
+    : contentType.includes('wav') ? 'wav'
+    : 'mp4';
+  const key = `audio/${uid}/${recordingId}.${ext}`;
+  const buffer = Buffer.from(audioBase64, 'base64');
+
+  try {
+    await r2.send(new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+    }));
+  } catch (e) {
+    console.error('[process-recording] R2 upload failed:', e);
+    res.status(500).json({ error: 'R2 upload failed' });
+    return;
+  }
+
+  const publicUrl = `${R2_PUBLIC_URL}/${key}`;
+  console.log(`[process-recording] R2 OK: ${publicUrl}`);
+
+  // Отвечаем клиенту сразу — не ждём транскрипцию
+  res.json({ publicUrl, r2Key: key, queued: true });
+
+  // Фоновая транскрипция (не блокирует ответ)
+  setImmediate(async () => {
+    const db = getFirestore();
+    const docRef = db.collection('users').doc(uid).collection('recordings').doc(recordingId);
+    try {
+      console.log(`[process-recording] Starting background transcription for ${recordingId}`);
+      const ai = getAI();
+      const resolvedMime = contentType || 'audio/mp4';
+      const { fileUri, fileMimeType } = await uploadAudioToFileAPI(ai, buffer, resolvedMime);
+
+      const { prompt, config } = buildTranscribePayload(metadata.knownPeople || []);
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [{ parts: [{ fileData: { fileUri, mimeType: fileMimeType } }, { text: prompt }] }],
+        config,
+      });
+
+      const text = response.text ?? '';
+      let parsed: Record<string, unknown> = {};
+      try {
+        const clean = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+        parsed = JSON.parse(clean);
+      } catch { parsed = {}; }
+
+      const richActionItems = ((parsed.richActionItems as Array<{text: string; assignee?: string; assignees?: string[]; deadline?: string}>) || []).map((item) => ({
+        text: item.text,
+        assignees: Array.isArray(item.assignees) && item.assignees.length > 0
+          ? item.assignees
+          : item.assignee ? [item.assignee] : [],
+        deadline: item.deadline,
+      }));
+
+      await docRef.update({
+        title: parsed.title || metadata.title || 'Запись',
+        summary: parsed.summary || '',
+        transcript: parsed.transcript || [],
+        keyMoments: parsed.keyMoments || [],
+        actionItems: parsed.actionItems || [],
+        mood: parsed.mood || '',
+        ideas: parsed.ideas || [],
+        mentions: parsed.mentions || [],
+        tags: parsed.tags || [],
+        openQuestions: parsed.openQuestions || [],
+        participants: parsed.participants || [],
+        richActionItems,
+        bigQuestions: parsed.bigQuestions || [],
+        aiStatus: 'done',
+      });
+      console.log(`[process-recording] Transcription saved to Firestore for ${recordingId}`);
+    } catch (err) {
+      console.error(`[process-recording] Background transcription failed for ${recordingId}:`, err);
+      await docRef.update({ aiStatus: 'error' }).catch(() => {});
+    }
+  });
 });
 
 // DELETE /api/r2/delete — удалить аудиофайл при удалении записи

@@ -1,6 +1,7 @@
 import {
   collection, doc, getDocs, setDoc, updateDoc, deleteDoc,
-  writeBatch, serverTimestamp, query, orderBy,
+  writeBatch, serverTimestamp, query, orderBy, onSnapshot,
+  type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { Recording, Note, Space } from '../types';
@@ -57,6 +58,25 @@ export async function clearRecordings(uid: string): Promise<void> {
   const batch = writeBatch(db);
   snap.docs.forEach(d => batch.delete(d.ref));
   await batch.commit();
+}
+
+// Real-time listener — уведомляет об изменениях в коллекции recordings
+// Используется для получения результатов фоновой транскрипции от сервера
+export function subscribeToRecordings(
+  uid: string,
+  onUpdate: (recordings: Recording[]) => void,
+): Unsubscribe {
+  return onSnapshot(recCol(uid), (snap) => {
+    const recs = snap.docs.map(d => ({ ...(d.data() as Recording), id: d.id }));
+    const sorted = recs.sort((a, b) => {
+      const aTime = (a as Recording & { createdAt?: { seconds?: number } }).createdAt?.seconds ?? parseInt(a.id);
+      const bTime = (b as Recording & { createdAt?: { seconds?: number } }).createdAt?.seconds ?? parseInt(b.id);
+      return bTime - aTime;
+    });
+    onUpdate(sorted);
+  }, (err) => {
+    console.warn('[Firestore] subscribeToRecordings error:', err);
+  });
 }
 
 // --- Notes ---

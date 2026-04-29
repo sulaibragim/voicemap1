@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Recording, Note, Space } from '../types';
 import * as fs from '../lib/firestoreService';
+import type { Unsubscribe } from 'firebase/firestore';
 
 interface UseFirestoreDataReturn {
   recordings: Recording[];
@@ -31,6 +32,7 @@ export function useFirestoreData(uid: string | null): UseFirestoreDataReturn {
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(true);
   const initialized = useRef(false);
+  const unsubscribeRef = useRef<Unsubscribe | null>(null);
 
   useEffect(() => {
     if (!uid || initialized.current) return;
@@ -88,6 +90,15 @@ export function useFirestoreData(uid: string | null): UseFirestoreDataReturn {
         setLoading(false);
       }
     })();
+
+    // Real-time listener — подхватывает обновления от сервера (фоновая транскрипция)
+    unsubscribeRef.current = fs.subscribeToRecordings(uid, (updated) => {
+      setRecordings(updated);
+    });
+
+    return () => {
+      unsubscribeRef.current?.();
+    };
   }, [uid]);
 
   // --- Recording CRUD ---

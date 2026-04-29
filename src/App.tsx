@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Brain, Loader2 } from 'lucide-react';
-import { fetchDailyTip, transcribeRecording, retranscribeFromUrl, uploadAudioToR2, deleteAudioFromR2 } from './lib/api';
+import { fetchDailyTip, transcribeRecording, retranscribeFromUrl, uploadAudioToR2, deleteAudioFromR2, processRecordingAsync } from './lib/api';
 
 import type { Note, NoteType, Recording, Space, AppSettings } from './types';
 import { defaultAppSettings } from './types';
@@ -460,109 +460,58 @@ export default function App() {
     setCurrentView('dashboard');
     setIsProcessing(true);
 
-    // Временный blob URL — только для воспроизведения пока идёт загрузка в R2
-    const localBlobUrl = URL.createObjectURL(blob);
     const recordingId = Date.now().toString();
     const m = Math.floor(durationSeconds / 60).toString().padStart(2, '0');
     const s = Math.floor(durationSeconds % 60).toString().padStart(2, '0');
+    const duration = `${m}:${s}`;
+    const date = new Date().toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
 
+    // Создаём запись сразу со статусом "обрабатывается"
+    const pendingRecording: Recording = {
+      id: recordingId,
+      title: 'Обрабатывается...',
+      date,
+      duration,
+      tags: [],
+      summary: '',
+      transcript: [],
+      keyMoments: [],
+      actionItems: [],
+      mood: '',
+      ideas: [],
+      mentions: [],
+      openQuestions: [],
+      participants: [],
+      richActionItems: [],
+      bigQuestions: [],
+      aiStatus: 'processing',
+      audioUrl: undefined,
+      r2Key: undefined,
+    };
+
+    // Сохраняем в Firestore сразу — пользователь видит запись немедленно
+    addRecording(pendingRecording);
+    addFromRecording(pendingRecording);
+    setNavStack(prev => [...prev, { view: 'dashboard', spaceMapActiveId: null }]);
+    setSelectedRecordingId(recordingId);
+    setSpacePickerRecordingId(recordingId);
+    setIsProcessing(false);
+
+    // Загружаем на сервер в фоне — сервер сам обновит Firestore после транскрипции
     try {
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve, reject) => {
-        reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-        reader.onerror = reject;
+      const { publicUrl, r2Key } = await processRecordingAsync(blob, recordingId, {
+        title: 'Новая запись',
+        date,
+        duration,
+        knownPeople: getNames(),
       });
-      reader.readAsDataURL(blob);
-      const base64Audio = await base64Promise;
-
-      // Транскрипция и загрузка в R2 идут ПАРАЛЛЕЛЬНО — экономим время
-      const [transcribeResult, r2Result] = await Promise.allSettled([
-        transcribeRecording(base64Audio, blob.type || 'audio/webm', getNames()),
-        uploadAudioToR2(blob, recordingId),
-      ]);
-
-      // Если R2 готов — используем постоянный URL, иначе blob (до следующей попытки)
-      const audioUrl = r2Result.status === 'fulfilled' ? r2Result.value.publicUrl : localBlobUrl;
-      const r2Key   = r2Result.status === 'fulfilled' ? r2Result.value.r2Key : undefined;
-      if (r2Result.status === 'rejected') {
-        console.warn('R2 upload failed:', r2Result.reason);
-      }
-
-      const result = transcribeResult.status === 'fulfilled' ? transcribeResult.value : null;
-      if (transcribeResult.status === 'rejected') {
-        console.warn('Transcription failed:', transcribeResult.reason);
-        showToast('Ошибка AI-обработки. Запись сохранена без транскрипта.', 'error');
-      }
-
-      const newRecording: Recording = {
-        id: recordingId,
-        title: result?.title || 'Новая запись',
-        date: new Date().toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }),
-        duration: `${m}:${s}`,
-        tags: result?.tags || [],
-        summary: result?.summary || '',
-        actionItems: result?.actionItems || [],
-        mood: result?.mood || 'Нейтральное',
-        ideas: result?.ideas || [],
-        mentions: result?.mentions || [],
-        transcript: result?.transcript || [],
-        keyMoments: result?.keyMoments || [],
-        openQuestions: result?.openQuestions || [],
-        participants: result?.participants || [],
-        richActionItems: (result?.richActionItems || []).map(item => ({
-          text: item.text,
-          assignees: Array.isArray(item.assignees) && item.assignees.length > 0
-            ? item.assignees
-            : item.assignee ? [item.assignee] : [],
-          deadline: item.deadline,
-        })),
-        bigQuestions: result?.bigQuestions || [],
-        audioUrl,  // R2 URL или blob — сразу правильный
-        r2Key,
-      };
-
-      // Сохраняем в Firestore уже с R2 URL (не blob!)
-      addRecording(newRecording);
-      addFromRecording(newRecording);
-      setNavStack(prev => [...prev, { view: 'dashboard', spaceMapActiveId: null }]);
-      setSelectedRecordingId(newRecording.id);
-      setSpacePickerRecordingId(newRecording.id);
-
-      // Если R2 не успел — пробуем в фоне ещё раз и обновляем запись
-      if (r2Result.status === 'rejected') {
-        uploadAudioToR2(blob, recordingId).then(({ publicUrl, r2Key: key }) => {
-          updateRecordingItem({ ...newRecording, audioUrl: publicUrl, r2Key: key });
-        }).catch(err => console.warn('R2 retry failed:', err));
-      }
-
+      // Обновляем URL аудио (транскрипция придёт от сервера через real-time listener)
+      updateRecordingItem({ ...pendingRecording, audioUrl: publicUrl, r2Key });
+      console.log('[handleFinishRecording] Upload done, background transcription queued');
     } catch (err) {
-      console.warn('handleFinishRecording unexpected error:', err);
-      showToast('Ошибка при сохранении записи.', 'error');
-
-      // Fallback: сохраняем без AI и без R2 (blob URL)
-      const fallbackRecording: Recording = {
-        id: recordingId,
-        title: 'Новая запись (Без ИИ)',
-        date: new Date().toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }),
-        duration: `${m}:${s}`,
-        tags: ['#Без_ИИ'],
-        summary: 'Не удалось обработать запись.',
-        actionItems: [], ideas: [], mentions: [],
-        mood: 'Неизвестно', transcript: [], keyMoments: [],
-        audioUrl: localBlobUrl,
-      };
-
-      addRecording(fallbackRecording);
-      setNavStack(prev => [...prev, { view: 'dashboard', spaceMapActiveId: null }]);
-      setSelectedRecordingId(fallbackRecording.id);
-      setCurrentView('recording_detail');
-
-      uploadAudioToR2(blob, recordingId).then(({ publicUrl, r2Key }) => {
-        updateRecordingItem({ ...fallbackRecording, audioUrl: publicUrl, r2Key });
-      }).catch(e => console.warn('R2 upload failed for fallback:', e));
-
-    } finally {
-      setIsProcessing(false);
+      console.warn('[handleFinishRecording] Upload failed:', err);
+      showToast('Ошибка загрузки аудио. Попробуй снова.', 'error');
+      updateRecordingItem({ ...pendingRecording, aiStatus: 'error' });
     }
   };
 

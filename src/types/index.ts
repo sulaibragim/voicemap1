@@ -64,6 +64,7 @@ export interface Recording {
   participants?: Participant[];
   richActionItems?: RichActionItem[];
   bigQuestions?: string[];
+  aiStatus?: 'processing' | 'done' | 'error';  // статус AI-обработки
 }
 
 export interface Participant {

@@ -52,9 +52,15 @@ export const RecentRecordings = ({ recordings, onOpenLibrary, onOpenDetail }: Re
                 </div>
               </div>
               <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
-                {(recent[0].tags || []).map((tag, i) => (
-                  <span key={i} className="px-3 py-1 bg-surface-container-highest rounded-lg text-xs font-medium text-on-surface-variant whitespace-nowrap flex-shrink-0">{tag}</span>
-                ))}
+                {recent[0].aiStatus === 'processing' ? (
+                  <span className="px-3 py-1 bg-surface-container-highest rounded-lg text-xs font-medium text-on-surface-variant whitespace-nowrap flex-shrink-0 animate-pulse">Обрабатывается...</span>
+                ) : recent[0].aiStatus === 'error' ? (
+                  <span className="px-3 py-1 bg-error/20 rounded-lg text-xs font-medium text-error whitespace-nowrap flex-shrink-0">Ошибка обработки</span>
+                ) : (
+                  (recent[0].tags || []).map((tag, i) => (
+                    <span key={i} className="px-3 py-1 bg-surface-container-highest rounded-lg text-xs font-medium text-on-surface-variant whitespace-nowrap flex-shrink-0">{tag}</span>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -68,7 +74,13 @@ export const RecentRecordings = ({ recordings, onOpenLibrary, onOpenDetail }: Re
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-label font-bold text-primary tracking-widest uppercase mb-1">{item.date}</p>
                   <h4 className="font-headline text-lg font-bold group-hover:text-primary transition-colors leading-tight truncate">{item.title}</h4>
-                  <p className="text-sm text-on-surface-variant mt-2 line-clamp-2">{item.summary}</p>
+                  {item.aiStatus === 'processing' ? (
+                    <p className="text-sm text-on-surface-variant mt-2 animate-pulse">Обрабатывается...</p>
+                  ) : item.aiStatus === 'error' ? (
+                    <p className="text-sm text-error mt-2">Ошибка обработки</p>
+                  ) : (
+                    <p className="text-sm text-on-surface-variant mt-2 line-clamp-2">{item.summary}</p>
+                  )}
                 </div>
               </div>
             ))}

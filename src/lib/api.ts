@@ -320,6 +320,41 @@ export async function uploadAudioToR2(
 }
 
 /**
+ * Отправляет аудио на сервер: R2 upload + фоновая транскрипция в одном запросе.
+ * Сервер сразу возвращает publicUrl/r2Key, транскрипцию пишет в Firestore сам.
+ */
+export async function processRecordingAsync(
+  blob: Blob,
+  recordingId: string,
+  metadata: { title: string; date: string; duration: string; knownPeople: string[] }
+): Promise<{ publicUrl: string; r2Key: string }> {
+  const authHeader = await getAuthHeader();
+  const contentType = blob.type || 'audio/mp4';
+  console.log('[processRecordingAsync] blob size:', blob.size, 'type:', contentType);
+
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+
+  const res = await fetch(`${API_ROOT}/api/process-recording`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeader },
+    body: JSON.stringify({ recordingId, audioBase64: base64, contentType, metadata }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`process-recording failed: ${res.status} — ${err}`);
+  }
+
+  const { publicUrl, r2Key } = await res.json() as { publicUrl: string; r2Key: string };
+  return { publicUrl, r2Key };
+}
+
+/**
  * Удаляет аудиофайл из R2 при удалении записи.
  */
 export async function deleteAudioFromR2(r2Key: string): Promise<void> {
