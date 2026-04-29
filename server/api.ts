@@ -556,6 +556,46 @@ app.post('/api/r2/presign', requireAuth, async (req: Request, res: Response) => 
   }
 });
 
+// POST /api/r2/upload — загрузка аудио через сервер (без CORS, работает с Capacitor Android)
+app.post('/api/r2/upload', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const uid = (req as Request & { uid: string }).uid;
+    const { recordingId, contentType, audioBase64 } = req.body as {
+      recordingId: string;
+      contentType: string;
+      audioBase64: string;
+    };
+
+    if (!recordingId || !contentType || !audioBase64) {
+      res.status(400).json({ error: 'recordingId, contentType and audioBase64 are required' });
+      return;
+    }
+
+    const ext = contentType.includes('webm') ? 'webm'
+      : contentType.includes('ogg') ? 'ogg'
+      : contentType.includes('wav') ? 'wav'
+      : 'mp4';
+    const key = `audio/${uid}/${recordingId}.${ext}`;
+
+    const buffer = Buffer.from(audioBase64, 'base64');
+    console.log(`[R2 upload] key=${key} size=${buffer.length} bytes`);
+
+    await r2.send(new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+    }));
+
+    const publicUrl = `${R2_PUBLIC_URL}/${key}`;
+    console.log('[R2 upload] OK →', publicUrl);
+    res.json({ publicUrl, key });
+  } catch (error) {
+    console.error('Error in /api/r2/upload:', error);
+    res.status(500).json({ error: 'Failed to upload file' });
+  }
+});
+
 // DELETE /api/r2/delete — удалить аудиофайл при удалении записи
 app.delete('/api/r2/delete', requireAuth, async (req: Request, res: Response) => {
   try {

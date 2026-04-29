@@ -281,51 +281,40 @@ export async function weeklyReview(
 // ── Cloudflare R2 Audio Upload ────────────────────────────────────────────────
 
 /**
- * Загружает аудио blob в Cloudflare R2.
- * Шаги: 1) получаем presigned URL с сервера, 2) PUT blob напрямую в R2.
- * Возвращает публичный URL для воспроизведения.
+ * Загружает аудио blob в Cloudflare R2 через наш сервер.
+ * Сервер делает прямой S3 PUT — нет CORS проблем ни на Android, ни в браузере.
  */
 export async function uploadAudioToR2(
   blob: Blob,
   recordingId: string,
 ): Promise<{ publicUrl: string; r2Key: string }> {
   const authHeader = await getAuthHeader();
-  const hasAuth = Object.keys(authHeader).length > 0;
-  console.log('[R2] Starting upload. Auth header present:', hasAuth, '| blob size:', blob.size, '| type:', blob.type);
+  const contentType = blob.type || 'audio/mp4';
+  console.log('[R2] Starting server-side upload. Size:', blob.size, '| type:', contentType);
 
-  // Шаг 1: получаем presigned URL с сервера
-  const presignRes = await fetch(`${API_ROOT}/api/r2/presign`, {
+  // Конвертируем blob в base64 для передачи на сервер
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      resolve(result.split(',')[1]); // убираем "data:...;base64," префикс
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+
+  const res = await fetch(`${API_ROOT}/api/r2/upload`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeader },
-    body: JSON.stringify({ recordingId, contentType: blob.type || 'audio/webm' }),
+    body: JSON.stringify({ recordingId, contentType, audioBase64: base64 }),
   });
 
-  console.log('[R2] Presign response status:', presignRes.status);
-  if (!presignRes.ok) {
-    const errText = await presignRes.text();
-    throw new Error(`Presign failed: ${presignRes.status} — ${errText}`);
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`R2 server upload failed: ${res.status} — ${errText}`);
   }
 
-  const { uploadUrl, publicUrl, key } = await presignRes.json() as {
-    uploadUrl: string;
-    publicUrl: string;
-    key: string;
-  };
-  console.log('[R2] Got presign URL. Public URL will be:', publicUrl);
-
-  // Шаг 2: загружаем blob напрямую в R2
-  const uploadRes = await fetch(uploadUrl, {
-    method: 'PUT',
-    body: blob,
-    headers: { 'Content-Type': blob.type || 'audio/webm' },
-  });
-
-  console.log('[R2] Upload response status:', uploadRes.status);
-  if (!uploadRes.ok) {
-    const errText = await uploadRes.text();
-    throw new Error(`R2 upload failed: ${uploadRes.status} — ${errText}`);
-  }
-
+  const { publicUrl, key } = await res.json() as { publicUrl: string; key: string };
   console.log('[R2] Upload SUCCESS →', publicUrl);
   return { publicUrl, r2Key: key };
 }
