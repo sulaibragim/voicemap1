@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Mic, MicOff, Pause, Play, Square, ArrowLeft, Volume2 } from 'lucide-react';
-import { formatTime } from '../../lib/utils';
+import { ArrowLeft, Volume2 } from 'lucide-react';
 import { useNativeRecorder, type AudioMode } from '../../hooks/useNativeRecorder';
+import { RecordingTimerCircle } from './RecordingTimerCircle';
+import { RecordingControls } from './RecordingControls';
 
 interface RecordingSessionProps {
   onFinish: (blob: Blob, duration: number) => void;
@@ -137,6 +137,9 @@ export const RecordingSession = ({ onFinish, onCancel, showToast, autoStopMinute
       mediaRecorderRef.current.stop();
     }
   };
+
+  // Обновляем ref после каждого рендера чтобы таймер всегда вызывал актуальную версию
+  // eslint-disable-next-line react-hooks/refs
   stopRecordingRef.current = stopRecording;
 
   const togglePause = async () => {
@@ -239,125 +242,21 @@ export const RecordingSession = ({ onFinish, onCancel, showToast, autoStopMinute
         </div>
       )}
 
-      {/* Круг с таймером + анимация */}
-      <div className="relative flex items-center justify-center mb-10">
-        {isRecording && !isPaused && (
-          <>
-            <motion.div
-              animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0.8, 0.5] }}
-              transition={{ repeat: Infinity, duration: 2 }}
-              className="absolute w-64 h-64 rounded-full bg-error/20 blur-xl"
-            />
-            <motion.div
-              animate={{ scale: [1, 1.5, 1], opacity: [0.2, 0.5, 0.2] }}
-              transition={{ repeat: Infinity, duration: 2, delay: 0.2 }}
-              className="absolute w-64 h-64 rounded-full bg-error/10 blur-2xl"
-            />
-          </>
-        )}
-        {isRecording && isPaused && (
-          <motion.div
-            animate={{ opacity: [0.3, 0.6, 0.3] }}
-            transition={{ repeat: Infinity, duration: 1.5 }}
-            className="absolute w-64 h-64 rounded-full bg-primary/15 blur-xl"
-          />
-        )}
-
-        <div className="w-48 h-48 rounded-full bg-surface-container-high border-4 border-surface-container flex flex-col items-center justify-center z-10 relative shadow-2xl gap-1">
-          <div className="text-4xl font-mono font-bold text-white tracking-wider">
-            {formatTime(duration)}
-          </div>
-          <AnimatePresence mode="wait">
-            {isRecording && (
-              <motion.div
-                key={isPaused ? 'paused' : isMuted ? 'muted' : 'recording'}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.2 }}
-                className={`text-[10px] font-bold tracking-widest uppercase ${
-                  isPaused ? 'text-primary' : isMuted ? 'text-yellow-400' : 'text-error'
-                }`}
-              >
-                {isPaused ? '⏸ Пауза' : isMuted ? '🔇 Без звука' : '● Запись'}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
-
-      {/* Кнопки управления */}
-      <div className="flex items-center gap-5 mb-8">
-        {!isRecording ? (
-          /* Кнопка старта */
-          <motion.button
-            onClick={startRecording}
-            whileTap={{ scale: 0.95 }}
-            className="w-20 h-20 rounded-full bg-error text-white flex items-center justify-center hover:scale-105 transition-transform shadow-[0_0_30px_rgba(255,84,73,0.4)] cursor-pointer"
-          >
-            <Mic className="w-8 h-8" fill="currentColor" />
-          </motion.button>
-        ) : (
-          <>
-            {/* Мьют */}
-            <motion.button
-              onClick={toggleMute}
-              whileTap={{ scale: 0.92 }}
-              className={`w-14 h-14 rounded-full flex items-center justify-center transition-all cursor-pointer border ${
-                isMuted
-                  ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-400'
-                  : 'bg-surface-container-high border-white/10 text-on-surface-variant hover:text-white hover:border-white/20'
-              }`}
-            >
-              {isMuted
-                ? <MicOff className="w-5 h-5" />
-                : <Mic className="w-5 h-5" />
-              }
-            </motion.button>
-
-            {/* Стоп — центр, большой */}
-            <motion.button
-              onClick={stopRecording}
-              whileTap={{ scale: 0.92 }}
-              className="w-20 h-20 rounded-full bg-surface-container-highest text-error flex items-center justify-center hover:scale-105 transition-transform border border-error/30 cursor-pointer shadow-[0_0_20px_rgba(255,84,73,0.2)]"
-            >
-              <Square className="w-6 h-6 fill-error" />
-            </motion.button>
-
-            {/* Пауза / Продолжить */}
-            <motion.button
-              onClick={togglePause}
-              whileTap={{ scale: 0.92 }}
-              className={`w-14 h-14 rounded-full flex items-center justify-center transition-all cursor-pointer border ${
-                isPaused
-                  ? 'bg-primary/20 border-primary/50 text-primary'
-                  : 'bg-surface-container-high border-white/10 text-on-surface-variant hover:text-white hover:border-white/20'
-              }`}
-            >
-              {isPaused
-                ? <Play className="w-5 h-5 fill-primary" />
-                : <Pause className="w-5 h-5" />
-              }
-            </motion.button>
-          </>
-        )}
-      </div>
-
-      {/* Подсказки под кнопками */}
-      <AnimatePresence>
-        {isRecording && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="flex items-center gap-9 text-[10px] text-on-surface-variant/40 font-bold tracking-wider uppercase"
-          >
-            <span>Мьют</span>
-            <span className="w-8 text-center">Стоп</span>
-            <span>{isPaused ? 'Продолжить' : 'Пауза'}</span>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <RecordingTimerCircle
+        duration={duration}
+        isRecording={isRecording}
+        isPaused={isPaused}
+        isMuted={isMuted}
+      />
+      <RecordingControls
+        isRecording={isRecording}
+        isPaused={isPaused}
+        isMuted={isMuted}
+        onStart={startRecording}
+        onStop={stopRecording}
+        onTogglePause={togglePause}
+        onToggleMute={toggleMute}
+      />
     </div>
   );
 };

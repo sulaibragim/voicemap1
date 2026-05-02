@@ -1,9 +1,20 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="ru" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VOICEMAP - Digital Archivist</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>VoiceMap — голосовой блокнот с AI</title>
+    <meta name="description" content="Записывай голосом, AI превращает в задачи и идеи. Чат-ассистент по всем твоим заметкам." />
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#7B61FF" />
+    <link rel="icon" type="image/png" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="VoiceMap" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@700;800;900&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -11,6 +22,17 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Service Worker — регистрация только в продакшене (в dev мешает HMR) -->
+    <script>
+      if ('serviceWorker' in navigator && location.hostname !== 'localhost' && !location.hostname.startsWith('127.')) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch((err) => {
+            console.warn('[SW] registration failed:', err);
+          });
+        });
+      }
+    </script>
   </body>
 </html>
 

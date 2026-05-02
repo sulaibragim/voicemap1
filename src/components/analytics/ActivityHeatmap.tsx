@@ -61,7 +61,12 @@ export const ActivityHeatmap = ({ recordings }: Props) => {
     let longestStreak = 0, ls = 0;
     const s = new Date(start);
     while (s <= today) {
-      countByDay[toDateKey(s)] ? (ls++, longestStreak = Math.max(longestStreak, ls)) : (ls = 0);
+      if (countByDay[toDateKey(s)]) {
+        ls++;
+        longestStreak = Math.max(longestStreak, ls);
+      } else {
+        ls = 0;
+      }
       s.setDate(s.getDate() + 1);
     }
 

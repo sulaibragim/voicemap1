@@ -20,9 +20,11 @@ export const CreateSpaceModal = ({ open, onClose, onCreate }: CreateSpaceModalPr
 
   useEffect(() => {
     if (open) {
+      /* eslint-disable react-hooks/set-state-in-effect */
       setName('');
       setEmoji('🚀');
       setColor('#7B61FF');
+      /* eslint-enable react-hooks/set-state-in-effect */
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [open]);

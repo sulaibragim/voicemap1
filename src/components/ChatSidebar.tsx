@@ -1,26 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Send, Mic, Loader2, FileAudio, Square, CheckCircle2, StickyNote, Target } from 'lucide-react';
+import { X, Send, Mic, Loader2, Square } from 'lucide-react';
 import { chatWithAI, transcribeChatVoice } from '../lib/api';
 import { buildAssistantPrompt, ASSISTANT_WELCOME, type AssistantProfile } from '../lib/assistantPrompt';
-import Markdown from 'react-markdown';
-import type { Recording, Note, Space } from '../types';
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  text: string;
-  recordingId?: string;
-  isAudio?: boolean;
-  actionDone?: 'focus' | 'note' | 'ideas';
-}
-
-interface AssistantAction {
-  text: string;
-  action: 'NAVIGATE' | 'OPEN_RECORDING' | 'SET_FOCUS_TASKS' | 'CREATE_NOTE' | 'UPDATE_IDEAS' | 'NONE';
-  actionTarget: string | null;
-  actionData: Record<string, unknown> | null;
-}
+import { useChatRecording } from '../hooks/useChatRecording';
+import { ChatMessageBubble } from './ChatMessageBubble';
+import type { Recording, Note, Space, Message } from '../types';
 
 interface ChatSidebarProps {
   isOpen: boolean;
@@ -45,6 +30,9 @@ const QUICK_ACTIONS = [
   { label: 'Настроение', prompt: 'Какое у меня было настроение в последних записях?' },
 ];
 
+// Генерация уникального ID для сообщений — вынесена вне компонента
+const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
 export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   isOpen, onClose, recordings, notes, spaces, profile,
   onOpenRecording, currentView, setCurrentView,
@@ -55,33 +43,15 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
   const [showQuickActions, setShowQuickActions] = useState(true);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<number | null>(null);
-
-  const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      streamRef.current?.getTracks().forEach(t => t.stop());
-      if (mediaRecorderRef.current?.state !== 'inactive') {
-        mediaRecorderRef.current?.stop();
-      }
-    };
-  }, []);
 
   // Определяем коррекцию пользователя и сохраняем правило
   const detectAndLearnRule = (text: string) => {
@@ -145,7 +115,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
       if (result.action === 'CREATE_NOTE' && result.actionData) {
         const d = result.actionData as { type?: unknown; content?: unknown; dueDate?: unknown; dueTime?: unknown };
         const noteType = typeof d.type === 'string' && d.type ? d.type : 'Задача';
-        // content может прийти как null/undefined — fallback на сообщение пользователя
         const noteContent = typeof d.content === 'string' && d.content.trim()
           ? d.content.trim()
           : (typeof text === 'string' ? text.replace(/^создай\s+(задачу|идею|напоминание)[:\s]*/i, '').trim() : '');
@@ -177,7 +146,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
         : undefined;
 
       const newAssistantMsg: Message = {
-        id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        id: makeId(),
         role: 'assistant',
         text: result.text || 'Извините, не смог обработать запрос.',
         recordingId: validRecordingId,
@@ -188,7 +157,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     } catch (error) {
       console.warn('Chat error:', error);
       setMessages(prev => [...prev, {
-        id: (Date.now() + 1).toString(),
+        id: makeId(),
         role: 'assistant',
         text: 'Произошла ошибка. Попробуй ещё раз.',
       }]);
@@ -197,72 +166,26 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
     }
   };
 
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        const mimeType = mediaRecorder.mimeType || 'audio/webm';
-        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
-        stream.getTracks().forEach(track => track.stop());
-        const reader = new FileReader();
-        reader.readAsDataURL(audioBlob);
-        reader.onloadend = async () => {
-          const base64Audio = (reader.result as string).split(',')[1];
-          await processVoiceMessage(base64Audio, mimeType);
-        };
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-      setRecordingTime(0);
-      timerRef.current = window.setInterval(() => setRecordingTime(prev => prev + 1), 1000);
-    } catch (err) {
-      console.warn('Microphone error:', err);
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      if (timerRef.current) clearInterval(timerRef.current);
-    }
-  };
-
-  const processVoiceMessage = async (base64Audio: string, mimeType: string) => {
-    setIsProcessing(true);
-    const tempId = makeId();
-    setMessages(prev => [...prev, { id: tempId, role: 'user', text: 'Голосовое сообщение...', isAudio: true }]);
-    try {
-      const transcript = await transcribeChatVoice(base64Audio, mimeType);
-      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, text: transcript } : m));
-      if (!transcript || transcript.trim() === '[Тишина]') {
+  const { isRecording, recordingTime, startRecording, stopRecording, formatTime } = useChatRecording({
+    onAudioReady: async (base64Audio, mimeType) => {
+      setIsProcessing(true);
+      const tempId = makeId();
+      setMessages(prev => [...prev, { id: tempId, role: 'user', text: 'Голосовое сообщение...', isAudio: true }]);
+      try {
+        const transcript = await transcribeChatVoice(base64Audio, mimeType);
+        setMessages(prev => prev.map(m => m.id === tempId ? { ...m, text: transcript } : m));
+        if (!transcript || transcript.trim() === '[Тишина]') {
+          setMessages(prev => prev.filter(m => m.id !== tempId));
+          setIsProcessing(false);
+          return;
+        }
+        await handleSend(transcript, true, true);
+      } catch {
         setMessages(prev => prev.filter(m => m.id !== tempId));
         setIsProcessing(false);
-        return;
       }
-      await handleSend(transcript, true, true);
-    } catch (error) {
-      console.warn('Voice error:', error);
-      setMessages(prev => prev.filter(m => m.id !== tempId));
-      setIsProcessing(false);
-    }
-  };
-
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const s = (seconds % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  };
+    },
+  });
 
   const assistantName = profile?.name ?? 'VoiceMap AI';
 
@@ -293,66 +216,14 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
           {/* Сообщения */}
           <div className="overflow-y-auto p-4 space-y-4 min-h-0 flex-1">
-            {messages.map((msg) => (
-              <div key={msg.id} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                <div
-                  className={`max-w-[85%] p-4 rounded-2xl ${
-                    msg.role === 'user'
-                      ? 'bg-primary text-on-primary-fixed rounded-tr-sm'
-                      : 'bg-surface-container text-on-surface rounded-tl-sm border border-white/5'
-                  }`}
-                >
-                  {msg.isAudio && <Mic className="w-4 h-4 mb-2 opacity-70" />}
-                  {msg.role === 'assistant' ? (
-                    <div className="text-sm leading-relaxed prose prose-invert prose-sm max-w-none">
-                      <Markdown>{msg.text}</Markdown>
-                    </div>
-                  ) : (
-                    <p className="text-sm leading-relaxed">{msg.text}</p>
-                  )}
-                </div>
-
-                {/* Бейдж выполненного действия */}
-                {msg.actionDone === 'focus' && (
-                  <div className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-secondary/15 border border-secondary/20 rounded-xl">
-                    <Target className="w-3.5 h-3.5 text-secondary" />
-                    <span className="text-xs font-bold text-secondary">Фокус-задачи добавлены</span>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-secondary" />
-                  </div>
-                )}
-                {msg.actionDone === 'note' && (
-                  <div className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-tertiary/15 border border-tertiary/20 rounded-xl">
-                    <StickyNote className="w-3.5 h-3.5 text-tertiary" />
-                    <span className="text-xs font-bold text-tertiary">Заметка создана</span>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-tertiary" />
-                  </div>
-                )}
-                {msg.actionDone === 'ideas' && (
-                  <div className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-primary/15 border border-primary/20 rounded-xl">
-                    <span className="text-xs">💡</span>
-                    <span className="text-xs font-bold text-primary">Идеи обновлены</span>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
-                  </div>
-                )}
-
-                {/* Кнопка открыть запись */}
-                {msg.recordingId && (
-                  <div
-                    onClick={() => { onOpenRecording(msg.recordingId!); onClose(); }}
-                    className="mt-2 max-w-[85%] bg-surface-container-high border border-primary/30 p-3 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-surface-container-highest transition-colors group"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                      <FileAudio className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-primary">Открыть запись</p>
-                      <p className="text-[10px] text-on-surface-variant truncate">
-                        {recordings.find(r => r.id === msg.recordingId)?.title ?? 'Запись'}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
+            {messages.map(msg => (
+              <ChatMessageBubble
+                key={msg.id}
+                msg={msg}
+                recordings={recordings}
+                onOpenRecording={onOpenRecording}
+                onClose={onClose}
+              />
             ))}
 
             {isProcessing && (

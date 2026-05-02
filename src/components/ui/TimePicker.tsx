@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import type * as React from 'react';
+import { motion } from 'motion/react';
 
 interface TimePickerProps {
   value: string; // "HH:MM"
@@ -15,7 +16,7 @@ function parse(v: string) {
 }
 
 function Drum({ value, max, onChange }: { value: number; max: number; onChange: (v: number) => void }) {
-  const wrap = (n: number) => ((n % (max + 1)) + (max + 1)) % (max + 1);
+  const wrap = useCallback((n: number) => ((n % (max + 1)) + (max + 1)) % (max + 1), [max]);
   const items = [-2, -1, 0, 1, 2].map(offset => wrap(value + offset));
   const drumRef = useRef<HTMLDivElement>(null);
 

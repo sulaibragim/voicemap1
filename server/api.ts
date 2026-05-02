@@ -16,19 +16,35 @@ const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
 // Инициализируем Firebase Admin (для верификации токенов)
+// В продакшене сервисный аккаунт ОБЯЗАТЕЛЕН — иначе сервер падает на старте.
+// В dev-режиме допускается работа без него (JWT декодируется без проверки подписи — см. requireAuth).
 if (!getApps().length) {
+  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+  const hasServiceAccount = !!serviceAccount && serviceAccount.includes('"private_key"');
+
+  if (IS_PRODUCTION && !hasServiceAccount) {
+    console.error('[Firebase] FATAL: FIREBASE_SERVICE_ACCOUNT_JSON is required in production');
+    console.error('[Firebase] Without it, the server cannot verify Firebase ID tokens — auth bypass risk.');
+    process.exit(1);
+  }
+
   try {
-    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-    if (serviceAccount && serviceAccount.includes('"private_key"')) {
-      initializeApp({ credential: cert(JSON.parse(serviceAccount)) });
-      console.log('[Firebase] Initialized with service account');
+    if (hasServiceAccount) {
+      initializeApp({ credential: cert(JSON.parse(serviceAccount!)) });
+      console.log('[Firebase] Initialized with service account (full token verification)');
     } else {
       initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID || 'gen-lang-client-0179752723' });
-      console.log('[Firebase] Initialized without service account (dev mode)');
+      console.warn('[Firebase] ⚠ Initialized WITHOUT service account — DEV MODE ONLY, do not deploy.');
     }
   } catch (e) {
-    console.warn('[Firebase] Init failed, continuing without auth:', e);
+    if (IS_PRODUCTION) {
+      console.error('[Firebase] FATAL: Init failed in production:', e);
+      process.exit(1);
+    }
+    console.warn('[Firebase] Init failed, continuing without auth (dev only):', e);
     initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID || 'gen-lang-client-0179752723' });
   }
 }
@@ -48,20 +64,35 @@ const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL ?? '').replace(/\/$/, '');
 
 const app = express();
 
-// CORS — разрешаем только наш домен
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000').split(',');
+// CORS — разрешаем только указанные origin строго (без startsWith — иначе
+// "https://localhost" пропустит "https://localhost.evil.com").
+const ALLOWED_ORIGINS = new Set(
+  (process.env.ALLOWED_ORIGINS || 'http://localhost:3000')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean)
+);
+
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || ALLOWED_ORIGINS.some(o => origin.startsWith(o.trim()))) {
+    // Same-origin запросы (без Origin) — пропускаем (например, native HTTP клиенты, серверные тесты).
+    // Браузерные fetch к API всегда шлют Origin.
+    if (!origin) {
       cb(null, true);
-    } else {
-      cb(new Error('Not allowed by CORS'));
+      return;
     }
+    if (ALLOWED_ORIGINS.has(origin)) {
+      cb(null, true);
+      return;
+    }
+    cb(new Error('Not allowed by CORS'));
   },
   credentials: true,
 }));
 
-app.use(express.json({ limit: '200mb' }));
+// 100mb достаточно для 60-минутного аудио в base64 (60 МБ → 80 МБ в base64).
+// Раньше было 200mb — лишний DoS-вектор.
+app.use(express.json({ limit: '100mb' }));
 
 // Rate limit — 60 AI запросов в час на IP
 const aiLimiter = rateLimit({
@@ -73,9 +104,23 @@ const aiLimiter = rateLimit({
 });
 app.use('/api/ai', aiLimiter);
 
+// Rate limit для R2 загрузок и process-recording — 30 запросов / час на IP.
+// Защита от DoS через массовые загрузки больших аудио (бьёт по R2 квоте и Gemini File API).
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many upload requests, try again later' },
+});
+app.use('/api/r2', uploadLimiter);
+app.use('/api/process-recording', uploadLimiter);
+
 const PORT = process.env.API_PORT || 3001;
 
 // Middleware: проверяем Firebase ID Token
+// В production: только полная верификация подписи через Firebase Admin.
+// В development: допускается декодирование без проверки подписи (если service account отсутствует).
 async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
@@ -84,8 +129,16 @@ async function requireAuth(req: Request, res: Response, next: NextFunction): Pro
   }
   const token = authHeader.slice(7);
 
-  // Если есть сервисный аккаунт — полная верификация
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+  const hasServiceAccount = !!process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+
+  // Production: service account обязателен (сервер не должен был стартануть без него,
+  // но добавляем явный guard на случай рантайм-конфигурации).
+  if (IS_PRODUCTION) {
+    if (!hasServiceAccount) {
+      console.error('[requireAuth] FATAL: no service account in production');
+      res.status(500).json({ error: 'Server misconfigured' });
+      return;
+    }
     try {
       const decoded = await getAuth().verifyIdToken(token);
       (req as Request & { uid: string }).uid = decoded.uid;
@@ -96,11 +149,23 @@ async function requireAuth(req: Request, res: Response, next: NextFunction): Pro
     return;
   }
 
-  // Dev-режим: декодируем JWT без верификации подписи (достаточно для разработки)
+  // Development с service account — также полная верификация
+  if (hasServiceAccount) {
+    try {
+      const decoded = await getAuth().verifyIdToken(token);
+      (req as Request & { uid: string }).uid = decoded.uid;
+      next();
+    } catch {
+      res.status(401).json({ error: 'Invalid token' });
+    }
+    return;
+  }
+
+  // Development без service account — декодируем JWT без проверки подписи.
+  // ВНИМАНИЕ: только для локальной разработки. Эта ветка недостижима в production.
   try {
     const parts = token.split('.');
     if (parts.length !== 3) throw new Error('Bad JWT structure');
-    // base64url → base64 (совместимо со всеми версиями Node)
     const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
     const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
     const payload = JSON.parse(Buffer.from(padded, 'base64').toString('utf-8'));
@@ -571,18 +636,67 @@ app.post('/api/ai/weekly-review', requireAuth, async (req, res) => {
 
 // ── R2 Audio Storage ─────────────────────────────────────────────────────────
 
+// Валидация recordingId — только алфанум + дефис/подчёркивание, до 64 символов.
+// Защищает от path traversal в R2 ключах (../, /, etc.)
+const RECORDING_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+function isValidRecordingId(id: unknown): id is string {
+  return typeof id === 'string' && RECORDING_ID_RE.test(id);
+}
+
+// Проверяет, что R2 ключ принадлежит текущему пользователю.
+// Формат: audio/{uid}/{recordingId}.{ext}
+function isOwnedKey(key: unknown, uid: string): key is string {
+  if (typeof key !== 'string') return false;
+  if (key.includes('..') || key.includes('//')) return false;
+  const prefix = `audio/${uid}/`;
+  if (!key.startsWith(prefix)) return false;
+  const rest = key.slice(prefix.length); // {recordingId}.{ext}
+  // Должно быть ровно одна точка перед расширением
+  const m = rest.match(/^([A-Za-z0-9_-]{1,64})\.(webm|ogg|mp4|wav|m4a)$/);
+  return !!m;
+}
+
+// Допустимые MIME-типы аудио (whitelist) → расширение
+const ALLOWED_AUDIO_MIME: Record<string, string> = {
+  'audio/webm': 'webm',
+  'audio/webm;codecs=opus': 'webm',
+  'audio/ogg': 'ogg',
+  'audio/ogg;codecs=opus': 'ogg',
+  'audio/mp4': 'mp4',
+  'audio/mp4;codecs=mp4a.40.2': 'mp4',
+  'audio/mpeg': 'mp4',
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
+  'audio/m4a': 'm4a',
+  'audio/x-m4a': 'm4a',
+};
+
+function resolveExt(contentType: string): string | null {
+  if (typeof contentType !== 'string') return null;
+  // Прямое совпадение
+  if (ALLOWED_AUDIO_MIME[contentType]) return ALLOWED_AUDIO_MIME[contentType];
+  // Совпадение по подстроке (для составных MIME с codecs)
+  const base = contentType.split(';')[0].trim().toLowerCase();
+  return ALLOWED_AUDIO_MIME[base] ?? null;
+}
+
 // POST /api/r2/presign — получить presigned URL для прямой загрузки аудио из браузера
 app.post('/api/r2/presign', requireAuth, async (req: Request, res: Response) => {
   try {
     const uid = (req as Request & { uid: string }).uid;
     const { recordingId, contentType } = req.body as { recordingId: string; contentType: string };
 
-    if (!recordingId || !contentType) {
-      res.status(400).json({ error: 'recordingId and contentType are required' });
+    if (!isValidRecordingId(recordingId)) {
+      res.status(400).json({ error: 'Invalid recordingId' });
+      return;
+    }
+    const ext = resolveExt(contentType);
+    if (!ext) {
+      res.status(400).json({ error: 'Unsupported contentType' });
       return;
     }
 
-    const ext = contentType.includes('webm') ? 'webm' : contentType.includes('ogg') ? 'ogg' : 'mp4';
     const key = `audio/${uid}/${recordingId}.${ext}`;
 
     const command = new PutObjectCommand({
@@ -611,15 +725,19 @@ app.post('/api/r2/upload', requireAuth, async (req: Request, res: Response) => {
       audioBase64: string;
     };
 
-    if (!recordingId || !contentType || !audioBase64) {
-      res.status(400).json({ error: 'recordingId, contentType and audioBase64 are required' });
+    if (!isValidRecordingId(recordingId)) {
+      res.status(400).json({ error: 'Invalid recordingId' });
       return;
     }
-
-    const ext = contentType.includes('webm') ? 'webm'
-      : contentType.includes('ogg') ? 'ogg'
-      : contentType.includes('wav') ? 'wav'
-      : 'mp4';
+    if (!audioBase64 || typeof audioBase64 !== 'string') {
+      res.status(400).json({ error: 'audioBase64 is required' });
+      return;
+    }
+    const ext = resolveExt(contentType);
+    if (!ext) {
+      res.status(400).json({ error: 'Unsupported contentType' });
+      return;
+    }
     const key = `audio/${uid}/${recordingId}.${ext}`;
 
     const buffer = Buffer.from(audioBase64, 'base64');
@@ -657,16 +775,21 @@ app.post('/api/process-recording', requireAuth, async (req: Request, res: Respon
   };
   const uid = (req as Request & { uid: string }).uid;
 
-  if (!recordingId || !audioBase64 || !contentType) {
-    res.status(400).json({ error: 'Missing required fields' });
+  if (!isValidRecordingId(recordingId)) {
+    res.status(400).json({ error: 'Invalid recordingId' });
+    return;
+  }
+  if (!audioBase64 || typeof audioBase64 !== 'string') {
+    res.status(400).json({ error: 'audioBase64 is required' });
+    return;
+  }
+  const ext = resolveExt(contentType);
+  if (!ext) {
+    res.status(400).json({ error: 'Unsupported contentType' });
     return;
   }
 
   // Шаг 1: загружаем аудио в R2 прямо здесь
-  const ext = contentType.includes('webm') ? 'webm'
-    : contentType.includes('ogg') ? 'ogg'
-    : contentType.includes('wav') ? 'wav'
-    : 'mp4';
   const key = `audio/${uid}/${recordingId}.${ext}`;
   const buffer = Buffer.from(audioBase64, 'base64');
 
@@ -748,11 +871,16 @@ app.post('/api/process-recording', requireAuth, async (req: Request, res: Respon
 // DELETE /api/r2/delete — удалить аудиофайл при удалении записи
 app.delete('/api/r2/delete', requireAuth, async (req: Request, res: Response) => {
   try {
+    const uid = (req as Request & { uid: string }).uid;
     const { key } = req.body as { key: string };
-    if (!key) {
-      res.status(400).json({ error: 'key is required' });
+
+    // Защита от удаления чужих файлов: ключ должен иметь префикс audio/{uid}/
+    if (!isOwnedKey(key, uid)) {
+      console.warn(`[R2 delete] forbidden key=${key} uid=${uid}`);
+      res.status(403).json({ error: 'Forbidden' });
       return;
     }
+
     await r2.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
     res.json({ ok: true });
   } catch (error) {

@@ -60,6 +60,19 @@ export function useReminders({ notes, onUpdateNote, showToast }: UseRemindersPro
     const check = () => {
       const now = new Date();
 
+      // Защита от memory leak: чистим id из ref-Set'ов, которых больше нет
+      // в актуальном списке notes (заметка удалена или больше не Напоминание).
+      // Без этого Set растёт бесконечно при долгом использовании приложения.
+      const currentReminderIds = new Set(
+        notes.filter(n => n.type === 'Напоминание').map(n => n.id)
+      );
+      for (const id of notifiedOneHourRef.current) {
+        if (!currentReminderIds.has(id)) notifiedOneHourRef.current.delete(id);
+      }
+      for (const id of notifiedFiveMinRef.current) {
+        if (!currentReminderIds.has(id)) notifiedFiveMinRef.current.delete(id);
+      }
+
       for (const note of notes) {
         if (note.type !== 'Напоминание' || !note.dueDate || !note.dueTime) continue;
 

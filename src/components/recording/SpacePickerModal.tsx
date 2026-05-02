@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X, Sparkles, Plus } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import type { Recording, Space } from '../../types';
 import { CreateSpaceModal } from './CreateSpaceModal';
 

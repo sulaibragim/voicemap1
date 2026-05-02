@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mic, CheckSquare, Lightbulb, Smile, Bell, ChevronRight, ChevronDown } from 'lucide-react';
 import type { Recording, Note } from '../../types';
+import { StatRow, Divider } from './StatRow';
+import { parseDuration, formatTotalTime, getMostFrequentMood, snoozeNote } from '../../lib/dashboardUtils';
 
 interface BrainStatsCardProps {
   recordings: Recording[];
@@ -10,81 +12,6 @@ interface BrainStatsCardProps {
   onUpdateNote?: (note: Note) => void;
   onUpdateRecording?: (rec: Recording) => void;
   onOpenRecording?: (id: string) => void;
-}
-
-interface StatRowProps {
-  icon: React.ReactNode;
-  iconBg: string;
-  iconColor: string;
-  children: React.ReactNode;
-  onClick?: () => void;
-  expandIcon?: React.ReactNode;
-}
-
-// Парсит "MM:SS" → секунды
-function parseDuration(d: string): number {
-  const [m, s] = d.split(':').map(n => parseInt(n, 10) || 0);
-  return m * 60 + s;
-}
-
-// Секунды → "Xч Yм" или "X мин"
-function formatTotalTime(sec: number): string {
-  const m = Math.round(sec / 60);
-  if (m < 60) return `${m} мин`;
-  const h = Math.floor(m / 60);
-  const rem = m % 60;
-  return rem > 0 ? `${h}ч ${rem}м` : `${h}ч`;
-}
-
-// Самое частое mood среди записей или null
-function getMostFrequentMood(recordings: Recording[]): string | null {
-  const counts: Record<string, number> = {};
-  for (const r of recordings) {
-    if (r.mood) counts[r.mood] = (counts[r.mood] || 0) + 1;
-  }
-  const entries = Object.entries(counts);
-  if (!entries.length) return null;
-  return entries.reduce((a, b) => (b[1] > a[1] ? b : a))[0];
-}
-
-// Строка статистики с иконкой в цветном круге
-const StatRow = ({ icon, iconBg, iconColor, children, onClick, expandIcon }: StatRowProps) => {
-  if (onClick) {
-    return (
-      <button
-        onClick={onClick}
-        className="w-full flex items-center gap-3 py-3 lg:py-4 rounded-xl px-2 -mx-2 hover:bg-white/5 transition-colors cursor-pointer group"
-      >
-        <div className={`w-7 h-7 rounded-full ${iconBg} ${iconColor} flex items-center justify-center flex-shrink-0`}>
-          {icon}
-        </div>
-        <div className="flex items-center flex-wrap gap-x-0.5 min-w-0 flex-1">{children}</div>
-        {expandIcon ?? (
-          <ChevronRight className="w-3.5 h-3.5 text-on-surface-variant/30 group-hover:text-primary transition-colors ml-auto flex-shrink-0" />
-        )}
-      </button>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-3 py-3 lg:py-4">
-      <div className={`w-7 h-7 rounded-full ${iconBg} ${iconColor} flex items-center justify-center flex-shrink-0`}>
-        {icon}
-      </div>
-      <div className="flex items-center flex-wrap gap-x-0.5 min-w-0">{children}</div>
-    </div>
-  );
-};
-
-const Divider = () => <div className="border-t border-white/5" />;
-
-function snoozeNote(note: Note, hours: number): Note {
-  const base = note.dueDate && note.dueTime
-    ? new Date(`${note.dueDate}T${note.dueTime}`)
-    : new Date();
-  if (base < new Date()) base.setTime(new Date().getTime());
-  base.setTime(base.getTime() + hours * 3600000);
-  return { ...note, dueDate: base.toISOString().split('T')[0], dueTime: base.toTimeString().slice(0, 5) };
 }
 
 export const BrainStatsCard = ({ recordings, notes, onNavigate, onUpdateNote, onUpdateRecording, onOpenRecording }: BrainStatsCardProps) => {

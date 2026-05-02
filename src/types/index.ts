@@ -103,3 +103,12 @@ export const defaultAppSettings: AppSettings = {
   extractIdeas: true,
   extractTasks: true,
 };
+
+export interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  recordingId?: string;
+  isAudio?: boolean;
+  actionDone?: 'focus' | 'note' | 'ideas';
+}

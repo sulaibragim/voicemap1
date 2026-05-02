@@ -140,7 +140,7 @@ export const AnalyticsView = ({ recordings, onBack }: Props) => {
                   <Tooltip cursor={{ fill: 'rgba(255,255,255,0.03)' }}
                     contentStyle={{ backgroundColor: '#1c1c21', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, color: '#fff', fontSize: 12 }}
                     itemStyle={{ color: '#AF9CFF', fontWeight: 700 }}
-                    formatter={(v: number) => [`${v} мин`, '']}
+                    formatter={(v) => [`${typeof v === 'number' ? v : 0} мин`, '']}
                     labelFormatter={(_: unknown, payload: readonly { payload?: { date?: Date } }[]) => {
                       const d = payload?.[0]?.payload?.date;
                       return d instanceof Date ? d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) : '';

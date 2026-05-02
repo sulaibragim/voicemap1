@@ -183,8 +183,8 @@ export const ActivityChartCard = ({ recordings, notes, onOpenRecording }: Activi
                   <Cell
                     key={`rec-${index}`}
                     fill={fill}
-                    // @ts-expect-error recharts Cell radius not typed
-                    radius={onlyRec ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                    // recharts тип Cell.radius неполный — реально принимает [tl, tr, br, bl]
+                    radius={(onlyRec ? [4, 4, 0, 0] : [0, 0, 0, 0]) as unknown as number}
                   />
                 );
               })}

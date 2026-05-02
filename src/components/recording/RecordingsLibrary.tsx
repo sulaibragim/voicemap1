@@ -1,7 +1,10 @@
-import { useState, useMemo, useRef } from 'react';
-import { Search, ArrowLeft, Mic, Calendar, Clock, Trash2, ChevronRight, AudioLines, X, Pin } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import type * as React from 'react';
+import { Search, ArrowLeft, Calendar, Clock, Trash2, ChevronRight, AudioLines, X, Pin } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Recording } from '../../types';
+import { SwipeCard } from './SwipeCard';
+import { getTagColor, getTagTextColor, sortItems, groupByDate, type SortMode } from '../../lib/recordingUtils';
 
 interface RecordingsLibraryProps {
   recordings: Recording[];
@@ -10,124 +13,6 @@ interface RecordingsLibraryProps {
   onDeleteRecording: (id: string) => void;
   onUpdateRecording?: (updated: Recording) => void;
 }
-
-type SortMode = 'date' | 'duration' | 'tasks' | 'mood';
-
-const TAG_COLORS: Record<string, string> = {
-  '#Идеи': 'bg-primary',
-  '#Митинг': 'bg-secondary',
-  '#Стартап': 'bg-tertiary',
-  '#Личное': 'bg-[#F06292]',
-  '#Проект': 'bg-[#4FC3F7]',
-  '#Задачи': 'bg-[#81C784]',
-};
-const TAG_TEXT: Record<string, string> = {
-  '#Идеи': 'text-primary',
-  '#Митинг': 'text-secondary',
-  '#Стартап': 'text-tertiary',
-  '#Личное': 'text-[#F06292]',
-  '#Проект': 'text-[#4FC3F7]',
-  '#Задачи': 'text-[#81C784]',
-};
-
-function getTagColor(tags: string[]): string {
-  for (const t of tags) { if (TAG_COLORS[t]) return TAG_COLORS[t]; }
-  return 'bg-on-surface-variant';
-}
-function getTagTextColor(tags: string[]): string {
-  for (const t of tags) { if (TAG_TEXT[t]) return TAG_TEXT[t]; }
-  return 'text-on-surface-variant';
-}
-
-function parseDurationToSeconds(duration: string): number {
-  const parts = duration.split(':');
-  if (parts.length === 2) {
-    return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
-  }
-  return 0;
-}
-
-function sortItems(items: Recording[], mode: SortMode): Recording[] {
-  const sorted = [...items];
-  if (mode === 'duration') {
-    sorted.sort((a, b) => parseDurationToSeconds(b.duration) - parseDurationToSeconds(a.duration));
-  } else if (mode === 'tasks') {
-    sorted.sort((a, b) => (b.actionItems?.length ?? 0) - (a.actionItems?.length ?? 0));
-  } else if (mode === 'mood') {
-    sorted.sort((a, b) => (a.mood ?? '').localeCompare(b.mood ?? ''));
-  }
-  return sorted;
-}
-
-function groupByDate(recordings: Recording[]): { label: string; items: Recording[] }[] {
-  const today = new Date().toDateString();
-  const yesterday = new Date(Date.now() - 86400000).toDateString();
-  const groups: Record<string, Recording[]> = {};
-  recordings.forEach(r => {
-    const d = new Date(r.date.replace(/\./g, '-') || r.date);
-    const key = isNaN(d.getTime())
-      ? 'Ранее'
-      : d.toDateString() === today ? 'Сегодня'
-      : d.toDateString() === yesterday ? 'Вчера'
-      : r.date;
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(r);
-  });
-  return Object.entries(groups).map(([label, items]) => ({ label, items }));
-}
-
-// --- Swipeable card wrapper ---
-interface SwipeCardProps {
-  onSwipeDelete: () => void;
-  children: React.ReactNode;
-}
-
-const SwipeCard = ({ onSwipeDelete, children }: SwipeCardProps) => {
-  const startX = useRef<number>(0);
-  const [offsetX, setOffsetX] = useState(0);
-  const isDragging = useRef(false);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    startX.current = e.touches[0].clientX;
-    isDragging.current = true;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging.current) return;
-    const delta = e.touches[0].clientX - startX.current;
-    if (delta < 0) setOffsetX(Math.max(delta, -120));
-  };
-
-  const handleTouchEnd = () => {
-    isDragging.current = false;
-    if (offsetX <= -80) {
-      onSwipeDelete();
-    }
-    setOffsetX(0);
-  };
-
-  const showDelete = offsetX <= -40;
-
-  return (
-    <div className="relative overflow-hidden rounded-2xl">
-      {/* Red delete zone */}
-      <div
-        className={`absolute inset-y-0 right-0 flex items-center justify-center w-20 bg-red-500 transition-opacity duration-150 ${showDelete ? 'opacity-100' : 'opacity-0'}`}
-      >
-        <Trash2 className="w-5 h-5 text-white" />
-      </div>
-      {/* Card content */}
-      <div
-        style={{ transform: `translateX(${offsetX}px)`, transition: isDragging.current ? 'none' : 'transform 0.25s ease' }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
-        {children}
-      </div>
-    </div>
-  );
-};
 
 const SORT_LABELS: Record<SortMode, string> = {
   date: 'По дате',

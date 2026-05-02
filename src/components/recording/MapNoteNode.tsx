@@ -47,7 +47,7 @@ export const MapNoteNode = ({
   onComplete,
   onSnooze,
 }: MapNoteNodeProps) => {
-  const cfg = TYPE_CONFIG[note.type] ?? TYPE_CONFIG['Мысль'];
+  const cfg = TYPE_CONFIG[note.type] ?? TYPE_CONFIG['Идея'];
   const Icon = cfg.icon;
 
   const topic = note.content.split(/[.!?]/)[0]?.trim().slice(0, 55) ?? note.content.slice(0, 55);

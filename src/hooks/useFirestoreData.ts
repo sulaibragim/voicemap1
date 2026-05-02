@@ -11,6 +11,7 @@ interface UseFirestoreDataReturn {
   // Recording CRUD
   addRecording: (rec: Recording) => Promise<void>;
   updateRecordingItem: (rec: Recording) => Promise<void>;
+  patchRecordingItem: (id: string, patch: Partial<Recording>) => Promise<void>;
   deleteRecordingItem: (id: string) => Promise<void>;
   clearAllRecordings: () => Promise<void>;
   setRecordingsLocal: (recs: Recording[]) => void;
@@ -31,12 +32,30 @@ export function useFirestoreData(uid: string | null): UseFirestoreDataReturn {
   const [notes, setNotes] = useState<Note[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(true);
-  const initialized = useRef(false);
+  const initializedForUid = useRef<string | null>(null);
   const unsubscribeRef = useRef<Unsubscribe | null>(null);
 
   useEffect(() => {
-    if (!uid || initialized.current) return;
-    initialized.current = true;
+    // Если поменялся uid (logout → другой login) — нужно переподписаться и перезагрузить.
+    // Без этого второй пользователь увидит данные первого или ничего вообще.
+    if (!uid) {
+      // Logout: очищаем подписку и состояние
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+      initializedForUid.current = null;
+      /* eslint-disable react-hooks/set-state-in-effect */
+      setRecordings([]);
+      setNotes([]);
+      setSpaces([]);
+      setLoading(false);
+      /* eslint-enable react-hooks/set-state-in-effect */
+      return;
+    }
+
+    if (initializedForUid.current === uid) return;
+    initializedForUid.current = uid;
 
     (async () => {
       setLoading(true);
@@ -91,13 +110,18 @@ export function useFirestoreData(uid: string | null): UseFirestoreDataReturn {
       }
     })();
 
-    // Real-time listener — подхватывает обновления от сервера (фоновая транскрипция)
+    // Real-time listener — подхватывает обновления от сервера (фоновая транскрипция).
+    // Перед новой подпиской отвязываем предыдущую (на случай смены uid).
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+    }
     unsubscribeRef.current = fs.subscribeToRecordings(uid, (updated) => {
       setRecordings(updated);
     });
 
     return () => {
       unsubscribeRef.current?.();
+      unsubscribeRef.current = null;
     };
   }, [uid]);
 
@@ -110,6 +134,13 @@ export function useFirestoreData(uid: string | null): UseFirestoreDataReturn {
   const updateRecordingItem = async (rec: Recording) => {
     setRecordings(prev => prev.map(r => r.id === rec.id ? rec : r));
     if (uid) await fs.updateRecording(uid, rec).catch(e => console.error('[Firestore] updateRecording failed:', e));
+  };
+
+  // Безопасное частичное обновление — мержит patch с актуальным state.
+  // Используй когда не хочешь затереть свежие поля от сервера (например, после фоновой транскрипции).
+  const patchRecordingItem = async (id: string, patch: Partial<Recording>) => {
+    setRecordings(prev => prev.map(r => r.id === id ? { ...r, ...patch } : r));
+    if (uid) await fs.patchRecording(uid, id, patch).catch(e => console.error('[Firestore] patchRecording failed:', e));
   };
 
   const deleteRecordingItem = async (id: string) => {
@@ -165,7 +196,7 @@ export function useFirestoreData(uid: string | null): UseFirestoreDataReturn {
 
   return {
     recordings, notes, spaces, loading,
-    addRecording, updateRecordingItem, deleteRecordingItem, clearAllRecordings, setRecordingsLocal,
+    addRecording, updateRecordingItem, patchRecordingItem, deleteRecordingItem, clearAllRecordings, setRecordingsLocal,
     addNote, updateNoteItem, deleteNoteItem, clearAllNotes, setNotesLocal,
     addSpace, updateSpaceItem, deleteSpaceItem,
   };

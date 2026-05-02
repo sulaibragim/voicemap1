@@ -14,7 +14,7 @@ interface FocusViewProps {
 type MobileTab = 'active' | 'done';
 type SortOrder = 'newest' | 'oldest';
 
-// Unified task shape used across both recording tasks and note tasks
+// Единая форма задачи для записей и заметок
 interface UnifiedTask {
   description: string;
   recordingTitle: string;
@@ -24,6 +24,95 @@ interface UnifiedTask {
   done: boolean;
   noteId?: string;
 }
+
+// Вспомогательная функция — группировка задач по recording
+const groupByRecording = (tasks: UnifiedTask[]) => {
+  const map = new Map<string, UnifiedTask[]>();
+  tasks.forEach(t => {
+    if (!map.has(t.recordingId)) map.set(t.recordingId, []);
+    map.get(t.recordingId)!.push(t);
+  });
+  return map;
+};
+
+const formatDate = (dateStr: string) => dateStr.split(',')[0];
+
+// Пропсы для TaskItem — вынесены вне FocusView чтобы избежать создания компонента в рендере
+interface TaskItemProps {
+  task: UnifiedTask;
+  onToggle: (task: UnifiedTask) => void;
+  onOpenRecording?: (id: string) => void;
+}
+
+const TaskItem = ({ task, onToggle, onOpenRecording }: TaskItemProps) => (
+  <div className={`flex items-start gap-3 p-3 rounded-2xl border transition-colors ${
+    task.done ? 'border-white/5 bg-surface-container/40' : 'border-white/10 bg-surface-container hover:bg-surface-container-high'
+  }`}>
+    <button onClick={() => onToggle(task)} className="flex-shrink-0 mt-0.5 cursor-pointer">
+      {task.done
+        ? <CheckCircle2 className="w-5 h-5 text-primary" />
+        : <Circle className="w-5 h-5 text-outline-variant hover:text-primary transition-colors" />
+      }
+    </button>
+    <div className="min-w-0 flex-1">
+      <p className={`text-sm font-semibold leading-snug ${task.done ? 'line-through opacity-60' : ''}`}>
+        {task.description}
+      </p>
+      {task.noteId ? (
+        <span className="flex items-center gap-1 text-xs text-tertiary mt-0.5">
+          <StickyNote className="w-3 h-3" />
+          Быстрая заметка
+        </span>
+      ) : (
+        <button onClick={() => onOpenRecording?.(task.recordingId)} className="text-xs text-primary hover:underline mt-0.5 text-left truncate block max-w-full">
+          {task.recordingTitle}
+        </button>
+      )}
+    </div>
+  </div>
+);
+
+// Пропсы для KanbanColumn — вынесены вне FocusView
+interface KanbanColumnProps {
+  tasks: UnifiedTask[];
+  label: string;
+  badge: string;
+  onToggle: (task: UnifiedTask) => void;
+  onOpenRecording?: (id: string) => void;
+}
+
+const KanbanColumn = ({ tasks, label, badge, onToggle, onOpenRecording }: KanbanColumnProps) => {
+  const groups = groupByRecording(tasks);
+  return (
+    <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+      <div className="flex items-center gap-2 mb-3 pb-3 border-b border-white/10 flex-shrink-0">
+        <h3 className="font-headline font-bold text-base">{label}</h3>
+        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${badge}`}>{tasks.length}</span>
+      </div>
+      <div className="flex-1 overflow-y-auto pr-1 space-y-4 scrollbar-thin">
+        {tasks.length === 0 ? (
+          <p className="text-xs text-on-surface-variant text-center py-10">
+            {label === 'В работе' ? 'Все задачи выполнены 🎉' : 'Ещё ничего не выполнено'}
+          </p>
+        ) : (
+          Array.from(groups.entries()).map(([recId, recTasks]) => (
+            <div key={recId}>
+              <div className="flex items-center justify-between mb-2 px-1">
+                <p className="text-xs text-on-surface-variant truncate flex-1">{recTasks[0].recordingTitle}</p>
+                <span className="text-xs text-on-surface-variant/50 ml-2 flex-shrink-0">{formatDate(recTasks[0].recordingDate)}</span>
+              </div>
+              <div className="space-y-1.5">
+                {recTasks.map((task, i) => (
+                  <TaskItem key={i} task={task} onToggle={onToggle} onOpenRecording={onOpenRecording} />
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
 
 export const FocusView = ({ recordings, notes = [], onBack, onOpenRecording, onToggleDone, onUpdateNote }: FocusViewProps) => {
   const [mobileTab, setMobileTab] = useState<MobileTab>('active');
@@ -67,17 +156,6 @@ export const FocusView = ({ recordings, notes = [], onBack, onOpenRecording, onT
   const activeTasks = allTasks.filter(t => !t.done);
   const doneTasks = allTasks.filter(t => t.done);
 
-  const groupByRecording = (tasks: UnifiedTask[]) => {
-    const map = new Map<string, UnifiedTask[]>();
-    tasks.forEach(t => {
-      if (!map.has(t.recordingId)) map.set(t.recordingId, []);
-      map.get(t.recordingId)!.push(t);
-    });
-    return map;
-  };
-
-  const formatDate = (dateStr: string) => dateStr.split(',')[0];
-
   const handleToggle = (task: UnifiedTask) => {
     if (task.noteId) {
       const note = notes.find(n => n.id === task.noteId);
@@ -90,65 +168,6 @@ export const FocusView = ({ recordings, notes = [], onBack, onOpenRecording, onT
   const radius = 26;
   const circ = 2 * Math.PI * radius;
   const offset = circ - (progress / 100) * circ;
-
-  const TaskItem = ({ task }: { task: UnifiedTask }) => (
-    <div className={`flex items-start gap-3 p-3 rounded-2xl border transition-colors ${
-      task.done ? 'border-white/5 bg-surface-container/40' : 'border-white/10 bg-surface-container hover:bg-surface-container-high'
-    }`}>
-      <button onClick={() => handleToggle(task)} className="flex-shrink-0 mt-0.5 cursor-pointer">
-        {task.done
-          ? <CheckCircle2 className="w-5 h-5 text-primary" />
-          : <Circle className="w-5 h-5 text-outline-variant hover:text-primary transition-colors" />
-        }
-      </button>
-      <div className="min-w-0 flex-1">
-        <p className={`text-sm font-semibold leading-snug ${task.done ? 'line-through opacity-60' : ''}`}>
-          {task.description}
-        </p>
-        {task.noteId ? (
-          <span className="flex items-center gap-1 text-xs text-tertiary mt-0.5">
-            <StickyNote className="w-3 h-3" />
-            Быстрая заметка
-          </span>
-        ) : (
-          <button onClick={() => onOpenRecording?.(task.recordingId)} className="text-xs text-primary hover:underline mt-0.5 text-left truncate block max-w-full">
-            {task.recordingTitle}
-          </button>
-        )}
-      </div>
-    </div>
-  );
-
-  const KanbanColumn = ({ tasks, label, badge }: { tasks: UnifiedTask[]; label: string; badge: string }) => {
-    const groups = groupByRecording(tasks);
-    return (
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        <div className="flex items-center gap-2 mb-3 pb-3 border-b border-white/10 flex-shrink-0">
-          <h3 className="font-headline font-bold text-base">{label}</h3>
-          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${badge}`}>{tasks.length}</span>
-        </div>
-        <div className="flex-1 overflow-y-auto pr-1 space-y-4 scrollbar-thin">
-          {tasks.length === 0 ? (
-            <p className="text-xs text-on-surface-variant text-center py-10">
-              {label === 'В работе' ? 'Все задачи выполнены 🎉' : 'Ещё ничего не выполнено'}
-            </p>
-          ) : (
-            Array.from(groups.entries()).map(([recId, recTasks]) => (
-              <div key={recId}>
-                <div className="flex items-center justify-between mb-2 px-1">
-                  <p className="text-xs text-on-surface-variant truncate flex-1">{recTasks[0].recordingTitle}</p>
-                  <span className="text-xs text-on-surface-variant/50 ml-2 flex-shrink-0">{formatDate(recTasks[0].recordingDate)}</span>
-                </div>
-                <div className="space-y-1.5">
-                  {recTasks.map((task, i) => <TaskItem key={i} task={task} />)}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="h-screen bg-background text-on-surface flex flex-col font-body w-full overflow-hidden">
@@ -226,11 +245,11 @@ export const FocusView = ({ recordings, notes = [], onBack, onOpenRecording, onT
             {/* Kanban — flex-1 so it fills remaining height, columns scroll internally */}
             <div className="flex gap-6 flex-1 min-h-0 overflow-hidden">
               <div className={`flex-1 min-w-0 flex flex-col overflow-hidden ${mobileTab === 'done' ? 'hidden md:flex' : 'flex'}`}>
-                <KanbanColumn tasks={activeTasks} label="В работе" badge="bg-primary/20 text-primary" />
+                <KanbanColumn tasks={activeTasks} label="В работе" badge="bg-primary/20 text-primary" onToggle={handleToggle} onOpenRecording={onOpenRecording} />
               </div>
               <div className="hidden md:block w-px bg-white/5 flex-shrink-0" />
               <div className={`flex-1 min-w-0 flex flex-col overflow-hidden ${mobileTab === 'active' ? 'hidden md:flex' : 'flex'}`}>
-                <KanbanColumn tasks={doneTasks} label="Выполнено" badge="bg-green-500/20 text-green-400" />
+                <KanbanColumn tasks={doneTasks} label="Выполнено" badge="bg-green-500/20 text-green-400" onToggle={handleToggle} onOpenRecording={onOpenRecording} />
               </div>
             </div>
           </>

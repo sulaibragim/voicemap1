@@ -1,8 +1,10 @@
 import { useState } from 'react';
+import type * as React from 'react';
 import { Play, Pause, Volume2 } from 'lucide-react';
 import { formatTime } from '../../lib/utils';
 import type { TranscriptItem } from '../../types';
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function parseTimestamp(timestamp: string): number {
   const parts = timestamp.split(':');
   if (parts.length === 3) return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(parts[2]);

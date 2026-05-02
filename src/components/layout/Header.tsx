@@ -17,7 +17,7 @@ const NAV_ITEMS = [
   { view: 'reminders',        label: 'Напоминания', icon: Bell },
 ];
 
-export const Header = ({ currentView, setCurrentView, onLogout, onReset, user }: HeaderProps) => (
+export const Header = ({ currentView, setCurrentView, onLogout, onReset: _onReset, user }: HeaderProps) => (
   <header className="hidden md:block w-full sticky top-0 z-[100] bg-[#0e0e11]/60 backdrop-blur-xl border-b border-white/[0.04]">
     <div className="flex items-center justify-between px-6 lg:px-10 py-3 max-w-full">
 

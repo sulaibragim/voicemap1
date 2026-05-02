@@ -2,6 +2,7 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import { GoogleAuth } from '@codetrix-studio/capacitor-google-auth';
 import App from './App.tsx';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import './index.css';
 
 GoogleAuth.initialize({
@@ -12,6 +13,8 @@ GoogleAuth.initialize({
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 );

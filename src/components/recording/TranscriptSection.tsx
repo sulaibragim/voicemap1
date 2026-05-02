@@ -4,6 +4,7 @@ import { parseTimestamp } from './AudioPlayer';
 import type { Recording } from '../../types';
 
 // Палитра цветов спикеров — используется также в RecordingDetail
+// eslint-disable-next-line react-refresh/only-export-components
 export const SPEAKER_PALETTE = [
   '#7B61FF', // primary — всегда для "Я"
   '#4FC3F7', // голубой

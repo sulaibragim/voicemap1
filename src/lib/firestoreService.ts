@@ -1,6 +1,6 @@
 import {
   collection, doc, getDocs, setDoc, updateDoc, deleteDoc,
-  writeBatch, serverTimestamp, query, orderBy, onSnapshot,
+  writeBatch, serverTimestamp, onSnapshot,
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -47,6 +47,14 @@ export async function updateRecording(uid: string, rec: Recording): Promise<void
   console.log('[Firestore] updateRecording:', rec.id, '| audioUrl:', rec.audioUrl?.slice(0, 60), '| r2Key:', rec.r2Key);
   await setDoc(recDoc(uid, rec.id), data, { merge: true });
   console.log('[Firestore] updateRecording OK:', rec.id);
+}
+
+// Частичное обновление: пишет только указанные поля. Защищает от race condition
+// с фоновой транскрипцией от сервера — клиент не отправляет в Firestore старые
+// значения title/summary/transcript, которые сервер уже мог обновить.
+export async function patchRecording(uid: string, id: string, patch: Partial<Recording>): Promise<void> {
+  const data = stripUndefined(patch);
+  await setDoc(recDoc(uid, id), data, { merge: true });
 }
 
 export async function deleteRecording(uid: string, id: string): Promise<void> {

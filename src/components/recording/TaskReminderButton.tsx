@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import type * as React from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { Bell } from 'lucide-react';
 import { DatePicker } from '../ui/DatePicker';
@@ -31,6 +32,7 @@ export const TaskReminderButton = ({ taskIndex, reminder, onSave }: TaskReminder
   // Pre-fill + position popup on open
   useEffect(() => {
     if (open) {
+      /* eslint-disable react-hooks/set-state-in-effect */
       setDate(reminder?.date ?? '');
       setTime(reminder?.time ?? '');
       if (bellButtonRef.current) {
@@ -44,6 +46,7 @@ export const TaskReminderButton = ({ taskIndex, reminder, onSave }: TaskReminder
           zIndex: 9999,
         });
       }
+      /* eslint-enable react-hooks/set-state-in-effect */
     }
   }, [open, reminder]);
 
