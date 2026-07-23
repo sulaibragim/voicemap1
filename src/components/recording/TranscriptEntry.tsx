@@ -1,8 +1,11 @@
 import { motion, AnimatePresence } from 'motion/react';
+import { TRANSCRIPT_INDEX_ATTR, TRANSCRIPT_TEXT_ATTR } from '../../hooks/useTranscriptSelection';
 import type { TranscriptItem } from '../../types';
 
 interface TranscriptEntryProps {
   item: TranscriptItem;
+  /** Порядковый номер в отрисованном списке — по нему выделение текста сопоставляется с репликой */
+  index: number;
   /** Активна ли реплика прямо сейчас (по текущему времени плеера) */
   isActive: boolean;
   /** Реплика, к которой привёл голосовой поиск — подсвечивается заметнее и ненадолго */
@@ -18,12 +21,13 @@ interface TranscriptEntryProps {
  * (RecordingMobileTabs), чтобы поведение клика/подсветки не расходилось.
  * Клик перематывает аудио на таймкод реплики и запускает воспроизведение.
  */
-export const TranscriptEntry = ({ item, isActive, isSearchHighlight, speakerColor, onSelect, registerRef }: TranscriptEntryProps) => {
+export const TranscriptEntry = ({ item, index, isActive, isSearchHighlight, speakerColor, onSelect, registerRef }: TranscriptEntryProps) => {
   const hasTimestamp = item.timestamp !== '--:--';
 
   return (
     <div
       ref={registerRef}
+      {...{ [TRANSCRIPT_INDEX_ATTR]: index }}
       className={`relative rounded-xl transition-colors duration-300 ${isActive ? 'bg-primary/10 border-l-2 border-primary pl-3 pr-3 py-2 -mx-3' : ''}`}
     >
       {/* Кольцо-подсветка момента из голосового поиска — гаснет через несколько секунд или при старте плеера */}
@@ -65,7 +69,12 @@ export const TranscriptEntry = ({ item, isActive, isSearchHighlight, speakerColo
           </span>
         )}
       </button>
-      <p className={`text-sm leading-[1.75] ${isActive ? 'text-on-surface' : 'text-on-surface-variant'}`}>
+      {/* Маркер текста: выделение цитаты собирается только из этих абзацев,
+          чтобы имя спикера и таймкод не попадали внутрь самой цитаты */}
+      <p
+        {...{ [TRANSCRIPT_TEXT_ATTR]: '' }}
+        className={`text-sm leading-[1.75] ${isActive ? 'text-on-surface' : 'text-on-surface-variant'}`}
+      >
         {item.text}
       </p>
     </div>

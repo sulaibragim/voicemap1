@@ -1,7 +1,9 @@
 import { FileText, AlignLeft, Scissors, Loader2 } from 'lucide-react';
 import { TranscriptEntry } from './TranscriptEntry';
+import { QuoteToolbar } from './QuoteToolbar';
 import { useActiveTranscriptIndex } from '../../hooks/useActiveTranscriptIndex';
 import { useTranscriptAutoScroll } from '../../hooks/useTranscriptAutoScroll';
+import { useQuoteExport } from '../../hooks/useQuoteExport';
 import type { Recording } from '../../types';
 
 // Палитра цветов спикеров — используется также в RecordingDetail
@@ -32,6 +34,7 @@ interface TranscriptSectionProps {
   onTimestampClick: (ts: string) => void;
   /** Индекс реплики, к которой привёл голосовой поиск — подсвечивается заметнее обычной активной */
   highlightIndex?: number | null;
+  showToast: (msg: string, type: 'success' | 'error' | 'info') => void;
 }
 
 export const TranscriptSection = ({
@@ -48,6 +51,7 @@ export const TranscriptSection = ({
   shouldColorSpeakers,
   onTimestampClick,
   highlightIndex,
+  showToast,
 }: TranscriptSectionProps) => {
   // Вычисляем активный индекс реплики по текущему времени
   const activeTranscriptIndex = useActiveTranscriptIndex(recording.transcript, currentTime);
@@ -55,6 +59,20 @@ export const TranscriptSection = ({
   const displayTranscript = transcriptMode === 'full'
     ? recording.transcript
     : (recording.condensedTranscript ?? recording.transcript);
+
+  // Цитаты собираются из ОТРИСОВАННОГО списка: в кратком режиме индексы
+  // выделения относятся к condensedTranscript, а не к полному транскрипту.
+  const {
+    containerRef: quoteContainerRef,
+    selection: quoteSelection,
+    handleCopy: handleCopyQuote,
+    handleDownload: handleDownloadQuote,
+  } = useQuoteExport({
+    transcript: displayTranscript,
+    title: recording.title,
+    date: recording.date,
+    showToast,
+  });
 
   // Авто-скролл к активной реплике при воспроизведении + прокрутка к реплике из поиска.
   // Список активен только в полном режиме транскрипта и на самой вкладке "Текст".
@@ -126,7 +144,7 @@ export const TranscriptSection = ({
               )}
             </div>
           )}
-          <div className="space-y-5">
+          <div ref={quoteContainerRef} className="space-y-5">
             {displayTranscript.map((item, i) => {
               const isActive = transcriptMode === 'full' && i === activeTranscriptIndex;
               const speakerColor = shouldColorSpeakers
@@ -137,6 +155,7 @@ export const TranscriptSection = ({
                 <TranscriptEntry
                   key={i}
                   item={item}
+                  index={i}
                   isActive={isActive}
                   isSearchHighlight={transcriptMode === 'full' && i === highlightIndex}
                   speakerColor={speakerColor}
@@ -146,6 +165,13 @@ export const TranscriptSection = ({
               );
             })}
           </div>
+          <QuoteToolbar
+            fragments={quoteSelection.fragments}
+            rect={quoteSelection.rect}
+            variant="floating"
+            onCopy={handleCopyQuote}
+            onDownload={handleDownloadQuote}
+          />
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto pr-4 pb-8 space-y-4">

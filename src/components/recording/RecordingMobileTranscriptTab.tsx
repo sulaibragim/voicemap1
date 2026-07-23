@@ -1,6 +1,8 @@
 import { Scissors, AlignLeft, Loader2 } from 'lucide-react';
 import { SPEAKER_PALETTE } from './TranscriptSection';
 import { TranscriptEntry } from './TranscriptEntry';
+import { QuoteToolbar } from './QuoteToolbar';
+import { useQuoteExport } from '../../hooks/useQuoteExport';
 import type { Recording } from '../../types';
 
 interface RecordingMobileTranscriptTabProps {
@@ -18,6 +20,7 @@ interface RecordingMobileTranscriptTabProps {
   /** Индекс реплики, к которой привёл голосовой поиск — подсвечивается заметнее обычной активной */
   highlightIndex?: number | null;
   registerItemRef: (index: number) => (el: HTMLDivElement | null) => void;
+  showToast: (msg: string, type: 'success' | 'error' | 'info') => void;
 }
 
 // Вкладка "Транскрипт" мобильного просмотра записи — вынесена из RecordingMobileTabs,
@@ -36,8 +39,22 @@ export const RecordingMobileTranscriptTab = ({
   activeTranscriptIndex,
   highlightIndex,
   registerItemRef,
+  showToast,
 }: RecordingMobileTranscriptTabProps) => {
   const displayTranscript = transcriptMode === 'full' ? recording.transcript : (recording.condensedTranscript ?? recording.transcript);
+
+  // Тот же хук, что на десктопе — формат цитаты между версиями не расходится
+  const {
+    containerRef: quoteContainerRef,
+    selection: quoteSelection,
+    handleCopy: handleCopyQuote,
+    handleDownload: handleDownloadQuote,
+  } = useQuoteExport({
+    transcript: displayTranscript,
+    title: recording.title,
+    date: recording.date,
+    showToast,
+  });
 
   return (
     <div className="p-4 pb-32">
@@ -52,7 +69,7 @@ export const RecordingMobileTranscriptTab = ({
         </div>
       </div>
       {activeTab === 'transcript' ? (
-        <div className="space-y-4">
+        <div ref={quoteContainerRef} className="space-y-4">
           {displayTranscript.map((item, i) => {
             const isActive = transcriptMode === 'full' && i === activeTranscriptIndex;
             const speakerColor = shouldColorSpeakers ? (speakerColorMap[item.speaker] ?? SPEAKER_PALETTE[1]) : undefined;
@@ -60,6 +77,7 @@ export const RecordingMobileTranscriptTab = ({
               <TranscriptEntry
                 key={i}
                 item={item}
+                index={i}
                 isActive={isActive}
                 isSearchHighlight={transcriptMode === 'full' && i === highlightIndex}
                 speakerColor={speakerColor}
@@ -68,6 +86,13 @@ export const RecordingMobileTranscriptTab = ({
               />
             );
           })}
+          <QuoteToolbar
+            fragments={quoteSelection.fragments}
+            rect={quoteSelection.rect}
+            variant="bar"
+            onCopy={handleCopyQuote}
+            onDownload={handleDownloadQuote}
+          />
         </div>
       ) : (
         <ul className="space-y-3">{(recording.keyMoments || []).map((moment, i) => (

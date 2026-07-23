@@ -171,6 +171,7 @@ export const RecordingMobileTabs = ({
             activeTranscriptIndex={activeTranscriptIndex}
             highlightIndex={highlightIndex}
             registerItemRef={registerItemRef}
+            showToast={showToast}
           />
         )}
 

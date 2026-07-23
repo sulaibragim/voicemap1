@@ -382,6 +382,7 @@ export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToa
           shouldColorSpeakers={shouldColorSpeakers}
           onTimestampClick={handleTimestampClick}
           highlightIndex={searchHighlightIndex}
+          showToast={showToast}
         />
       </main>
 
