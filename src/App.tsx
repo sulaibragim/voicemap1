@@ -30,6 +30,7 @@ import { FocusTodayCard } from './components/dashboard/FocusTodayCard';
 import { IdeasCard } from './components/dashboard/IdeasCard';
 import { WeeklyDigestCard } from './components/dashboard/WeeklyDigestCard';
 import { RecentRecordings } from './components/dashboard/RecentRecordings';
+import { FollowUpCard } from './components/dashboard/FollowUpCard';
 import { ChatSidebar } from './components/ChatSidebar';
 
 // Lazy — view-экраны и модалки. Грузятся только когда юзер на них переходит.
@@ -281,6 +282,18 @@ export default function App() {
     }
   };
 
+  // Переключение галочки задачи в записи. Один хелпер на все места (карточка Фокуса,
+  // «Обещал и не сделал», экран Фокуса) — раньше эта логика была скопирована трижды.
+  const toggleRecordingTask = (recordingId: string, taskIndex: number) => {
+    const target = recordings.find(r => r.id === recordingId);
+    if (!target) return;
+    const total = target.actionItems?.length ?? 0;
+    const next = [...(target.actionItemsDone || [])];
+    while (next.length < total) next.push(false);
+    next[taskIndex] = !next[taskIndex];
+    updateRecordingItem({ ...target, actionItemsDone: next });
+  };
+
   // Полное удаление записи: revoke blob-URL'ов (основного аудио и дополнений),
   // удаление файла из R2 и самого документа. Единый хелпер для всех мест удаления.
   const removeRecording = (id: string) => {
@@ -391,16 +404,7 @@ export default function App() {
         onBack={() => setCurrentView('dashboard')}
         onOpenRecording={openRecording}
         onUpdateNote={(updated) => updateNoteItem(updated)}
-        onToggleDone={(recId, taskIdx) => {
-          const rec = recordings.find(r => r.id === recId);
-          if (rec) {
-            const cur = rec.actionItemsDone || new Array(rec.actionItems?.length ?? 0).fill(false);
-            const next = [...cur];
-            while (next.length < (rec.actionItems?.length ?? 0)) next.push(false);
-            next[taskIdx] = !next[taskIdx];
-            updateRecordingItem({ ...rec, actionItemsDone: next });
-          }
-        }}
+        onToggleDone={toggleRecordingTask}
       />;
     }
 
@@ -448,6 +452,14 @@ export default function App() {
             />
           </div>
           <RecentRecordings recordings={recordings} onOpenLibrary={() => setCurrentView('library')} onOpenDetail={openRecording} />
+          {/* Долги по обещаниям. Карточка сама не рендерится, когда всё чисто */}
+          <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12 empty:mb-0">
+            <FollowUpCard
+              recordings={recordings}
+              onOpenRecording={openRecording}
+              onToggleDone={toggleRecordingTask}
+            />
+          </div>
           <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12">
             <FocusTodayCard
               recordings={recordings}
@@ -455,16 +467,7 @@ export default function App() {
               assistantTasks={dailyFocus}
               onToggleAssistantTask={(id) => setDailyFocus(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))}
               onOpenRecording={openRecording}
-              onToggleDone={(recId, taskIdx) => {
-                const rec = recordings.find(r => r.id === recId);
-                if (rec) {
-                  const cur = rec.actionItemsDone || new Array(rec.actionItems?.length ?? 0).fill(false);
-                  const next = [...cur];
-                  while (next.length < (rec.actionItems?.length ?? 0)) next.push(false);
-                  next[taskIdx] = !next[taskIdx];
-                  updateRecordingItem({ ...rec, actionItemsDone: next });
-                }
-              }}
+              onToggleDone={toggleRecordingTask}
               onToggleNoteTask={(noteId) => {
                 const note = notes.find(n => n.id === noteId);
                 if (note) updateNoteItem({ ...note, isCompleted: true });
