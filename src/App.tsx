@@ -6,7 +6,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Brain, Loader2 } from 'lucide-react';
-import { retranscribeFromUrl, deleteAudioFromR2, processRecordingAsync } from './lib/api';
+import { retranscribeFromUrl, deleteAudioFromR2, deleteRecordingChunks, processRecordingAsync } from './lib/api';
 import { useToast } from './hooks/useToast';
 import { useDailyTip } from './hooks/useDailyTip';
 
@@ -257,6 +257,8 @@ export default function App() {
     if (target?.r2Key) {
       deleteAudioFromR2(target.r2Key).catch(err => console.warn('R2 delete failed:', err));
     }
+    // Чистим поисковый индекс — иначе голосовой поиск продолжит находить удалённую запись
+    deleteRecordingChunks(id);
     deleteRecordingItem(id);
     showToast('Запись удалена', 'success');
   };

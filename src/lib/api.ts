@@ -281,6 +281,24 @@ export async function deleteAudioFromR2(r2Key: string): Promise<void> {
   });
 }
 
+/**
+ * Удаляет поисковые чанки записи. Без этого голосовой поиск продолжит
+ * находить уже удалённую запись. Ошибки не критичны — глушим, чтобы не
+ * ломать удаление самой записи.
+ */
+export async function deleteRecordingChunks(recordingId: string): Promise<void> {
+  try {
+    const authHeader = await getAuthHeader();
+    await fetch(`${API_ROOT}/api/ai/chunks/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader },
+      body: JSON.stringify({ recordingId }),
+    });
+  } catch (e) {
+    console.warn('[deleteRecordingChunks] failed:', e);
+  }
+}
+
 /** Parse reminder date/time from transcribed text */
 export async function parseReminderTime(text: string): Promise<{ hasTime: boolean; date?: string; time?: string; summary: string }> {
   const now = new Date();

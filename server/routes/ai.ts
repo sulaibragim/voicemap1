@@ -1,9 +1,53 @@
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { Type } from '@google/genai';
-import { requireAuth } from '../lib/auth';
+import { requireAuth, type AuthRequest } from '../lib/auth';
 import { getAI, uploadAudioToFileAPI, buildTranscribePayload, sanitizeKnownPeople } from '../lib/gemini';
+import { embedTexts } from '../lib/embeddings';
+import { searchChunks, deleteChunksForRecording, type ChunkHit } from '../lib/vectorStore';
 
 const router = Router();
+
+// Голосовой поиск (RAG) обычно ограничен здравым числом источников,
+// даже если клиент попросит больше — сколько бы Firestore ни нашёл.
+const MAX_SEARCH_LIMIT = 50;
+const DEFAULT_SEARCH_LIMIT = 30;
+const MAX_QUERY_LENGTH = 500;
+
+interface SearchSource {
+  recordingId: string;
+  title: string;
+  timestamp: string;
+  snippet: string;
+}
+
+interface SearchResponseBody {
+  answer: string;
+  sources: SearchSource[];
+}
+
+// Строит текстовый контекст из найденных чанков для передачи модели.
+function buildSearchContext(hits: ChunkHit[]): string {
+  return hits
+    .map((hit, idx) => (
+      `[Чанк ${idx + 1}] recordingId="${hit.recordingId}" title="${hit.title}" timestamp="${hit.startTimestamp}"\n${hit.text}`
+    ))
+    .join('\n\n---\n\n');
+}
+
+function buildSearchPrompt(query: string, context: string): string {
+  return `Ты — AI-ассистент голосового блокнота VoiceMap. Пользователь задал вопрос, а ниже приведены релевантные фрагменты (чанки) из его собственных голосовых записей, найденные векторным поиском.
+
+СТРОГИЕ ПРАВИЛА:
+1. Отвечай ТОЛЬКО на основе информации из приведённых ниже фрагментов. Не придумывай факты, которых там нет.
+2. Если ответа во фрагментах нет — честно скажи, что не нашёл информации по этому вопросу.
+3. Отвечай по-русски, кратко и по делу.
+4. В поле sources укажи ТОЛЬКО те чанки (recordingId, title, timestamp), на которые ты реально опирался при ответе, с коротким snippet — цитатой или пересказом в одно предложение.
+
+Вопрос пользователя: "${query}"
+
+Найденные фрагменты:
+${context}`;
+}
 
 router.post('/tip', requireAuth, async (req, res) => {
   try {
@@ -348,6 +392,102 @@ router.post('/weekly-review', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('[/ai/weekly-review]', error);
     res.status(500).json({ error: 'AI request failed' });
+  }
+});
+
+// POST /api/ai/search — голосовой/текстовый RAG-поиск по собственным записям пользователя.
+// Промпт и структура ответа строятся ТОЛЬКО на сервере — клиент передаёт лишь query/limit.
+router.post('/search', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { uid } = req as AuthRequest;
+    const { query, limit } = req.body as { query?: unknown; limit?: unknown };
+
+    if (typeof query !== 'string' || query.trim().length === 0) {
+      res.status(400).json({ error: 'query is required and must be a non-empty string' });
+      return;
+    }
+    const cleanQuery = query.trim().slice(0, MAX_QUERY_LENGTH);
+
+    let effectiveLimit = DEFAULT_SEARCH_LIMIT;
+    if (typeof limit === 'number' && Number.isFinite(limit)) {
+      effectiveLimit = Math.min(Math.max(Math.trunc(limit), 1), MAX_SEARCH_LIMIT);
+    }
+
+    const [queryVector] = await embedTexts([cleanQuery], 'RETRIEVAL_QUERY');
+    const hits = await searchChunks(uid, queryVector, effectiveLimit);
+
+    if (hits.length === 0) {
+      const empty: SearchResponseBody = { answer: 'Ничего не нашёл по этому запросу.', sources: [] };
+      res.json(empty);
+      return;
+    }
+
+    const context = buildSearchContext(hits);
+    const ai = getAI();
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: buildSearchPrompt(cleanQuery, context),
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            answer: { type: Type.STRING },
+            sources: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  recordingId: { type: Type.STRING },
+                  title: { type: Type.STRING },
+                  timestamp: { type: Type.STRING },
+                  snippet: { type: Type.STRING },
+                },
+                required: ['recordingId', 'title', 'timestamp', 'snippet'],
+              },
+            },
+          },
+          required: ['answer', 'sources'],
+        },
+      },
+    });
+
+    const rawText = response.text ?? '';
+    let parsed: SearchResponseBody;
+    try {
+      const clean = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+      const candidate = JSON.parse(clean) as Partial<SearchResponseBody>;
+      parsed = {
+        answer: typeof candidate.answer === 'string' ? candidate.answer : '',
+        sources: Array.isArray(candidate.sources) ? candidate.sources : [],
+      };
+    } catch {
+      // Fallback: модель не вернула валидный JSON — отдаём сырой текст без источников,
+      // чтобы пользователь не остался совсем без ответа.
+      parsed = { answer: rawText, sources: [] };
+    }
+
+    res.json(parsed);
+  } catch (error) {
+    console.error('[/ai/search]', error);
+    res.status(500).json({ error: 'AI request failed' });
+  }
+});
+
+// Удаление поисковых чанков записи. Вызывается клиентом при удалении записи —
+// иначе поиск продолжит находить уже удалённые записи, а чанки будут копиться.
+router.post('/chunks/delete', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const uid = (req as AuthRequest).uid;
+    const { recordingId } = req.body as { recordingId?: unknown };
+    if (!recordingId || typeof recordingId !== 'string') {
+      return res.status(400).json({ error: 'recordingId is required' });
+    }
+    await deleteChunksForRecording(uid, recordingId);
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('[/ai/chunks/delete]', error);
+    res.status(500).json({ error: 'Failed to delete chunks' });
   }
 });
 
