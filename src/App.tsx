@@ -6,7 +6,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Brain, Loader2 } from 'lucide-react';
-import { retranscribeFromUrl, deleteAudioFromR2, deleteRecordingChunks, processRecordingAsync, QuotaExceededError, setApiLanguage } from './lib/api';
+import { retranscribeFromUrl, deleteAudioFromR2, deleteRecordingChunks, processRecordingAsync, QuotaExceededError, setApiLanguage, type TranscriptionUsage } from './lib/api';
 import { quotaToastMessage } from './lib/usageFormat';
 import { LangProvider, readStoredLang, storeLang } from './i18n';
 import { guessAudioMimeFromUrl } from './lib/audioMime';
@@ -32,6 +32,7 @@ import { IdeasCard } from './components/dashboard/IdeasCard';
 import { WeeklyDigestCard } from './components/dashboard/WeeklyDigestCard';
 import { RecentRecordings } from './components/dashboard/RecentRecordings';
 import { FollowUpCard } from './components/dashboard/FollowUpCard';
+import { UpgradeModal } from './components/analytics/UpgradeModal';
 import { ChatSidebar } from './components/ChatSidebar';
 
 // Lazy — view-экраны и модалки. Грузятся только когда юзер на них переходит.
@@ -154,6 +155,8 @@ export default function App() {
   });
 
   const [isProcessing, setIsProcessing] = useState(false);
+  // Расход на момент отказа по лимиту: не null — показываем экран апгрейда
+  const [upgradeUsage, setUpgradeUsage] = useState<TranscriptionUsage | null | undefined>(undefined);
 
   const { toast, showToast } = useToast();
 
@@ -275,7 +278,8 @@ export default function App() {
           title: 'Без расшифровки',
           aiStatus: 'quota',
         });
-        showToast(quotaToastMessage(quota), 'error');
+        showToast(quotaToastMessage(quota, appSettings.language), 'error');
+        setUpgradeUsage(quota ?? null);
         return;
       }
 
@@ -410,7 +414,8 @@ export default function App() {
             showToast('Транскрипция готова ✓', 'success');
           } catch (err) {
             if (err instanceof QuotaExceededError) {
-              showToast(quotaToastMessage(err.usage), 'error');
+              showToast(quotaToastMessage(err.usage, appSettings.language), 'error');
+              setUpgradeUsage(err.usage ?? null);
               return;
             }
             console.error('[retranscribe] failed:', err);
@@ -611,6 +616,10 @@ export default function App() {
         onClose={() => setIsAssistantOpen(false)}
         onOpenRecording={openRecording}
       />
+
+      {upgradeUsage !== undefined && (
+        <UpgradeModal usage={upgradeUsage ?? undefined} onClose={() => setUpgradeUsage(undefined)} />
+      )}
 
       {isProcessing && (
         <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center">

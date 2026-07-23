@@ -158,6 +158,19 @@ export const en: Record<TKey, string> = {
   'usage.exhausted': 'Limit reached. New recordings are still saved, but transcription is unavailable until next month or a plan upgrade.',
   'usage.planFree': 'Free',
 
+  // ── Plan upgrade ───────────────────────────────────────────────────────
+  'upgrade.title': 'You need more hours',
+  'upgrade.subtitle': 'The Pro plan lifts the monthly transcription limit.',
+  'upgrade.spent': "You've used your whole limit for this month ({limit}). Audio is still saved, but transcription is unavailable until the 1st.",
+  'upgrade.perMonth': 'per month',
+  'upgrade.benefitHours': '{hours} hours of transcription per month',
+  'upgrade.benefitSearch': 'Voice search across your whole archive',
+  'upgrade.benefitQuotes': 'Quote export with timecodes',
+  'upgrade.benefitPriority': 'Priority support',
+  'upgrade.request': 'Request Pro',
+  'upgrade.manualNote': 'Automatic payment is not set up yet — drop me a line and I will enable the plan by hand within a day.',
+  'upgrade.openButton': 'Upgrade to Pro',
+
   // ── Quotes ─────────────────────────────────────────────────────────────
   'quote.copy': 'Copy quote',
   'quote.download': 'Download quote as a file',

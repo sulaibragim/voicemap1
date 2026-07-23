@@ -3,6 +3,7 @@ import { Gauge, Loader2 } from 'lucide-react';
 import { fetchTranscriptionUsage, type TranscriptionUsage } from '../../lib/api';
 import { formatDurationHuman, isUsageLow, planLabel, usagePercent } from '../../lib/usageFormat';
 import { useT, useLang } from '../../i18n';
+import { UpgradeModal } from './UpgradeModal';
 
 // Расход минут расшифровки за текущий месяц.
 // Данные приходят с сервера (GET /api/ai/usage) — счётчик считает только он,
@@ -10,6 +11,7 @@ import { useT, useLang } from '../../i18n';
 export const UsageCard = () => {
   const t = useT();
   const lang = useLang();
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const [usage, setUsage] = useState<TranscriptionUsage | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -66,6 +68,20 @@ export const UsageCard = () => {
           ? t('usage.exhausted')
           : t('usage.left', { left: formatDurationHuman(usage.remainingSeconds, lang) })}
       </p>
+
+      {/* Кнопку Pro показываем всем на бесплатном тарифе, а не только упёршимся в лимит:
+          про существование Pro надо узнавать до отказа, а не после него. */}
+      {usage.plan === 'free' && (
+        <button
+          type="button"
+          onClick={() => setShowUpgrade(true)}
+          className="mt-4 w-full py-2.5 rounded-xl text-xs font-bold bg-primary text-on-primary-fixed hover:opacity-90 transition-opacity cursor-pointer"
+        >
+          {t('upgrade.openButton')}
+        </button>
+      )}
+
+      {showUpgrade && <UpgradeModal usage={usage} onClose={() => setShowUpgrade(false)} />}
     </div>
   );
 };
