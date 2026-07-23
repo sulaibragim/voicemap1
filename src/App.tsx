@@ -55,9 +55,6 @@ const RecordingDetail = lazy(() =>
 const FocusView = lazy(() =>
   import('./components/analytics/FocusView').then(m => ({ default: m.FocusView }))
 );
-const TagsView = lazy(() =>
-  import('./components/analytics/TagsView').then(m => ({ default: m.TagsView }))
-);
 const SettingsView = lazy(() =>
   import('./components/analytics/SettingsView').then(m => ({ default: m.SettingsView }))
 );
@@ -448,9 +445,6 @@ export default function App() {
       />;
     }
 
-    if (currentView === 'tags') {
-      return <TagsView recordings={recordings} onBack={() => setCurrentView('dashboard')} onOpenRecording={openRecording} />;
-    }
 
     if (currentView === 'reminders') {
       return <RemindersView
