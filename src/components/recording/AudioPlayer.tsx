@@ -2,15 +2,13 @@ import { useState } from 'react';
 import type * as React from 'react';
 import { Play, Pause, Volume2 } from 'lucide-react';
 import { formatTime } from '../../lib/utils';
+import { parseTimestamp } from '../../lib/timestamp';
 import type { TranscriptItem } from '../../types';
 
+// Парсер таймкода вынесен в src/lib/timestamp.ts (переиспользуется TranscriptSection,
+// RecordingMobileTabs, RecordingDetail) — здесь оставляем ре-экспорт для обратной совместимости импортов.
 // eslint-disable-next-line react-refresh/only-export-components
-export function parseTimestamp(timestamp: string): number {
-  const parts = timestamp.split(':');
-  if (parts.length === 3) return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(parts[2]);
-  if (parts.length === 2) return parseInt(parts[0]) * 60 + parseInt(parts[1]);
-  return 0;
-}
+export { parseTimestamp };
 
 interface AudioPlayerProps {
   audioRef: React.RefObject<HTMLAudioElement | null>;

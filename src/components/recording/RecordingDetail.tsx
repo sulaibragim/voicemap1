@@ -11,6 +11,7 @@ import { AppendAudioPlayer } from './AppendAudioPlayer';
 import { RecordingMobileTabs } from './RecordingMobileTabs';
 import { MobileActionSheet } from './MobileActionSheet';
 import { findRelated } from '../../lib/recordingUtils';
+import { findActiveTranscriptIndex } from '../../lib/timestamp';
 import type { Recording } from '../../types';
 import { useRecordingExport } from '../../hooks/useRecordingExport';
 
@@ -74,6 +75,10 @@ export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToa
     }
   };
 
+  // Реплика, к которой привёл голосовой поиск — подсвечивается заметнее обычной активной,
+  // гаснет через несколько секунд или как только пользователь запускает воспроизведение
+  const [searchHighlightIndex, setSearchHighlightIndex] = useState<number | null>(null);
+
   // Перемотка на таймкод из голосового поиска — строго один раз за монтирование.
   // Ждём duration > 0: аудио с R2 грузится асинхронно, до loadedmetadata seek бесполезен.
   const didInitialSeekRef = useRef(false);
@@ -83,10 +88,28 @@ export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToa
     if (!Number.isFinite(seconds) || seconds < 0) return;
     didInitialSeekRef.current = true;
     // Клампим: модель могла вернуть таймкод за пределами длительности
-    handleSeek(Math.min(seconds, Math.max(duration - 1, 0)));
+    const clamped = Math.min(seconds, Math.max(duration - 1, 0));
+    handleSeek(clamped);
+    // Помечаем реплику, ближайшую к моменту поиска, для отдельной подсветки
+    const idx = findActiveTranscriptIndex(recording.transcript, clamped);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (idx >= 0) setSearchHighlightIndex(idx);
   // handleSeek пересоздаётся каждый рендер — в депы не берём, защита от повтора на ref
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSeek, duration]);
+
+  // Особая подсветка из поиска гаснет через несколько секунд...
+  useEffect(() => {
+    if (searchHighlightIndex === null) return;
+    const timer = setTimeout(() => setSearchHighlightIndex(null), 4000);
+    return () => clearTimeout(timer);
+  }, [searchHighlightIndex]);
+
+  // ...или сразу, как только пользователь начал воспроизведение
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (isPlaying) setSearchHighlightIndex(null);
+  }, [isPlaying]);
 
   const handleTitleSave = () => {
     const trimmed = editTitleValue.trim();
@@ -280,6 +303,7 @@ export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToa
           appendBoundaryTimestamp={appendBoundaryTimestamp}
           touchStartXRef={touchStartXRef}
           audioRef={audioRef}
+          highlightIndex={searchHighlightIndex}
         />
 
         {/* ===== ДЕСКТОП: ЛЕВАЯ КОЛОНКА (скрыта на мобилке) ===== */}
@@ -347,6 +371,7 @@ export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToa
         <TranscriptSection
           recording={recording}
           currentTime={currentTime}
+          isPlaying={isPlaying}
           activeTab={activeTab}
           onTabChange={setActiveTab}
           transcriptMode={transcriptMode}
@@ -356,6 +381,7 @@ export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToa
           speakerColorMap={speakerColorMap}
           shouldColorSpeakers={shouldColorSpeakers}
           onTimestampClick={handleTimestampClick}
+          highlightIndex={searchHighlightIndex}
         />
       </main>
 

@@ -1,6 +1,7 @@
-import { useMemo, useRef, useEffect } from 'react';
 import { FileText, AlignLeft, Scissors, Loader2 } from 'lucide-react';
-import { parseTimestamp } from './AudioPlayer';
+import { TranscriptEntry } from './TranscriptEntry';
+import { useActiveTranscriptIndex } from '../../hooks/useActiveTranscriptIndex';
+import { useTranscriptAutoScroll } from '../../hooks/useTranscriptAutoScroll';
 import type { Recording } from '../../types';
 
 // Палитра цветов спикеров — используется также в RecordingDetail
@@ -19,6 +20,7 @@ export const SPEAKER_PALETTE = [
 interface TranscriptSectionProps {
   recording: Recording;
   currentTime: number;
+  isPlaying: boolean;
   activeTab: 'transcript' | 'keyMoments';
   onTabChange: (tab: 'transcript' | 'keyMoments') => void;
   transcriptMode: 'full' | 'condensed';
@@ -28,11 +30,14 @@ interface TranscriptSectionProps {
   speakerColorMap: Record<string, string>;
   shouldColorSpeakers: boolean;
   onTimestampClick: (ts: string) => void;
+  /** Индекс реплики, к которой привёл голосовой поиск — подсвечивается заметнее обычной активной */
+  highlightIndex?: number | null;
 }
 
 export const TranscriptSection = ({
   recording,
   currentTime,
+  isPlaying,
   activeTab,
   onTabChange,
   transcriptMode,
@@ -42,36 +47,23 @@ export const TranscriptSection = ({
   speakerColorMap,
   shouldColorSpeakers,
   onTimestampClick,
+  highlightIndex,
 }: TranscriptSectionProps) => {
   // Вычисляем активный индекс реплики по текущему времени
-  const activeTranscriptIndex = useMemo(() => {
-    if (!recording.transcript || recording.transcript.length === 0) return -1;
-    for (let i = recording.transcript.length - 1; i >= 0; i--) {
-      if (currentTime >= parseTimestamp(recording.transcript[i].timestamp)) return i;
-    }
-    return 0;
-  }, [recording.transcript, currentTime]);
+  const activeTranscriptIndex = useActiveTranscriptIndex(recording.transcript, currentTime);
 
   const displayTranscript = transcriptMode === 'full'
     ? recording.transcript
     : (recording.condensedTranscript ?? recording.transcript);
 
-  // Авто-скролл к активной реплике при воспроизведении / перемотке
-  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const lastScrolledIndex = useRef(-1);
-
-  useEffect(() => {
-    if (
-      transcriptMode !== 'full' ||
-      activeTranscriptIndex < 0 ||
-      activeTranscriptIndex === lastScrolledIndex.current
-    ) return;
-    lastScrolledIndex.current = activeTranscriptIndex;
-    const el = itemRefs.current[activeTranscriptIndex];
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-  }, [activeTranscriptIndex, transcriptMode]);
+  // Авто-скролл к активной реплике при воспроизведении + прокрутка к реплике из поиска.
+  // Список активен только в полном режиме транскрипта и на самой вкладке "Текст".
+  const { containerRef, registerItemRef, handleContainerScroll } = useTranscriptAutoScroll({
+    activeIndex: activeTranscriptIndex,
+    highlightIndex,
+    isPlaying,
+    enabled: transcriptMode === 'full' && activeTab === 'transcript',
+  });
 
   return (
     <div className="hidden lg:flex lg:col-span-7 bg-surface-container p-4 md:p-6 rounded-2xl md:rounded-[32px] border border-white/5 flex-col lg:h-full">
@@ -121,7 +113,7 @@ export const TranscriptSection = ({
       </div>
 
       {activeTab === 'transcript' ? (
-        <div className="lg:flex-1 lg:overflow-y-auto lg:pr-2 lg:pb-8">
+        <div ref={containerRef} onScroll={handleContainerScroll} className="lg:flex-1 lg:overflow-y-auto lg:pr-2 lg:pb-8">
           {/* Бейдж краткого режима */}
           {transcriptMode === 'condensed' && (
             <div className="flex items-center gap-2 px-3 py-2 mb-4 bg-secondary/10 border border-secondary/20 rounded-xl text-xs text-secondary font-bold">
@@ -142,40 +134,15 @@ export const TranscriptSection = ({
                 : undefined;
 
               return (
-                <div
+                <TranscriptEntry
                   key={i}
-                  ref={el => { itemRefs.current[i] = el; }}
-                  className={`transition-colors rounded-xl ${isActive ? 'bg-primary/5 px-3 py-2 -mx-3' : ''}`}
-                >
-                  <button
-                    onClick={() => item.timestamp !== '--:--' && onTimestampClick(item.timestamp)}
-                    className={`flex items-center gap-2 mb-1 group ${item.timestamp !== '--:--' ? 'cursor-pointer' : 'cursor-default'}`}
-                    title={item.timestamp !== '--:--' ? 'Воспроизвести с этого момента' : undefined}
-                  >
-                    <span
-                      className="font-bold text-xs tracking-wide uppercase"
-                      style={speakerColor
-                        ? { color: speakerColor }
-                        : { color: isActive ? 'var(--color-primary)' : 'var(--color-on-surface-variant)' }
-                      }
-                    >
-                      {item.speaker}
-                    </span>
-                    {item.timestamp !== '--:--' && (
-                      <span className="text-[10px] font-mono text-on-surface-variant/40 group-hover:text-on-surface-variant transition-colors">
-                        {item.timestamp}
-                      </span>
-                    )}
-                    {item.isAppended && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-400/15 text-amber-400 font-bold uppercase tracking-wider">
-                        дополнено
-                      </span>
-                    )}
-                  </button>
-                  <p className={`text-sm leading-[1.75] ${isActive ? 'text-on-surface' : 'text-on-surface-variant'}`}>
-                    {item.text}
-                  </p>
-                </div>
+                  item={item}
+                  isActive={isActive}
+                  isSearchHighlight={transcriptMode === 'full' && i === highlightIndex}
+                  speakerColor={speakerColor}
+                  onSelect={onTimestampClick}
+                  registerRef={registerItemRef(i)}
+                />
               );
             })}
           </div>
