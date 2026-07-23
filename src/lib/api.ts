@@ -25,6 +25,11 @@ export function getApiLanguage(): OutputLang {
   return outputLang;
 }
 
+// Ретраи загрузки аудио: одинаковые для /api/r2/upload и /api/process-recording.
+// Три попытки с нарастающей паузой покрывают типичное моргание сети.
+const UPLOAD_MAX_ATTEMPTS = 3;
+const UPLOAD_RETRY_BASE_MS = 800;
+
 async function getAuthHeader(): Promise<Record<string, string>> {
   const user = auth.currentUser;
   if (!user) return {};
@@ -329,9 +334,8 @@ export async function uploadAudioToR2(
 
   // Загрузка с ретраями: сетевые ошибки и 5xx повторяем (до 3 попыток с backoff),
   // 4xx (например, истёкший токен) не ретраим — это не транзиентная ошибка.
-  const maxAttempts = 3;
   let lastErr = 'unknown error';
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  for (let attempt = 1; attempt <= UPLOAD_MAX_ATTEMPTS; attempt++) {
     let res: Response | null = null;
     try {
       res = await fetch(`${API_ROOT}/api/r2/upload`, {
@@ -353,13 +357,13 @@ export async function uploadAudioToR2(
       if (res.status < 500) break; // клиентская ошибка — ретрай не поможет
     }
 
-    if (attempt < maxAttempts) {
+    if (attempt < UPLOAD_MAX_ATTEMPTS) {
       console.warn(`[R2] Upload attempt ${attempt} failed (${lastErr}), retrying...`);
-      await new Promise(r => setTimeout(r, attempt * 800));
+      await new Promise(r => setTimeout(r, attempt * UPLOAD_RETRY_BASE_MS));
     }
   }
 
-  throw new Error(`R2 server upload failed after ${maxAttempts} attempts: ${lastErr}`);
+  throw new Error(`R2 server upload failed after ${UPLOAD_MAX_ATTEMPTS} attempts: ${lastErr}`);
 }
 
 /**
@@ -382,18 +386,46 @@ export async function processRecordingAsync(
     reader.readAsDataURL(blob);
   });
 
-  const res = await fetch(`${API_ROOT}/api/process-recording`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeader },
-    body: JSON.stringify({
-      recordingId, audioBase64: base64, contentType,
-      metadata: { ...metadata, lang: outputLang },
-    }),
+  // Ретраи как в uploadAudioToR2: запись существует только в памяти, и уронить её
+  // из-за моргнувшего вайфая нельзя — пользователь потеряет часовую встречу без
+  // возможности восстановить. Транзиентные сбои (сеть, 5xx) повторяем,
+  // 4xx — нет: истёкший токен или исчерпанный лимит от повтора не исправятся.
+  const payload = JSON.stringify({
+    recordingId, audioBase64: base64, contentType,
+    metadata: { ...metadata, lang: outputLang },
   });
 
+  let res: Response | null = null;
+  let lastErr = 'unknown error';
+  for (let attempt = 1; attempt <= UPLOAD_MAX_ATTEMPTS; attempt++) {
+    res = null;
+    try {
+      res = await fetch(`${API_ROOT}/api/process-recording`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: payload,
+      });
+    } catch (e) {
+      lastErr = e instanceof Error ? e.message : 'network error';
+    }
+
+    if (res) {
+      if (res.ok) break;
+      lastErr = `${res.status} — ${await res.text()}`;
+      if (res.status < 500) break;   // клиентская ошибка — ретрай не поможет
+    }
+
+    if (attempt < UPLOAD_MAX_ATTEMPTS) {
+      console.warn(`[processRecordingAsync] Попытка ${attempt} не удалась (${lastErr}), повтор...`);
+      await new Promise(r => setTimeout(r, attempt * UPLOAD_RETRY_BASE_MS));
+    }
+  }
+
+  if (!res) {
+    throw new Error(`process-recording failed after ${UPLOAD_MAX_ATTEMPTS} attempts: ${lastErr}`);
+  }
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`process-recording failed: ${res.status} — ${err}`);
+    throw new Error(`process-recording failed: ${lastErr}`);
   }
 
   // queued: false означает, что аудио сохранено, но расшифровка пропущена из-за
