@@ -89,6 +89,11 @@ export interface AppSettings {
   summaryDetail: 'brief' | 'standard' | 'detailed';
   extractIdeas: boolean;
   extractTasks: boolean;
+  /**
+   * Когда пользователь подтвердил, что прочитал предупреждение о согласии на запись
+   * (ISO-дата). Пусто — предупреждение ещё не показывали. См. src/lib/consent.ts.
+   */
+  consentAcknowledgedAt?: string;
 }
 
 export const defaultAppSettings: AppSettings = {

@@ -374,7 +374,14 @@ export default function App() {
     }
 
     if (currentView === 'recording_session') {
-      return <RecordingSession onFinish={handleFinishRecording} onCancel={() => setCurrentView('dashboard')} showToast={showToast} autoStopMinutes={appSettings.autoStopMinutes} />;
+      return <RecordingSession
+        onFinish={handleFinishRecording}
+        onCancel={() => setCurrentView('dashboard')}
+        showToast={showToast}
+        autoStopMinutes={appSettings.autoStopMinutes}
+        consentAcknowledgedAt={appSettings.consentAcknowledgedAt}
+        onAcknowledgeConsent={() => updateSettings({ consentAcknowledgedAt: new Date().toISOString() })}
+      />;
     }
 
     if (currentView === 'focus') {

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ArrowLeft, Download, Trash2, RefreshCw, Database, FileText, Mic, User, MessageSquare, Sparkles, Info, Search, Loader2 } from 'lucide-react';
+import { ArrowLeft, Download, Trash2, RefreshCw, Database, FileText, Mic, User, MessageSquare, Sparkles, Info, Search, Loader2, ShieldAlert } from 'lucide-react';
+import { ConsentNotice } from '../recording/ConsentNotice';
 import { plural } from '../../lib/plural';
 import { backfillSearchIndex } from '../../lib/api';
 import type { Recording, Note, AppSettings } from '../../types';
@@ -28,6 +29,7 @@ export const SettingsView = ({
   const [nameInput, setNameInput] = useState(settings.userName);
   const [isBackfilling, setIsBackfilling] = useState(false);
   const [backfillProgress, setBackfillProgress] = useState(0);
+  const [showConsent, setShowConsent] = useState(false);
 
   const totalMinutes = recordings.reduce((acc, r) => {
     if (!r.duration) return acc;
@@ -105,6 +107,11 @@ export const SettingsView = ({
         </button>
         <h1 className="text-2xl font-black tracking-tighter text-primary uppercase font-headline">Настройки</h1>
       </header>
+
+      {/* Повторный показ предупреждения — только чтение, подтверждать заново нечего */}
+      {showConsent && (
+        <ConsentNotice readOnly onAcknowledge={() => setShowConsent(false)} onCancel={() => setShowConsent(false)} />
+      )}
 
       <main className="flex-1 overflow-y-auto p-6 md:p-12 max-w-2xl w-full mx-auto">
 
@@ -190,6 +197,16 @@ export const SettingsView = ({
             ]}
             value={settings.transcriptionLang}
             onChange={v => { onSettingsChange({ transcriptionLang: v as AppSettings['transcriptionLang'] }); showToast('Настройки сохранены', 'success'); }}
+          />
+          <Divider />
+          <RowAction
+            icon={ShieldAlert}
+            label="Согласие на запись"
+            description="В ряде штатов США записывать разговор можно только с согласия всех участников"
+            iconColor="text-warning"
+            bgColor="bg-warning/10"
+            onClick={() => setShowConsent(true)}
+            rightLabel="Прочитать"
           />
         </Section>
 

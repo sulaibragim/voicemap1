@@ -1,17 +1,25 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, Volume2 } from 'lucide-react';
+import { ArrowLeft, Volume2, ShieldAlert } from 'lucide-react';
 import { useNativeRecorder, type AudioMode } from '../../hooks/useNativeRecorder';
 import { RecordingTimerCircle } from './RecordingTimerCircle';
 import { RecordingControls } from './RecordingControls';
+import { ConsentNotice } from './ConsentNotice';
+import { needsConsentNotice } from '../../lib/consent';
 
 interface RecordingSessionProps {
   onFinish: (blob: Blob, duration: number) => void;
   onCancel: () => void;
   showToast: (msg: string, type: 'success' | 'error' | 'info') => void;
   autoStopMinutes?: number | null;
+  /** ISO-дата подтверждения предупреждения о записи. Пусто — показать предупреждение */
+  consentAcknowledgedAt?: string;
+  /** Пользователь подтвердил предупреждение — родитель сохраняет отметку в настройках */
+  onAcknowledgeConsent: () => void;
 }
 
-export const RecordingSession = ({ onFinish, onCancel, showToast, autoStopMinutes }: RecordingSessionProps) => {
+export const RecordingSession = ({
+  onFinish, onCancel, showToast, autoStopMinutes, consentAcknowledgedAt, onAcknowledgeConsent,
+}: RecordingSessionProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -204,8 +212,16 @@ export const RecordingSession = ({ onFinish, onCancel, showToast, autoStopMinute
     onCancel();
   };
 
+  // Предупреждение о согласии показываем ДО первой записи и только один раз.
+  // Дальше на экране остаётся ненавязчивая строка-напоминание.
+  const showConsentNotice = needsConsentNotice(consentAcknowledgedAt) && !isRecording;
+
   return (
     <div className="min-h-screen bg-background text-on-surface flex flex-col items-center justify-center font-body selection:bg-primary/30 w-full relative">
+
+      {showConsentNotice && (
+        <ConsentNotice onAcknowledge={onAcknowledgeConsent} onCancel={handleCancel} />
+      )}
 
       {/* Кнопка назад */}
       <div className="absolute top-8 left-8">
@@ -219,9 +235,18 @@ export const RecordingSession = ({ onFinish, onCancel, showToast, autoStopMinute
       </div>
 
       {/* Заголовок */}
-      <div className="text-center mb-8">
-        <h2 className="font-headline text-4xl font-bold mb-4">Живая сессия</h2>
+      <div className="text-center mb-4 md:mb-6">
+        <h2 className="font-headline text-3xl md:text-4xl font-bold mb-3 md:mb-4">Живая сессия</h2>
         <p className="text-on-surface-variant">Запись встречи или интервью</p>
+      </div>
+
+      {/* Напоминание висит всегда, в том числе во время записи: объявить о записи
+          нужно вслух в начале разговора, а это ровно момент после старта. */}
+      <div className="flex items-center gap-2 mb-6 md:mb-8 px-4 py-2 rounded-full bg-warning/10 border border-warning/20 mx-4">
+        <ShieldAlert className="w-3.5 h-3.5 text-warning shrink-0" />
+        <span className="text-xs text-warning text-center">
+          Скажи вслух, что идёт запись — в ряде штатов это обязательно
+        </span>
       </div>
 
       {/* Переключатель источника звука — только на Android, только до старта */}
