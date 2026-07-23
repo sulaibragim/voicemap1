@@ -6,12 +6,14 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Brain, Loader2 } from 'lucide-react';
-import { retranscribeFromUrl, deleteAudioFromR2, deleteRecordingChunks, processRecordingAsync, QuotaExceededError, setApiLanguage } from './lib/api';
+import { retranscribeFromUrl, deleteAudioFromR2, deleteRecordingChunks, QuotaExceededError, setApiLanguage } from './lib/api';
 import { quotaToastMessage } from './lib/usageFormat';
 import { LangProvider, readStoredLang, storeLang } from './i18n';
 import { guessAudioMimeFromUrl } from './lib/audioMime';
 import { parseDurationToSeconds } from './lib/recordingUtils';
 import { useToast } from './hooks/useToast';
+import { useRecordingPipeline } from './hooks/useRecordingPipeline';
+import { useAppNavigation } from './hooks/useAppNavigation';
 
 import type { NoteType, Recording } from './types';
 import { useReminders } from './hooks/useReminders';
@@ -88,16 +90,15 @@ export default function App() {
     addNote, updateNoteItem, deleteNoteItem, clearAllNotes, setNotesLocal,
   } = useFirestoreData(authUser?.uid ?? null);
 
-  const [currentView, setCurrentView] = useState('dashboard');
-  // Предвыбранный тег библиотеки — живёт только на время одного перехода из записи
-  const [libraryTag, setLibraryTag] = useState<string | null>(null);
-  type NavEntry = { view: string };
-  const [navStack, setNavStack] = useState<NavEntry[]>([]);
+  const {
+    currentView, setCurrentView,
+    selectedRecordingId, setSelectedRecordingId,
+    pendingSeek, libraryTag,
+    openRecording, openLibraryWithTag, goBack,
+  } = useAppNavigation({ recordings, dataLoading });
+
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [quickNoteType, setQuickNoteType] = useState<NoteType | null>(null);
-  const [selectedRecordingId, setSelectedRecordingId] = useState<string | null>(null);
-  // Таймкод из результата голосового поиска — RecordingDetail перемотает аудио на него один раз
-  const [pendingSeek, setPendingSeek] = useState<string | null>(null);
 
   // Dev-only демо-просмотр без входа. effectiveUser проходит гейт логина, но uid в хуки
   // данных НЕ передаётся (остаётся null → локальный режим, без Firestore) — данные засеиваются ниже.
@@ -115,34 +116,6 @@ export default function App() {
     // setRecordingsLocal/setNotesLocal стабильны (обёртки над setState)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demoMode, authUser]);
-
-  // Если запись_detail открыта но запись не найдена — возвращаемся на дашборд
-  // Проверяем только ПОСЛЕ завершения загрузки данных из Firestore
-  useEffect(() => {
-    if (currentView === 'recording_detail' && selectedRecordingId && !dataLoading) {
-      const found = recordings.find(r => r.id === selectedRecordingId);
-      if (!found) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setCurrentView('dashboard');
-      }
-    }
-  }, [currentView, selectedRecordingId, recordings, dataLoading]);
-
-  // Ушли с экрана записи — сбрасываем таймкод поиска, чтобы он не применился повторно
-  useEffect(() => {
-    if (currentView !== 'recording_detail' && pendingSeek !== null) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPendingSeek(null);
-    }
-  }, [currentView, pendingSeek]);
-
-  // Ушли из библиотеки — забываем предвыбранный тег, иначе он применится к следующему заходу
-  useEffect(() => {
-    if (currentView !== 'library' && libraryTag !== null) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setLibraryTag(null);
-    }
-  }, [currentView, libraryTag]);
 
   // Фокус-задачи от ассистента
   const [dailyFocus, setDailyFocus] = useState<Array<{ id: string; task: string; done: boolean }>>(() => {
@@ -183,121 +156,18 @@ export default function App() {
     await logout();
   };
 
-  // Открыть запись с сохранением откуда пришли (для кнопки «Назад»).
-  // seekTo — таймкод "MM:SS"/"H:MM:SS" из источника голосового поиска.
-  const openRecording = (id: string, seekTo?: string) => {
-    setNavStack(prev => [...prev, { view: currentView }]);
-    setSelectedRecordingId(id);
-    setPendingSeek(seekTo ?? null);
-    setCurrentView('recording_detail');
-  };
-
-  // Открыть библиотеку, сразу отфильтрованную по тегу (клик по тегу внутри записи)
-  const openLibraryWithTag = (tag: string) => {
-    setNavStack(prev => [...prev, { view: currentView }]);
-    setLibraryTag(tag);
-    setCurrentView('library');
-  };
-
-  const goBack = () => {
-    const entry = navStack[navStack.length - 1];
-    if (entry) {
-      setNavStack(prev => prev.slice(0, -1));
-      setCurrentView(entry.view);
-    } else {
-      setCurrentView('dashboard');
-    }
-  };
-
-  const handleFinishRecording = async (blob: Blob, durationSeconds: number) => {
-    setCurrentView('dashboard');
-    setIsProcessing(true);
-
-    const recordingId = Date.now().toString();
-    const m = Math.floor(durationSeconds / 60).toString().padStart(2, '0');
-    const s = Math.floor(durationSeconds % 60).toString().padStart(2, '0');
-    const duration = `${m}:${s}`;
-    const date = new Date().toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
-
-    // Создаём запись сразу со статусом "обрабатывается"
-    const pendingRecording: Recording = {
-      id: recordingId,
-      title: 'Обрабатывается...',
-      date,
-      duration,
-      tags: [],
-      summary: '',
-      transcript: [],
-      keyMoments: [],
-      actionItems: [],
-      ideas: [],
-      mentions: [],
-      openQuestions: [],
-      participants: [],
-      richActionItems: [],
-      bigQuestions: [],
-      aiStatus: 'processing',
-      audioUrl: undefined,
-      r2Key: undefined,
-    };
-
-    // Сохраняем в Firestore сразу — пользователь видит запись немедленно.
-    // ВАЖНО: ждём завершения write, иначе сервер может обновить документ
-    // транскрипцией РАНЬШЕ, чем клиент успеет создать pending-запись →
-    // обновление сервера улетит в несуществующий док, а клиент потом перепишет
-    // pending-данными уже готовую транскрипцию.
-    await addRecording(pendingRecording);
-    addPersonFromRecording(pendingRecording);
-    setSelectedRecordingId(recordingId);
-    setIsProcessing(false);
-
-    // Загружаем на сервер в фоне — сервер сам обновит Firestore после транскрипции.
-    // Используем patchRecordingItem (НЕ updateRecordingItem с полным объектом),
-    // чтобы НЕ затереть свежие поля title/summary/transcript, которые сервер
-    // мог уже записать через фоновую транскрипцию.
-    try {
-      const { publicUrl, r2Key, queued, quota } = await processRecordingAsync(blob, recordingId, {
-        title: 'Новая запись',
-        date,
-        duration,
-        knownPeople: getKnownNames(),
-      });
-
-      // Лимит месяца исчерпан: аудио в R2 уже лежит, расшифровки не будет.
-      // Помечаем запись отдельным статусом, чтобы не выдавать это за ошибку.
-      if (!queued) {
-        await patchRecordingItem(recordingId, {
-          audioUrl: publicUrl,
-          r2Key,
-          title: 'Без расшифровки',
-          aiStatus: 'quota',
-        });
-        showToast(quotaToastMessage(quota, appSettings.language), 'error');
-        return;
-      }
-
-      await patchRecordingItem(recordingId, { audioUrl: publicUrl, r2Key });
-      console.log('[handleFinishRecording] Upload done, background transcription queued');
-    } catch (err) {
-      console.warn('[handleFinishRecording] Upload failed:', err);
-      showToast('Ошибка загрузки аудио. Попробуй снова.', 'error');
-      // Сервер мог успеть расшифровать запись раньше, чем у клиента отвалилась
-      // сеть. Безусловный 'error' затирал готовый результат: данные лежали в
-      // базе целыми, а пользователь видел «Ошибка обработки».
-      const alreadyTranscribed = recordings.find(r => r.id === recordingId)?.transcript?.length;
-      if (!alreadyTranscribed) {
-        await patchRecordingItem(recordingId, { aiStatus: 'error' });
-      }
-    }
-  };
-
-  // Импорт готового аудиофайла (умные очки, диктофон, ручка-рекордер, обычный файл).
-  // Никакой отдельной логики — File наследует Blob, поэтому гоним его через тот же
-  // конвейер, что и обычную запись: загрузка в R2 → транскрипция → индексация.
-  const handleImportAudio = (file: File, durationSeconds: number) => {
-    showToast('Файл загружается, идёт расшифровка', 'info');
-    void handleFinishRecording(file, durationSeconds);
-  };
+  const { handleFinishRecording, handleImportAudio } = useRecordingPipeline({
+    addRecording,
+    patchRecordingItem,
+    addPersonFromRecording,
+    getKnownNames,
+    recordings,
+    language: appSettings.language,
+    showToast,
+    onStart: () => { setCurrentView('dashboard'); setIsProcessing(true); },
+    onPending: setSelectedRecordingId,
+    onSettled: () => setIsProcessing(false),
+  });
 
   // ⚠️ Dev-only фича (кнопка видна только в dev-сборке, см. SettingsView):
   // пишет только в локальный state и localStorage, в Firestore НЕ сохраняет —
