@@ -130,11 +130,11 @@ ${JSON.stringify(notesCtx, null, 2)}
 
 Сегодня: ${currentDate}
 Текущий раздел: ${ctx.currentView}
-Доступные разделы: dashboard, library, analytics, focus, gallery, recording_session
+Доступные разделы: dashboard, library, focus, gallery, recording_session
 
 Примеры NAVIGATE (переход в раздел):
 - "открой/перейди/покажи раздел" → NAVIGATE
-- "иди на аналитику" → NAVIGATE analytics
+- "открой библиотеку" → NAVIGATE library
 - "покажи задачи" — только если хочет перейти в раздел фокуса → NAVIGATE focus
 НЕ NAVIGATE: "сколько у меня задач", "покажи мои идеи из записей" → это NONE (отвечай текстом)
 
@@ -158,7 +158,7 @@ ${JSON.stringify(notesCtx, null, 2)}
 {"text":"Фокус на сегодня установлен.","action":"SET_FOCUS_TASKS","actionTarget":null,"actionData":{"tasks":["задача 1","задача 2"]}}
 
 Навигация:
-{"text":"Открываю аналитику.","action":"NAVIGATE","actionTarget":"analytics","actionData":null}
+{"text":"Открываю библиотеку.","action":"NAVIGATE","actionTarget":"library","actionData":null}
 
 Просто ответить:
 {"text":"Ответ на вопрос.","action":"NONE","actionTarget":null,"actionData":null}

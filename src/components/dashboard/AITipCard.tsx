@@ -11,7 +11,7 @@ export const AITipCard = ({ dailyTip, isGeneratingTip }: AITipCardProps) => (
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay: 0.4 }}
-    className="col-span-12 lg:col-span-5 relative"
+    className="col-span-12 lg:col-span-4 relative"
   >
     <div className="bg-tertiary text-on-tertiary-container p-4 lg:p-12 rounded-[40px] h-full flex flex-col justify-end editorial-shadow relative overflow-hidden">
       {isGeneratingTip ? (

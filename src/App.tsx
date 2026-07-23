@@ -25,8 +25,6 @@ import { QuickNoteCard } from './components/dashboard/QuickNoteCard';
 import { FocusTodayCard } from './components/dashboard/FocusTodayCard';
 import { IdeasCard } from './components/dashboard/IdeasCard';
 import { AITipCard } from './components/dashboard/AITipCard';
-import { ActivityChartCard } from './components/dashboard/ActivityChartCard';
-import { BrainStatsCard } from './components/dashboard/WeeklyGoalsCard';
 import { WeeklyDigestCard } from './components/dashboard/WeeklyDigestCard';
 import { RecentRecordings } from './components/dashboard/RecentRecordings';
 import { ChatSidebar } from './components/ChatSidebar';
@@ -48,9 +46,6 @@ const RecordingSession = lazy(() =>
 );
 const RecordingDetail = lazy(() =>
   import('./components/recording/RecordingDetail').then(m => ({ default: m.RecordingDetail }))
-);
-const AnalyticsView = lazy(() =>
-  import('./components/analytics/AnalyticsView').then(m => ({ default: m.AnalyticsView }))
 );
 const FocusView = lazy(() =>
   import('./components/analytics/FocusView').then(m => ({ default: m.FocusView }))
@@ -336,10 +331,6 @@ export default function App() {
       return <RecordingSession onFinish={handleFinishRecording} onCancel={() => setCurrentView('dashboard')} showToast={showToast} autoStopMinutes={appSettings.autoStopMinutes} />;
     }
 
-    if (currentView === 'analytics') {
-      return <AnalyticsView recordings={recordings} onBack={() => setCurrentView('dashboard')} />;
-    }
-
     if (currentView === 'focus') {
       return <FocusView
         recordings={recordings}
@@ -423,12 +414,9 @@ export default function App() {
             />
             <IdeasCard recordings={recordings} notes={notes} onOpenRecording={openRecording} />
           </div>
+          {/* Совет дня + недельный дайджест в одном ряду: AITipCard (lg:4) + WeeklyDigestCard (lg:8) = 12 колонок */}
           <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12 items-stretch">
             <AITipCard dailyTip={dailyTip} isGeneratingTip={isGeneratingTip} />
-            <ActivityChartCard recordings={recordings} notes={notes} onOpenRecording={openRecording} />
-          </div>
-          <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12">
-            <BrainStatsCard recordings={recordings} notes={notes} onNavigate={setCurrentView} onUpdateNote={note => updateNoteItem(note)} onUpdateRecording={(updated) => updateRecordingItem(updated)} onOpenRecording={openRecording} />
             <WeeklyDigestCard recordings={recordings} setCurrentView={setCurrentView} />
           </div>
           <RecentRecordings recordings={recordings} onOpenLibrary={() => setCurrentView('library')} onOpenDetail={openRecording} />

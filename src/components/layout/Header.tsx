@@ -1,4 +1,4 @@
-import { AudioLines, Mic, FolderOpen, Brain, Target, Settings, Search, LogOut, Bell } from 'lucide-react';
+import { AudioLines, Mic, FolderOpen, Target, Settings, Search, LogOut, Bell } from 'lucide-react';
 
 interface HeaderProps {
   currentView: string;
@@ -12,7 +12,6 @@ const NAV_ITEMS = [
   { view: 'library',          label: 'Библиотека', icon: AudioLines },
   { view: 'gallery',          label: 'Архив',      icon: FolderOpen },
   { view: 'recording_session',label: 'Запись',     icon: Mic,        filled: true },
-  { view: 'analytics',        label: 'Аналитика',  icon: Brain },
   { view: 'focus',            label: 'Фокус',      icon: Target },
   { view: 'reminders',        label: 'Напоминания', icon: Bell },
 ];

@@ -1,4 +1,4 @@
-import { AudioLines, Mic, Brain, Target, FolderOpen, Settings } from 'lucide-react';
+import { AudioLines, Mic, Target, FolderOpen, Settings } from 'lucide-react';
 
 interface BottomNavProps {
   currentView: string;
@@ -18,10 +18,6 @@ export const BottomNav = ({ currentView, setCurrentView }: BottomNavProps) => (
     <button type="button" onClick={() => setCurrentView('recording_session')} aria-current={currentView === 'recording_session' ? 'page' : undefined} aria-label="Запись" className={`flex-1 min-w-0 flex flex-col items-center justify-center px-0.5 py-1.5 transition-all cursor-pointer ${currentView === 'recording_session' ? 'bg-[#7B61FF]/10 text-[#7B61FF] rounded-xl scale-95' : 'text-slate-500 hover:bg-white/5'}`}>
       <Mic className="mb-1 w-5 h-5" fill="currentColor" />
       <span className="font-label text-[9px] font-bold tracking-tight uppercase truncate max-w-full">Запись</span>
-    </button>
-    <button type="button" onClick={() => setCurrentView('analytics')} aria-current={currentView === 'analytics' ? 'page' : undefined} aria-label="Аналитика" className={`flex-1 min-w-0 flex flex-col items-center justify-center px-0.5 py-1.5 transition-all cursor-pointer ${currentView === 'analytics' ? 'bg-[#7B61FF]/10 text-[#7B61FF] rounded-xl' : 'text-slate-500 hover:bg-white/5'}`}>
-      <Brain className="mb-1 w-5 h-5" />
-      <span className="font-label text-[9px] font-bold tracking-tight uppercase truncate max-w-full">Аналитика</span>
     </button>
     <button type="button" onClick={() => setCurrentView('focus')} aria-current={currentView === 'focus' ? 'page' : undefined} aria-label="Фокус" className={`flex-1 min-w-0 flex flex-col items-center justify-center px-0.5 py-1.5 transition-all cursor-pointer ${currentView === 'focus' ? 'bg-[#7B61FF]/10 text-[#7B61FF] rounded-xl' : 'text-slate-500 hover:bg-white/5'}`}>
       <Target className="mb-1 w-5 h-5" />
