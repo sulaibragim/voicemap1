@@ -145,6 +145,20 @@ curl -s -o /dev/null -w "%{http_code}" "https://generativelanguage.googleapis.co
 
 **При проблемах на проде первым делом — логи Railway** (Deployments → активный деплой → Logs). Там реальная причина, а не догадки.
 
+**Service worker отдаёт старую версию после деплоя.** Симптом: сервер уже новый (новые роуты отвечают), а интерфейс старый — новых экранов нет. Это не сбой деплоя. Проверять фактом, а не глазами:
+```bash
+curl -s https://voicemap1-production.up.railway.app/ | grep -o 'assets/index-[^"]*\.js'
+curl -s https://voicemap1-production.up.railway.app/assets/index-ХЭШ.js | grep -c "строка из нового кода"
+```
+Если строка в бандле есть — код задеплоен, виноват кэш. Сброс в консоли браузера:
+```js
+(await navigator.serviceWorker.getRegistrations()).forEach(r => r.unregister());
+(await caches.keys()).forEach(k => caches.delete(k));
+```
+Потом перезагрузить страницу. На телефоне и других устройствах то же самое — просто закрыть и открыть приложение может не помочь.
+
+**Как выдать себе платный тариф.** Биллинга нет, поле ставится руками: консоль Firebase → Firestore → `users/{uid}` → Add field → `plan` (string) → `pro` (20 часов) или `team` (60 часов). Отсутствие поля = `free`, 2 часа в месяц. Клиенту менять это поле правила запрещают.
+
 ---
 
 ## 8. Как работает учёт расшифровки
