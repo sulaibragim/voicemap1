@@ -69,12 +69,14 @@ export const Header = ({ currentView, setCurrentView, onLogout, onReset: _onRese
       <div className="flex items-center gap-2 flex-shrink-0">
         <button
           onClick={() => setCurrentView('library')}
+          aria-label="Поиск"
           className="text-slate-400 hover:text-white transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-white/[0.06]"
         >
           <Search className="w-4 h-4" />
         </button>
         <button
           onClick={() => setCurrentView('settings')}
+          aria-label="Настройки"
           className="text-slate-400 hover:text-white transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-white/[0.06]"
         >
           <Settings className="w-4 h-4" />

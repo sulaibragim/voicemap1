@@ -40,12 +40,22 @@ export function useChatRecording({ onAudioReady }: UseChatRecordingOptions) {
         const mimeType = mediaRecorder.mimeType || 'audio/webm';
         const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         stream.getTracks().forEach(track => track.stop());
-        const reader = new FileReader();
-        reader.readAsDataURL(audioBlob);
-        reader.onloadend = async () => {
-          const base64Audio = (reader.result as string).split(',')[1];
+        // Promise-обёртка с onerror — иначе ошибка чтения даст unhandled rejection
+        try {
+          const reader = new FileReader();
+          const base64Promise = new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => {
+              const result = reader.result as string;
+              resolve(result.split(',')[1]);
+            };
+            reader.onerror = reject;
+          });
+          reader.readAsDataURL(audioBlob);
+          const base64Audio = await base64Promise;
           await onAudioReady(base64Audio, mimeType);
-        };
+        } catch (err) {
+          console.warn('Chat audio processing failed:', err);
+        }
       };
 
       mediaRecorder.start();

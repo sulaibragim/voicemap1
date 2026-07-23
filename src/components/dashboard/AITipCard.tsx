@@ -22,7 +22,7 @@ export const AITipCard = ({ dailyTip, isGeneratingTip }: AITipCardProps) => (
       ) : null}
       <Lightbulb className="w-10 h-10 lg:w-16 lg:h-16 mb-3 lg:mb-6 opacity-30" />
       <h3 className="font-headline text-xs font-black tracking-[0.3em] uppercase mb-4 text-on-tertiary-fixed">{dailyTip?.title || 'Совет дня от AI'}</h3>
-      <p className="font-headline text-xl lg:text-3xl font-extrabold leading-tight italic">"{dailyTip?.text || 'Записывайте свои мысли чаще, чтобы ИИ мог давать более точные советы.'}"</p>
+      <p className="font-headline text-xl lg:text-3xl font-extrabold leading-tight italic">«{dailyTip?.text || 'Записывай свои мысли чаще, чтобы AI мог давать более точные советы.'}»</p>
     </div>
   </motion.div>
 );

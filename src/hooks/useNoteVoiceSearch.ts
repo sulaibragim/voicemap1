@@ -43,19 +43,26 @@ export function useNoteVoiceSearch({ onResult, showToast }: UseNoteVoiceSearchOp
 
         const mimeType = mediaRecorder.mimeType || 'audio/webm';
         const blob = new Blob(chunksRef.current, { type: mimeType });
-        const reader = new FileReader();
-        reader.readAsDataURL(blob);
-        reader.onloadend = async () => {
-          const base64 = (reader.result as string).split(',')[1];
-          try {
-            const text = await transcribeChatVoice(base64, mimeType);
-            if (text && text !== '[Тишина]') onResult(text);
-          } catch {
-            showToast('Ошибка распознавания речи', 'error');
-          } finally {
-            setIsVoiceProcessing(false);
-          }
-        };
+        // Promise-обёртка с onerror внутри общего try/catch — при ошибке чтения
+        // не будет unhandled rejection, а finally гарантированно снимет спиннер
+        try {
+          const reader = new FileReader();
+          const base64Promise = new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => {
+              const result = reader.result as string;
+              resolve(result.split(',')[1]);
+            };
+            reader.onerror = reject;
+          });
+          reader.readAsDataURL(blob);
+          const base64 = await base64Promise;
+          const text = await transcribeChatVoice(base64, mimeType);
+          if (text && text !== '[Тишина]') onResult(text);
+        } catch {
+          showToast('Ошибка распознавания речи', 'error');
+        } finally {
+          setIsVoiceProcessing(false);
+        }
       };
 
       mediaRecorder.start();

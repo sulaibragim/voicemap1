@@ -86,7 +86,7 @@ export const TaskReminderButton = ({ taskIndex, reminder, onSave }: TaskReminder
         className={`p-1 transition-colors cursor-pointer ${
           hasReminder
             ? 'text-yellow-400 hover:text-yellow-300'
-            : 'text-on-surface-variant hover:text-yellow-400 opacity-0 group-hover:opacity-100'
+            : 'text-on-surface-variant hover:text-yellow-400 opacity-100 md:opacity-0 md:group-hover:opacity-100'
         }`}
       >
         <Bell

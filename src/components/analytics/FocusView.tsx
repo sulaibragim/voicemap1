@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ArrowLeft, Target, Mic, CheckCircle2, Circle, TrendingUp, ArrowUpDown, StickyNote } from 'lucide-react';
+import { plural } from '../../lib/plural';
 import type { Recording, Note } from '../../types';
 
 interface FocusViewProps {
@@ -50,7 +51,7 @@ const TaskItem = ({ task, onToggle, onOpenRecording }: TaskItemProps) => (
   }`}>
     <button onClick={() => onToggle(task)} className="flex-shrink-0 mt-0.5 cursor-pointer">
       {task.done
-        ? <CheckCircle2 className="w-5 h-5 text-primary" />
+        ? <CheckCircle2 className="w-5 h-5 text-secondary" />
         : <Circle className="w-5 h-5 text-outline-variant hover:text-primary transition-colors" />
       }
     </button>
@@ -217,7 +218,7 @@ export const FocusView = ({ recordings, notes = [], onBack, onOpenRecording, onT
               <div className="flex-1 min-w-0">
                 <p className="text-on-surface-variant text-xs mb-1">Прогресс</p>
                 <p className="font-headline text-xl md:text-2xl font-bold mb-2">
-                  {doneCount} <span className="text-on-surface-variant font-normal text-sm">/ {total} задач</span>
+                  {doneCount} <span className="text-on-surface-variant font-normal text-sm">/ {total} {plural(total, ['задача', 'задачи', 'задач'])}</span>
                 </p>
                 <div className="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
                   <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
@@ -249,7 +250,7 @@ export const FocusView = ({ recordings, notes = [], onBack, onOpenRecording, onT
               </div>
               <div className="hidden md:block w-px bg-white/5 flex-shrink-0" />
               <div className={`flex-1 min-w-0 flex flex-col overflow-hidden ${mobileTab === 'active' ? 'hidden md:flex' : 'flex'}`}>
-                <KanbanColumn tasks={doneTasks} label="Выполнено" badge="bg-green-500/20 text-green-400" onToggle={handleToggle} onOpenRecording={onOpenRecording} />
+                <KanbanColumn tasks={doneTasks} label="Выполнено" badge="bg-secondary/20 text-secondary" onToggle={handleToggle} onOpenRecording={onOpenRecording} />
               </div>
             </div>
           </>

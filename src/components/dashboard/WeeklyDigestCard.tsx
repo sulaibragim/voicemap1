@@ -7,6 +7,7 @@ import {
 import { weeklyReview, type DigestAIResult } from '../../lib/api';
 import type { Recording } from '../../types';
 import { parseRecDate, getWeekKey } from '../../lib/dashboardUtils';
+import { pluralWithNumber } from '../../lib/plural';
 
 interface WeeklyDigestCardProps {
   recordings: Recording[];
@@ -130,7 +131,7 @@ export const WeeklyDigestCard = ({ recordings, setCurrentView }: WeeklyDigestCar
           <div>
             <h3 className="font-headline text-xl md:text-3xl font-black leading-none">Недельный дайджест</h3>
             <p className="text-xs text-on-surface-variant mt-1">
-              7 дней · {thisWeek.length} {thisWeek.length === 1 ? 'запись' : thisWeek.length < 5 ? 'записи' : 'записей'}
+              7 дней · {pluralWithNumber(thisWeek.length, ['запись', 'записи', 'записей'])}
             </p>
           </div>
           {digest && !isLoading && (

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { transcribeAudio } from '../lib/api';
+import { transcribeChatVoice } from '../lib/api';
 import type { NoteType } from '../types';
 
 interface UseQuickNoteRecordingOptions {
@@ -20,7 +20,8 @@ interface UseQuickNoteRecordingResult {
 }
 
 export function useQuickNoteRecording(options: UseQuickNoteRecordingOptions): UseQuickNoteRecordingResult {
-  const { noteType, showToast, onStarted, onProcessing, onTranscribed, onError, onMicrophoneError } = options;
+  // noteType больше не используется для промпта (промпт теперь фиксирован на сервере), но остаётся в опциях для совместимости вызова
+  const { showToast, onStarted, onProcessing, onTranscribed, onError, onMicrophoneError } = options;
 
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -76,13 +77,13 @@ export function useQuickNoteRecording(options: UseQuickNoteRecordingOptions): Us
           reader.readAsDataURL(blob);
           const base64Audio = await base64Promise;
 
-          const prompt = `Please transcribe this short audio note. It is a "${noteType}". Transcribe the audio EXACTLY in the language it was spoken. If the audio is empty, silent, or contains no speech, return strictly "[Тишина]". Do not invent or hallucinate speech. Return only the transcribed text.`;
-          const text = await transcribeAudio(base64Audio, blob.type || 'audio/webm', prompt);
+          // Промпт для транскрипции теперь фиксирован на сервере (/chat-voice) — клиент не передаёт свой prompt
+          const text = await transcribeChatVoice(base64Audio, blob.type || 'audio/webm');
 
           await onTranscribed(text);
         } catch (err) {
           console.warn('Error processing audio note:', err);
-          showToast('Ошибка ИИ. Заметка сохранена как аудио.', 'error');
+          showToast('Ошибка AI. Заметка сохранена как аудио.', 'error');
           onError('[Аудиозапись не распознана из-за ошибки сети или квоты]');
         }
       };
@@ -92,7 +93,7 @@ export function useQuickNoteRecording(options: UseQuickNoteRecordingOptions): Us
       onStarted();
     } catch (err) {
       console.warn('Error accessing microphone:', err);
-      showToast('Не удалось получить доступ к микрофону. Введите текст вручную.', 'error');
+      showToast('Не удалось получить доступ к микрофону. Введи текст вручную.', 'error');
       onMicrophoneError();
     }
   };

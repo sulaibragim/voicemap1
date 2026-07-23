@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import type * as React from 'react';
 import { Loader2, Mic, Square } from 'lucide-react';
-import { transcribeAudio } from '../../lib/api';
+import { transcribeChatVoice } from '../../lib/api';
 
 export interface VoiceInputProps {
   value: string;
@@ -40,7 +40,7 @@ export const VoiceInput = ({
           const base64 = (reader.result as string).split(',')[1];
           setIsTranscribing(true);
           try {
-            const text = await transcribeAudio(base64, 'audio/webm', 'Transcribe this voice message exactly as spoken. Return plain text only.');
+            const text = await transcribeChatVoice(base64, 'audio/webm');
             if (text.trim()) onChange(text.trim());
             else showToast('Ничего не распознано', 'error');
           } catch {

@@ -146,6 +146,7 @@ export const NoteDetailModal = ({
               )}
               <button
                 onClick={onClose}
+                aria-label="Закрыть"
                 className="p-2 rounded-xl hover:bg-white/8 text-on-surface-variant transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
@@ -225,7 +226,7 @@ export const NoteDetailModal = ({
                       {note.dueTime ?? '09:00'}
                     </button>
                     <span className="text-[10px] text-on-surface-variant/50 ml-auto flex items-center gap-1">
-                      <Pencil className="w-2.5 h-2.5" /> нажмите чтобы изменить
+                      <Pencil className="w-2.5 h-2.5" /> нажми чтобы изменить
                     </span>
                   </div>
                 </div>

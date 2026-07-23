@@ -45,6 +45,12 @@
   --color-outline: #767579;
   --color-outline-variant: #48474b;
 
+  /* Цвета типов заметок — синхронизировано с src/lib/noteTheme.ts */
+  --color-note-idea: #7B61FF;
+  --color-note-task: #4FC3F7;
+  --color-note-reminder: #FFB74D;
+  --color-warning: #FFB74D;
+
   --font-headline: 'Epilogue', sans-serif;
   --font-body: 'Manrope', sans-serif;
   --font-label: 'Manrope', sans-serif;
@@ -71,5 +77,20 @@ body {
 }
 *::-webkit-scrollbar {
   display: none;
+}
+
+/* Отступ снизу под системную зону iPhone (home-индикатор). viewport-fit=cover в index.html */
+.pb-safe {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 1rem);
+}
+
+/* Уважаем системную настройку «уменьшить движение» — глушим бесконечные CSS-анимации/переходы */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { ArrowLeft, Download, Trash2, RefreshCw, Database, FileText, Mic, User, MessageSquare, Sparkles, Info } from 'lucide-react';
+import { plural } from '../../lib/plural';
 import type { Recording, Note, AppSettings } from '../../types';
 import { Section, Divider, RowToggle, RowChips, RowAction } from './SettingsRows';
 
-const FEEDBACK_TELEGRAM = 'https://t.me/your_handle';
+const FEEDBACK_EMAIL = 'mailto:sulaibragim@gmail.com?subject=VoiceMap';
 const APP_VERSION = '0.1.0-alpha';
 
 interface SettingsViewProps {
@@ -78,7 +79,7 @@ export const SettingsView = ({
                 value={nameInput}
                 onChange={e => setNameInput(e.target.value)}
                 onBlur={() => { onSettingsChange({ userName: nameInput.trim() }); showToast('Имя сохранено', 'success'); }}
-                placeholder="Ваше имя"
+                placeholder="Твоё имя"
                 className="w-full bg-surface-container-high rounded-xl px-4 py-2.5 text-sm font-bold text-on-surface placeholder:text-on-surface-variant outline-none focus:ring-2 focus:ring-primary/40"
               />
               <p className="text-xs text-on-surface-variant mt-1.5 pl-1">Альфа-тестер</p>
@@ -105,7 +106,7 @@ export const SettingsView = ({
           </div>
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div className="bg-surface-container rounded-2xl p-4 border border-white/5 flex items-center justify-between">
-              <p className="text-sm text-on-surface-variant">Идей найдено ИИ</p>
+              <p className="text-sm text-on-surface-variant">Идей найдено AI</p>
               <p className="text-xl font-black text-primary">{totalIdeas}</p>
             </div>
             <div className="bg-surface-container rounded-2xl p-4 border border-white/5 flex items-center justify-between">
@@ -181,8 +182,14 @@ export const SettingsView = ({
         {/* Данные */}
         <Section title="Данные">
           <RowAction icon={Download} label="Экспорт данных" description="Скачать записи и заметки в JSON" onClick={exportData} rightLabel="Скачать" />
-          <Divider />
-          <RowAction icon={RefreshCw} label="Сбросить до демо" description="Восстановить начальные демо-данные" iconColor="text-tertiary" bgColor="bg-tertiary/10" onClick={() => { onResetDemo(); onBack(); }} />
+          {/* Dev-only: сброс до демо пишет только в локальный state и не сохраняется
+              в Firestore — при активном листенере данные откатятся. В проде скрываем. */}
+          {import.meta.env.DEV && (
+            <>
+              <Divider />
+              <RowAction icon={RefreshCw} label="Сбросить до демо" description="Восстановить начальные демо-данные (dev)" iconColor="text-tertiary" bgColor="bg-tertiary/10" onClick={() => { onResetDemo(); onBack(); }} />
+            </>
+          )}
         </Section>
 
         {/* Фидбэк */}
@@ -190,10 +197,10 @@ export const SettingsView = ({
           <RowAction
             icon={MessageSquare}
             label="Сообщить о проблеме"
-            description="Написать в Telegram — ответим быстро"
+            description="Написать на почту — ответим быстро"
             iconColor="text-secondary"
             bgColor="bg-secondary/10"
-            onClick={() => window.open(FEEDBACK_TELEGRAM, '_blank')}
+            onClick={() => { window.location.href = FEEDBACK_EMAIL; }}
           />
           <Divider />
           <RowAction
@@ -202,7 +209,7 @@ export const SettingsView = ({
             description="Идеи, предложения, вопросы"
             iconColor="text-secondary"
             bgColor="bg-secondary/10"
-            onClick={() => window.open(FEEDBACK_TELEGRAM, '_blank')}
+            onClick={() => { window.location.href = FEEDBACK_EMAIL; }}
           />
         </Section>
 
@@ -222,7 +229,7 @@ export const SettingsView = ({
           </div>
           <Divider />
           <div className="px-5 py-4 flex flex-col gap-1.5">
-            <p className="text-xs text-on-surface-variant">AI: Gemini 2.0 Flash (Google)</p>
+            <p className="text-xs text-on-surface-variant">AI: Gemini 2.5 Flash (Google)</p>
             <p className="text-xs text-on-surface-variant">База: Firebase (Google)</p>
             <p className="text-xs text-on-surface-variant">Аудио: MediaRecorder API</p>
           </div>
@@ -253,7 +260,7 @@ export const SettingsView = ({
                       {type === 'recordings' ? 'Очистить записи' : type === 'notes' ? 'Очистить заметки' : 'Удалить всё'}
                     </p>
                     <p className="text-xs text-on-surface-variant">
-                      {type === 'recordings' ? `${recordings.length} записей будет удалено` : type === 'notes' ? `${notes.length} заметок будет удалено` : 'Все данные будут удалены без возможности восстановления'}
+                      {type === 'recordings' ? `${recordings.length} ${plural(recordings.length, ['запись', 'записи', 'записей'])} будет удалено` : type === 'notes' ? `${notes.length} ${plural(notes.length, ['заметка', 'заметки', 'заметок'])} будет удалено` : 'Все данные будут удалены без возможности восстановления'}
                     </p>
                   </div>
                 </button>

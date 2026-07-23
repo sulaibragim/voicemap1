@@ -1,5 +1,6 @@
 import type { Note, NoteType, KanbanStatus } from '../types';
-import { Lightbulb, CheckCircle2, Bell, ListTodo, StickyNote, RefreshCw } from 'lucide-react';
+import { Lightbulb, CheckCircle2, ListTodo, StickyNote, RefreshCw } from 'lucide-react';
+import { NOTE_CLASSES } from './noteTheme';
 
 // ─── Типы ─────────────────────────────────────────────────────────────────────
 
@@ -19,15 +20,15 @@ export const typeConfig: Record<NoteType, {
   gradientTo: string;
   glowColor: string;
 }> = {
-  'Идея':        { icon: Lightbulb,    color: 'text-primary',   bg: 'bg-primary/10',   stripe: 'bg-primary',   borderActive: 'border-primary',   gradientFrom: 'from-primary/8',   gradientTo: 'to-primary/3',   glowColor: 'shadow-primary/10' },
-  'Задача':      { icon: CheckCircle2, color: 'text-secondary', bg: 'bg-secondary/10', stripe: 'bg-secondary', borderActive: 'border-secondary', gradientFrom: 'from-secondary/8', gradientTo: 'to-secondary/3', glowColor: 'shadow-secondary/10' },
-  'Напоминание': { icon: Bell,         color: 'text-error',     bg: 'bg-error/10',     stripe: 'bg-error',     borderActive: 'border-error',     gradientFrom: 'from-error/8',     gradientTo: 'to-error/3',     glowColor: 'shadow-error/10' },
+  'Идея':        { icon: NOTE_CLASSES['Идея'].icon,        color: NOTE_CLASSES['Идея'].text,        bg: NOTE_CLASSES['Идея'].bg,        stripe: NOTE_CLASSES['Идея'].stripe,        borderActive: NOTE_CLASSES['Идея'].border,        gradientFrom: NOTE_CLASSES['Идея'].gradientFrom,        gradientTo: NOTE_CLASSES['Идея'].gradientTo,        glowColor: NOTE_CLASSES['Идея'].glow },
+  'Задача':      { icon: NOTE_CLASSES['Задача'].icon,      color: NOTE_CLASSES['Задача'].text,      bg: NOTE_CLASSES['Задача'].bg,      stripe: NOTE_CLASSES['Задача'].stripe,      borderActive: NOTE_CLASSES['Задача'].border,      gradientFrom: NOTE_CLASSES['Задача'].gradientFrom,      gradientTo: NOTE_CLASSES['Задача'].gradientTo,      glowColor: NOTE_CLASSES['Задача'].glow },
+  'Напоминание': { icon: NOTE_CLASSES['Напоминание'].icon, color: NOTE_CLASSES['Напоминание'].text, bg: NOTE_CLASSES['Напоминание'].bg, stripe: NOTE_CLASSES['Напоминание'].stripe, borderActive: NOTE_CLASSES['Напоминание'].border, gradientFrom: NOTE_CLASSES['Напоминание'].gradientFrom, gradientTo: NOTE_CLASSES['Напоминание'].gradientTo, glowColor: NOTE_CLASSES['Напоминание'].glow },
 };
 
 export const priorityConfig: Record<string, { bg: string; text: string; dot: string }> = {
-  high:   { bg: 'bg-error/15',      text: 'text-error',      dot: 'bg-error' },
-  medium: { bg: 'bg-yellow-500/15', text: 'text-yellow-400', dot: 'bg-yellow-400' },
-  low:    { bg: 'bg-tertiary/15',   text: 'text-tertiary',   dot: 'bg-tertiary' },
+  high:   { bg: 'bg-error/15',              text: 'text-error',              dot: 'bg-error' },
+  medium: { bg: 'bg-warning/15',            text: 'text-warning',            dot: 'bg-warning' },
+  low:    { bg: 'bg-on-surface-variant/15', text: 'text-on-surface-variant', dot: 'bg-on-surface-variant' },
 };
 
 export const priorityLabels: Record<string, string> = {

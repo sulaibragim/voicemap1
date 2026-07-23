@@ -1,5 +1,6 @@
 import type * as React from 'react';
 import { ArrowLeft, X, Plus, Share2, Download, Pencil, ChevronDown, Copy, FileText, Send, MoreHorizontal, Trash2 } from 'lucide-react';
+import { plural } from '../../lib/plural';
 import type { Recording } from '../../types';
 
 interface RecordingDetailHeaderProps {
@@ -92,8 +93,8 @@ export const RecordingDetailHeader = ({
           </div>
           <p className="hidden md:block text-xs text-on-surface-variant">
             {recording.date} · {recording.duration}
-            {(recording.actionItems?.length ?? 0) > 0 && <> · <span className="text-secondary">{recording.actionItems!.length} задач</span></>}
-            {(recording.ideas?.length ?? 0) > 0 && <> · {recording.ideas!.length} идей</>}
+            {(recording.actionItems?.length ?? 0) > 0 && <> · <span className="text-secondary">{recording.actionItems!.length} {plural(recording.actionItems!.length, ['задача', 'задачи', 'задач'])}</span></>}
+            {(recording.ideas?.length ?? 0) > 0 && <> · {recording.ideas!.length} {plural(recording.ideas!.length, ['идея', 'идеи', 'идей'])}</>}
           </p>
           <div className="hidden md:flex items-center flex-wrap gap-1 mt-1">
             {recording.tags.map(tag => (

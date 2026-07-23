@@ -208,7 +208,7 @@ export const NotesGallery = ({ notes, onBack, setCurrentView: _setCurrentView, o
                     {showCompleted ? 'Нет завершённых задач' : searchQuery ? 'Ничего не найдено' : 'Здесь пока пусто'}
                   </p>
                   <p className="text-sm text-on-surface-variant">
-                    {searchQuery ? 'Попробуйте другой запрос' : 'Создайте быструю заметку с дашборда'}
+                    {searchQuery ? 'Попробуй другой запрос' : 'Создай быструю заметку с дашборда'}
                   </p>
                 </div>
               </motion.div>

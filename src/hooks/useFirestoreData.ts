@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import type { Recording, Note, Space } from '../types';
 import * as fs from '../lib/firestoreService';
 import type { Unsubscribe } from 'firebase/firestore';
@@ -32,19 +32,12 @@ export function useFirestoreData(uid: string | null): UseFirestoreDataReturn {
   const [notes, setNotes] = useState<Note[]>([]);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(true);
-  const initializedForUid = useRef<string | null>(null);
-  const unsubscribeRef = useRef<Unsubscribe | null>(null);
 
   useEffect(() => {
     // Если поменялся uid (logout → другой login) — нужно переподписаться и перезагрузить.
     // Без этого второй пользователь увидит данные первого или ничего вообще.
     if (!uid) {
-      // Logout: очищаем подписку и состояние
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-        unsubscribeRef.current = null;
-      }
-      initializedForUid.current = null;
+      // Logout / локальный режим: подписок нет (их снял cleanup прошлого запуска), чистим состояние
       /* eslint-disable react-hooks/set-state-in-effect */
       setRecordings([]);
       setNotes([]);
@@ -54,74 +47,57 @@ export function useFirestoreData(uid: string | null): UseFirestoreDataReturn {
       return;
     }
 
-    if (initializedForUid.current === uid) return;
-    initializedForUid.current = uid;
+    let cancelled = false;
+    const unsubs: Unsubscribe[] = [];
+    // Первый снапшот и есть начальная загрузка: loading держим true,
+    // пока не пришли первые снапшоты И recordings, И notes
+    const firstSnap = { recordings: false, notes: false };
+    const maybeFinishLoading = () => {
+      if (firstSnap.recordings && firstSnap.notes) setLoading(false);
+    };
+    // Fallback к localStorage если Firestore недоступен (например, нет прав)
+    const handleSubscribeError = () => {
+      try {
+        const r = localStorage.getItem('voicemap_recordings');
+        const n = localStorage.getItem('voicemap_notes');
+        const s = localStorage.getItem('voicemap_spaces');
+        if (r) setRecordings(JSON.parse(r));
+        if (n) setNotes(JSON.parse(n));
+        if (s) setSpaces(JSON.parse(s));
+      } catch { /* ignore */ }
+      setLoading(false);
+    };
+
+    setLoading(true);
 
     (async () => {
-      setLoading(true);
-      try {
-        // Загружаем данные из Firestore
-        let [recs, nts, sps] = await Promise.all([
-          fs.loadRecordings(uid),
-          fs.loadNotes(uid),
-          fs.loadSpaces(uid),
-        ]);
+      // 1) Сначала миграция из localStorage (если там есть данные; после успеха
+      //    localStorage очищается, так что она однократная) — ДО подписок,
+      //    чтобы первый снапшот уже содержал мигрированные документы
+      await fs.migrateFromLocalStorage(uid);
+      if (cancelled) return;
 
-        // Если Firestore пустой — мигрируем из localStorage
-        if (recs.length === 0 && nts.length === 0) {
-          const migrated = await fs.migrateFromLocalStorage(uid);
-          if (migrated) {
-            recs = migrated.recordings;
-            nts = migrated.notes;
-            sps = migrated.spaces.length > 0 ? migrated.spaces : sps;
-          }
-        }
-
-        // Мержим с локальным состоянием — не затираем оптимистичные записи
-        // которые могли быть добавлены пока шла загрузка из Firestore
-        setRecordings(prev => {
-          const firestoreIds = new Set(recs.map(r => r.id));
-          const optimistic = prev.filter(r => !firestoreIds.has(r.id));
-          return [...optimistic, ...recs];
-        });
-        setNotes(prev => {
-          const firestoreIds = new Set(nts.map(n => n.id));
-          const optimistic = prev.filter(n => !firestoreIds.has(n.id));
-          return [...optimistic, ...nts];
-        });
-        setSpaces(prev => {
-          const firestoreIds = new Set(sps.map(s => s.id));
-          const optimistic = prev.filter(s => !firestoreIds.has(s.id));
-          return [...optimistic, ...sps];
-        });
-      } catch (e) {
-        console.warn('Firestore load failed, falling back to localStorage', e);
-        // Fallback к localStorage если Firestore недоступен
-        try {
-          const r = localStorage.getItem('voicemap_recordings');
-          const n = localStorage.getItem('voicemap_notes');
-          const s = localStorage.getItem('voicemap_spaces');
-          if (r) setRecordings(JSON.parse(r));
-          if (n) setNotes(JSON.parse(n));
-          if (s) setSpaces(JSON.parse(s));
-        } catch { /* ignore */ }
-      } finally {
-        setLoading(false);
-      }
+      // 2) Дальше ТОЛЬКО real-time подписки — без отдельных getDocs, данные не
+      //    читаются дважды. Оптимистичные локальные записи видны сразу: onSnapshot
+      //    с latency compensation включает ещё не подтверждённые локальные write'ы.
+      unsubs.push(fs.subscribeToRecordings(uid, (updated) => {
+        firstSnap.recordings = true;
+        setRecordings(updated);
+        maybeFinishLoading();
+      }, handleSubscribeError));
+      unsubs.push(fs.subscribeToNotes(uid, (updated) => {
+        firstSnap.notes = true;
+        setNotes(updated);
+        maybeFinishLoading();
+      }, handleSubscribeError));
+      unsubs.push(fs.subscribeToSpaces(uid, (updated) => {
+        setSpaces(updated);
+      }));
     })();
 
-    // Real-time listener — подхватывает обновления от сервера (фоновая транскрипция).
-    // Перед новой подпиской отвязываем предыдущую (на случай смены uid).
-    if (unsubscribeRef.current) {
-      unsubscribeRef.current();
-    }
-    unsubscribeRef.current = fs.subscribeToRecordings(uid, (updated) => {
-      setRecordings(updated);
-    });
-
     return () => {
-      unsubscribeRef.current?.();
-      unsubscribeRef.current = null;
+      cancelled = true;
+      unsubs.forEach(u => u());
     };
   }, [uid]);
 

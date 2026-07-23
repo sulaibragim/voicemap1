@@ -5,10 +5,11 @@ import { DatePicker } from '../ui/DatePicker';
 import { TimePicker } from '../ui/TimePicker';
 import type { NoteType, Priority, RecurringPattern } from '../../types';
 
+// Приоритет: high = error, medium = warning, low = on-surface-variant (см. index.css)
 const priorityConfig: { value: Priority; label: string; color: string; bg: string }[] = [
   { value: 'high', label: 'Высокий', color: 'text-error', bg: 'bg-error/10 border-error/30' },
-  { value: 'medium', label: 'Средний', color: 'text-warning', bg: 'bg-yellow-500/10 border-yellow-500/30' },
-  { value: 'low', label: 'Низкий', color: 'text-tertiary', bg: 'bg-tertiary/10 border-tertiary/30' },
+  { value: 'medium', label: 'Средний', color: 'text-warning', bg: 'bg-warning/10 border-warning/30' },
+  { value: 'low', label: 'Низкий', color: 'text-on-surface-variant', bg: 'bg-on-surface-variant/10 border-on-surface-variant/30' },
 ];
 
 const recurringConfig: { value: RecurringPattern; label: string }[] = [
@@ -68,7 +69,7 @@ export const QuickNoteDetailsStep = ({
       <div className="mb-5">
         <h3 className="font-headline text-xl font-bold mb-1">
           {type === 'Напоминание'
-            ? (aiDetectedTime ? 'Подтвердите напоминание' : 'Когда напомнить?')
+            ? (aiDetectedTime ? 'Подтверди напоминание' : 'Когда напомнить?')
             : 'Детали задачи'}
         </h3>
         <p className="text-on-surface-variant text-sm line-clamp-2">«{transcribedText}»</p>

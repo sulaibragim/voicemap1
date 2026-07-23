@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Flame, Trophy } from 'lucide-react';
 import type { Recording } from '../../types';
 import { parseRecDate, toDateKey } from '../../lib/utils';
+import { plural } from '../../lib/plural';
 
 const MONTHS = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
 const CELL = 11;
@@ -145,7 +146,7 @@ export const ActivityHeatmap = ({ recordings }: Props) => {
             <p className="text-xs text-on-surface-variant">
               <span className="font-bold text-on-surface">{hovered.date}</span>
               <span className="ml-2 text-primary/80">
-                {hovered.count === 0 ? 'нет записей' : `${hovered.count} запис${hovered.count === 1 ? 'ь' : hovered.count < 5 ? 'и' : 'ей'}`}
+                {hovered.count === 0 ? 'нет записей' : `${hovered.count} ${plural(hovered.count, ['запись', 'записи', 'записей'])}`}
               </span>
             </p>
           ) : (

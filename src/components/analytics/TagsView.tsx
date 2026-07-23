@@ -33,7 +33,7 @@ export const TagsView = ({ recordings, onBack, onOpenRecording }: TagsViewProps)
       <main className="flex-1 overflow-y-auto p-6 md:p-12 max-w-7xl mx-auto w-full">
         <div className="mb-10">
           <h2 className="font-headline text-4xl font-bold mb-2">Управление тегами</h2>
-          <p className="text-on-surface-variant">Организуйте ваши записи по темам</p>
+          <p className="text-on-surface-variant">Организуй свои записи по темам</p>
         </div>
 
         <div className="flex flex-wrap gap-4">

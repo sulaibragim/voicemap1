@@ -6,6 +6,7 @@ import { DatePicker } from '../ui/DatePicker';
 import { TimePicker } from '../ui/TimePicker';
 import type { Recording, Note } from '../../types';
 import { type ReminderItem, formatDateShort, buildFlatList, type Section, classifyReminder, sortByDateTime, SECTION_CONFIG } from '../../lib/reminderUtils';
+import { pluralWithNumber } from '../../lib/plural';
 
 interface RemindersViewProps {
   recordings: Recording[];
@@ -148,7 +149,7 @@ export const RemindersView = ({
         <Bell className="w-5 h-5 text-primary mr-2" />
         <h1 className="text-xl md:text-2xl font-black tracking-tighter text-primary uppercase font-headline flex-1">Напоминания</h1>
         <span className="text-xs text-on-surface-variant bg-surface-container border border-white/10 px-2.5 py-1 rounded-full font-bold">
-          {allItems.length} {allItems.length === 1 ? 'напоминание' : allItems.length < 5 ? 'напоминания' : 'напоминаний'}
+          {pluralWithNumber(allItems.length, ['напоминание', 'напоминания', 'напоминаний'])}
         </span>
       </header>
 
@@ -160,7 +161,7 @@ export const RemindersView = ({
               <Bell className="w-14 h-14 text-on-surface-variant/20" />
               <p className="font-headline text-xl font-bold text-on-surface mt-2">Нет напоминаний</p>
               <p className="text-on-surface-variant text-sm max-w-xs">
-                Создайте заметку типа «Напоминание» или откройте запись и нажмите 🔔 у задачи.
+                Создай заметку типа «Напоминание» или открой запись и нажми 🔔 у задачи.
               </p>
             </div>
           )}

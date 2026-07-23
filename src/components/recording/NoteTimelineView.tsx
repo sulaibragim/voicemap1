@@ -40,7 +40,7 @@ export const NoteTimelineView = ({
               <div
                 className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                 style={{
-                  background: note.isCompleted ? '#4FC3F7' : isOverdue ? '#FF5459' : '#FFB74D',
+                  background: note.isCompleted ? '#4af8e3' : isOverdue ? '#FF5459' : '#FFB74D',
                   boxShadow: isOverdue && !note.isCompleted ? '0 0 8px #FF545960' : 'none',
                 }}
               />
@@ -75,7 +75,7 @@ export const NoteTimelineView = ({
                   <button
                     onClick={() => onComplete(note)}
                     className="text-[10px] font-bold px-2.5 py-1 rounded-lg cursor-pointer transition-all"
-                    style={{ background: '#4FC3F715', color: '#4FC3F7', border: '1px solid #4FC3F725' }}
+                    style={{ background: '#4af8e315', color: '#4af8e3', border: '1px solid #4af8e325' }}
                   >
                     ✓ Готово
                   </button>

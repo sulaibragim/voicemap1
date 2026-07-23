@@ -60,8 +60,8 @@ export async function transcribeRecording(
   mimeType: string,
   knownPeople: string[] = []
 ): Promise<TranscribeResult> {
-  const { prompt, config } = buildTranscribePayload(knownPeople);
-  const res = await post<AITextResponse>('/transcribe', { audio, mimeType, prompt, config });
+  // prompt/config больше не отправляются — сервер строит их сам (см. server/lib/gemini.ts)
+  const res = await post<AITextResponse>('/transcribe', { audio, mimeType, knownPeople });
   const parsed = safeJsonParse<TranscribeResult>(res.text || '{}', {});
   return {
     title: parsed.title,
@@ -78,97 +78,6 @@ export async function transcribeRecording(
     richActionItems: parsed.richActionItems,
     bigQuestions: parsed.bigQuestions,
   };
-}
-
-// Общий билдер payload для транскрипции (используется в transcribeRecording и retranscribeFromUrl)
-function buildTranscribePayload(knownPeople: string[] = []): { prompt: string; config: Record<string, unknown> } {
-  const knownPeoplePrefix = knownPeople.length > 0
-    ? `Known participants from previous recordings: ${knownPeople.join(', ')}. Use these names when identifying speakers. `
-    : '';
-
-  const prompt =
-    knownPeoplePrefix +
-    'Please analyze this personal audio note or voice journal. ' +
-    'CRITICAL: If the audio is empty, silent, or contains no speech, you MUST return a JSON object with title \'[Тишина]\' and empty fields. Do not invent or hallucinate speech. ' +
-    'LANGUAGE RULE: The transcript.text field must be in the EXACT language spoken in the audio. ALL other fields (title, summary, keyMoments, actionItems, ideas, mentions, tags, openQuestions, bigQuestions, mood, richActionItems) MUST be written in Russian only — no English. ' +
-    '1. Transcribe the audio EXACTLY in the language it was spoken. ' +
-    '2. Transcribe ALL speech verbatim — every word spoken, every speaker in the room, grouped by speaker turns. Do NOT summarize or condense the transcript. ' +
-    'SPEAKER DIARIZATION: This is critical. Listen carefully for changes in voice, tone, or speaking style. ' +
-    'If multiple voices are present — even subtle differences — assign separate speaker labels. ' +
-    'Use "Участник 1", "Участник 2", etc. initially. ' +
-    'If you hear a name spoken (e.g. "Слушай Катя", "Максим, как ты думаешь", answering each other by name), replace the label with that name. ' +
-    'NEVER merge different speakers into one. When in doubt about voice changes, create a new speaker entry. ' +
-    'Each time the speaker changes, start a new transcript item. For solo recordings use "Я". ' +
-    '3. Provide a short, warm summary of the entry — IN RUSSIAN. ' +
-    '4. Extract 3-5 key thoughts or moments — IN RUSSIAN. ' +
-    '5. List EVERY action item, task, to-do, commitment, or thing that needs to be done — even if phrased casually like "надо бы", "не забыть", "нужно". Write action items IN RUSSIAN. If nothing was mentioned, return an empty array. ' +
-    '6. Identify the overall mood or emotional tone — IN RUSSIAN (например: Вдохновлённый, Усталый, Задумчивый, Воодушевлённый, Деловой). ' +
-    '7. Extract any creative ideas or insights — IN RUSSIAN. ' +
-    '8. List any specific mentions (books, movies, people, places, tools) — proper names can stay as-is. ' +
-    '9. Extract open questions — IN RUSSIAN — questions asked but left unanswered, or topics requiring future resolution. ' +
-    '10. Identify conversation participants by name. Look for address patterns like "Максим, как ты думаешь" or "Слушай, Анна". Map each name to their speaker label. ' +
-    '11. For each action item, also extract: who is responsible (assignee) if mentioned, and any deadline if mentioned. ' +
-    '12. Extract big strategic questions — IN RUSSIAN — the main unresolved themes or challenges being discussed. ' +
-    'Return the response in JSON format.';
-
-  const config = {
-    responseMimeType: 'application/json',
-    responseSchema: {
-      type: 'OBJECT',
-      properties: {
-        title: { type: 'STRING', description: 'A short, catchy title for the recording' },
-        summary: { type: 'STRING', description: 'A short summary of what the conversation is about' },
-        keyMoments: { type: 'ARRAY', items: { type: 'STRING' }, description: '3-5 key moments or main ideas from the conversation' },
-        actionItems: { type: 'ARRAY', items: { type: 'STRING' } },
-        mood: { type: 'STRING' },
-        ideas: { type: 'ARRAY', items: { type: 'STRING' } },
-        mentions: { type: 'ARRAY', items: { type: 'STRING' } },
-        transcript: {
-          type: 'ARRAY',
-          items: {
-            type: 'OBJECT',
-            properties: {
-              speaker: { type: 'STRING', description: 'Speaker name or identifier (e.g., Speaker 1)' },
-              timestamp: { type: 'STRING', description: 'Approximate timestamp (e.g., 00:15)' },
-              text: { type: 'STRING', description: 'The transcribed text, grouped into large, readable paragraphs' },
-            },
-          },
-        },
-        tags: { type: 'ARRAY', items: { type: 'STRING' } },
-        openQuestions: { type: 'ARRAY', items: { type: 'STRING' }, description: 'Questions asked but left unanswered, or topics requiring future resolution' },
-        participants: {
-          type: 'ARRAY',
-          items: {
-            type: 'OBJECT',
-            properties: {
-              name: { type: 'STRING', description: 'Person name as spoken/addressed in the conversation' },
-              speakerLabel: { type: 'STRING', description: 'The speaker label this person maps to (e.g., Участник 1, Я)' },
-              role: { type: 'STRING', description: 'Their role if mentioned (optional)' },
-            },
-          },
-        },
-        richActionItems: {
-          type: 'ARRAY',
-          items: {
-            type: 'OBJECT',
-            properties: {
-              text: { type: 'STRING', description: 'The action item text' },
-              assignee: { type: 'STRING', description: 'Who is responsible for this task, if mentioned' },
-              deadline: { type: 'STRING', description: 'Deadline or time frame, if mentioned' },
-            },
-          },
-        },
-        bigQuestions: {
-          type: 'ARRAY',
-          items: { type: 'STRING' },
-          description: 'Main strategic or unresolved themes and challenges being discussed',
-        },
-      },
-      required: ['title', 'summary', 'transcript', 'actionItems', 'ideas', 'keyMoments', 'mood', 'tags'],
-    },
-  };
-
-  return { prompt, config };
 }
 
 /** Повторная транскрипция записи по URL (файл фетчится на сервере и загружается в File API) */
@@ -177,8 +86,8 @@ export async function retranscribeFromUrl(
   mimeType: string,
   knownPeople: string[] = []
 ): Promise<TranscribeResult> {
-  const { prompt, config } = buildTranscribePayload(knownPeople);
-  const res = await post<AITextResponse>('/retranscribe', { audioUrl, mimeType, prompt, config });
+  // prompt/config больше не отправляются — сервер строит их сам (см. server/lib/gemini.ts)
+  const res = await post<AITextResponse>('/retranscribe', { audioUrl, mimeType, knownPeople });
   const parsed = safeJsonParse<TranscribeResult>(res.text || '{}', {});
   return {
     title: parsed.title,
@@ -195,16 +104,6 @@ export async function retranscribeFromUrl(
     richActionItems: parsed.richActionItems,
     bigQuestions: parsed.bigQuestions,
   };
-}
-
-/** Simple audio transcription (quick notes, chat voice) */
-export async function transcribeAudio(
-  audio: string,
-  mimeType: string,
-  prompt: string
-): Promise<string> {
-  const res = await post<AITextResponse>('/transcribe', { audio, mimeType, prompt });
-  return res.text || '';
 }
 
 function stripJsonMarkdown(raw: string): string {
@@ -303,20 +202,39 @@ export async function uploadAudioToR2(
     reader.readAsDataURL(blob);
   });
 
-  const res = await fetch(`${API_ROOT}/api/r2/upload`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeader },
-    body: JSON.stringify({ recordingId, contentType, audioBase64: base64 }),
-  });
+  // Загрузка с ретраями: сетевые ошибки и 5xx повторяем (до 3 попыток с backoff),
+  // 4xx (например, истёкший токен) не ретраим — это не транзиентная ошибка.
+  const maxAttempts = 3;
+  let lastErr = 'unknown error';
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let res: Response | null = null;
+    try {
+      res = await fetch(`${API_ROOT}/api/r2/upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeader },
+        body: JSON.stringify({ recordingId, contentType, audioBase64: base64 }),
+      });
+    } catch (e) {
+      lastErr = e instanceof Error ? e.message : 'network error';
+    }
 
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`R2 server upload failed: ${res.status} — ${errText}`);
+    if (res) {
+      if (res.ok) {
+        const { publicUrl, key } = await res.json() as { publicUrl: string; key: string };
+        console.log('[R2] Upload SUCCESS →', publicUrl, attempt > 1 ? `(попытка ${attempt})` : '');
+        return { publicUrl, r2Key: key };
+      }
+      lastErr = `${res.status} — ${await res.text()}`;
+      if (res.status < 500) break; // клиентская ошибка — ретрай не поможет
+    }
+
+    if (attempt < maxAttempts) {
+      console.warn(`[R2] Upload attempt ${attempt} failed (${lastErr}), retrying...`);
+      await new Promise(r => setTimeout(r, attempt * 800));
+    }
   }
 
-  const { publicUrl, key } = await res.json() as { publicUrl: string; key: string };
-  console.log('[R2] Upload SUCCESS →', publicUrl);
-  return { publicUrl, r2Key: key };
+  throw new Error(`R2 server upload failed after ${maxAttempts} attempts: ${lastErr}`);
 }
 
 /**

@@ -1,0 +1,105 @@
+import { Router, type Request, type Response } from 'express';
+import { getFirestore } from 'firebase-admin/firestore';
+import { requireAuth, type AuthRequest } from '../lib/auth';
+import { isValidRecordingId, resolveExt, uploadBuffer, R2_PUBLIC_URL } from '../lib/r2';
+import { getAI, uploadAudioToFileAPI, buildTranscribePayload } from '../lib/gemini';
+
+const router = Router();
+
+// POST /api/process-recording
+// Загружает аудио в R2, отвечает клиенту сразу, транскрипцию запускает в фоне.
+// Сервер сам пишет результат в Firestore через Firebase Admin.
+router.post('/', requireAuth, async (req: Request, res: Response) => {
+  const { recordingId, audioBase64, contentType, metadata } = req.body as {
+    recordingId: string;
+    audioBase64: string;
+    contentType: string;
+    metadata: { title: string; date: string; duration: string; knownPeople: string[] };
+  };
+  const { uid } = req as AuthRequest;
+
+  if (!isValidRecordingId(recordingId)) {
+    res.status(400).json({ error: 'Invalid recordingId' });
+    return;
+  }
+  if (!audioBase64 || typeof audioBase64 !== 'string') {
+    res.status(400).json({ error: 'audioBase64 is required' });
+    return;
+  }
+  const ext = resolveExt(contentType);
+  if (!ext) {
+    res.status(400).json({ error: 'Unsupported contentType' });
+    return;
+  }
+
+  const key = `audio/${uid}/${recordingId}.${ext}`;
+  const buffer = Buffer.from(audioBase64, 'base64');
+
+  try {
+    await uploadBuffer(key, buffer, contentType);
+  } catch (e) {
+    console.error('[process-recording] R2 upload failed:', e);
+    res.status(500).json({ error: 'R2 upload failed' });
+    return;
+  }
+
+  const publicUrl = `${R2_PUBLIC_URL}/${key}`;
+  console.log(`[process-recording] R2 OK: ${publicUrl}`);
+  res.json({ publicUrl, r2Key: key, queued: true });
+
+  setImmediate(async () => {
+    const db = getFirestore();
+    const docRef = db.collection('users').doc(uid).collection('recordings').doc(recordingId);
+    try {
+      console.log(`[process-recording] Background transcription for ${recordingId}`);
+      const ai = getAI();
+      const { fileUri, fileMimeType } = await uploadAudioToFileAPI(ai, buffer, contentType || 'audio/mp4');
+      const { prompt, config } = buildTranscribePayload(metadata.knownPeople || []);
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [{ parts: [{ fileData: { fileUri, mimeType: fileMimeType } }, { text: prompt }] }],
+        config,
+      });
+
+      const text = response.text ?? '';
+      let parsed: Record<string, unknown> = {};
+      try {
+        const clean = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+        parsed = JSON.parse(clean);
+      } catch { parsed = {}; }
+
+      const richActionItems = ((parsed.richActionItems as Array<{ text: string; assignee?: string; assignees?: string[]; deadline?: string }>) || [])
+        .map(item => ({
+          text: item.text,
+          assignees: Array.isArray(item.assignees) && item.assignees.length > 0
+            ? item.assignees
+            : item.assignee ? [item.assignee] : [],
+          deadline: item.deadline,
+        }));
+
+      await docRef.update({
+        title: parsed.title || metadata.title || 'Запись',
+        summary: parsed.summary || '',
+        transcript: parsed.transcript || [],
+        keyMoments: parsed.keyMoments || [],
+        actionItems: parsed.actionItems || [],
+        mood: parsed.mood || '',
+        ideas: parsed.ideas || [],
+        mentions: parsed.mentions || [],
+        tags: parsed.tags || [],
+        openQuestions: parsed.openQuestions || [],
+        participants: parsed.participants || [],
+        richActionItems,
+        bigQuestions: parsed.bigQuestions || [],
+        aiStatus: 'done',
+      });
+      console.log(`[process-recording] Firestore updated for ${recordingId}`);
+    } catch (err) {
+      console.error(`[process-recording] Background transcription failed for ${recordingId}:`, err);
+      await docRef.update({ aiStatus: 'error' }).catch(() => {});
+    }
+  });
+});
+
+export { router as processingRouter };

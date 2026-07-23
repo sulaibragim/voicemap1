@@ -270,14 +270,14 @@ export const ActionItemsSection = ({ items, done, onUpdate, onToggleDone, showTo
                         setEditingRich({ idx: i, field: 'deadline' });
                         setEditingRichValue(toIsoDate(richItems[i]?.deadline ?? ''));
                       }}
-                      className={`text-[10px] px-1.5 py-0.5 rounded font-bold transition-colors cursor-pointer ${richItems?.[i]?.deadline ? 'bg-amber-400/10 text-amber-400 hover:bg-amber-400/20' : 'opacity-0 group-hover:opacity-60 bg-amber-400/5 text-amber-400/60'}`}
+                      className={`text-[10px] px-1.5 py-0.5 rounded font-bold transition-colors cursor-pointer ${richItems?.[i]?.deadline ? 'bg-amber-400/10 text-amber-400 hover:bg-amber-400/20' : 'opacity-100 md:opacity-0 md:group-hover:opacity-60 bg-amber-400/5 text-amber-400/60'}`}
                       title="Установить срок"
                     >
                       📅 {richItems?.[i]?.deadline ? formatDeadlineDisplay(richItems[i].deadline!) : '+'}
                     </button>
                     {/* Bell reminder */}
                     {onSetReminder && (
-                      <div className={`${taskReminders?.[i] ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
+                      <div className={`${taskReminders?.[i] ? 'opacity-100' : 'opacity-100 md:opacity-0 md:group-hover:opacity-100'} transition-opacity`}>
                         <TaskReminderButton
                           taskIndex={i}
                           reminder={taskReminders?.[i]}
@@ -286,7 +286,7 @@ export const ActionItemsSection = ({ items, done, onUpdate, onToggleDone, showTo
                       </div>
                     )}
                     {/* Edit / Delete */}
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity items-center ml-auto">
+                    <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity items-center ml-auto">
                       <button
                         onClick={() => { setEditingIdx(i); setEditingText(task); }}
                         className="p-1 hover:text-secondary transition-colors cursor-pointer text-on-surface-variant"

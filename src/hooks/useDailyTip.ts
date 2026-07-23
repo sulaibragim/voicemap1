@@ -23,11 +23,11 @@ export function useDailyTip(recordings: Recording[]) {
         if (result.title && result.text) {
           setDailyTip(result);
         } else {
-          setDailyTip({ title: 'ПРОДУКТИВНОСТЬ', text: 'Регулярно просматривайте свои записи, чтобы не упустить важные детали.' });
+          setDailyTip({ title: 'ПРОДУКТИВНОСТЬ', text: 'Регулярно просматривай свои записи, чтобы не упустить важные детали.' });
         }
       })
       .catch(() => {
-        setDailyTip({ title: 'СОВЕТ ДНЯ', text: 'Используйте быстрые заметки, чтобы моментально фиксировать идеи и задачи.' });
+        setDailyTip({ title: 'СОВЕТ ДНЯ', text: 'Используй быстрые заметки, чтобы моментально фиксировать идеи и задачи.' });
       })
       .finally(() => {
         setIsGeneratingTip(false);

@@ -150,6 +150,7 @@ export const AudioPlayer = ({
           const near = filteredTranscript.find(t => Math.abs(parseTimestamp(t.timestamp) - clickTime) < threshold);
           if (near) onTimestampClick(near.timestamp);
         }}
+        aria-label="Перемотка аудио"
         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
         style={{ margin: 0, padding: 0 }}
         disabled={validDuration <= 0}
@@ -184,6 +185,7 @@ export const AudioPlayer = ({
         <div className="flex items-center gap-3 mb-1">
           <button
             onClick={onTogglePlay}
+            aria-label={isPlaying ? 'Пауза' : 'Воспроизвести'}
             className="w-10 h-10 rounded-full bg-primary text-on-primary-fixed flex items-center justify-center hover:scale-105 transition-transform shadow-[0_0_15px_rgba(175,162,255,0.3)] cursor-pointer shrink-0"
           >
             {isPlaying ? <Pause className="w-4 h-4" fill="currentColor" /> : <Play className="w-4 h-4 ml-0.5" fill="currentColor" />}
@@ -203,6 +205,7 @@ export const AudioPlayer = ({
         <div className="flex items-center gap-3 md:gap-4">
           <button
             onClick={onTogglePlay}
+            aria-label={isPlaying ? 'Пауза' : 'Воспроизвести'}
             className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-primary text-on-primary-fixed flex items-center justify-center hover:scale-105 transition-transform shadow-[0_0_20px_rgba(175,162,255,0.3)] cursor-pointer"
           >
             {isPlaying ? <Pause className="w-5 h-5 md:w-6 md:h-6" fill="currentColor" /> : <Play className="w-5 h-5 md:w-6 md:h-6 ml-0.5 md:ml-1" fill="currentColor" />}

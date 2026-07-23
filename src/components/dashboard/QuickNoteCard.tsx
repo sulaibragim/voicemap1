@@ -1,35 +1,37 @@
 import { motion } from 'motion/react';
 import { Lightbulb, Check, Bell, ChevronRight } from 'lucide-react';
 import type { NoteType } from '../../types';
+import { NOTE_HEX } from '../../lib/noteTheme';
 
 interface QuickNoteCardProps {
   onQuickNote: (type: NoteType) => void;
 }
 
+// Цвета берутся из единого источника NOTE_HEX (src/lib/noteTheme.ts)
 const NOTE_TYPES = [
   {
     type: 'Идея' as NoteType,
     icon: Lightbulb,
     label: 'Идея',
     desc: 'Творческая мысль или инсайт',
-    accent: '#7B61FF',
-    bg: 'rgba(123,97,255,0.12)',
+    accent: NOTE_HEX['Идея'],
+    bg: `${NOTE_HEX['Идея']}1F`, // ~12% альфа
   },
   {
     type: 'Задача' as NoteType,
     icon: Check,
     label: 'Задача',
     desc: 'Что нужно сделать',
-    accent: '#4FC3F7',
-    bg: 'rgba(79,195,247,0.12)',
+    accent: NOTE_HEX['Задача'],
+    bg: `${NOTE_HEX['Задача']}1F`,
   },
   {
     type: 'Напоминание' as NoteType,
     icon: Bell,
     label: 'Напоминание',
     desc: 'Напомнит в нужное время',
-    accent: '#FFB74D',
-    bg: 'rgba(255,183,77,0.12)',
+    accent: NOTE_HEX['Напоминание'],
+    bg: `${NOTE_HEX['Напоминание']}1F`,
   },
 ];
 

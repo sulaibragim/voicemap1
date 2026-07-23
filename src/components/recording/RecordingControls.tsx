@@ -29,6 +29,7 @@ export const RecordingControls = ({
           <motion.button
             onClick={onStart}
             whileTap={{ scale: 0.95 }}
+            aria-label="Начать запись"
             className="w-20 h-20 rounded-full bg-error text-white flex items-center justify-center hover:scale-105 transition-transform shadow-[0_0_30px_rgba(255,84,73,0.4)] cursor-pointer"
           >
             <Mic className="w-8 h-8" fill="currentColor" />
@@ -39,6 +40,7 @@ export const RecordingControls = ({
             <motion.button
               onClick={onToggleMute}
               whileTap={{ scale: 0.92 }}
+              aria-label={isMuted ? 'Включить микрофон' : 'Выключить микрофон'}
               className={`w-14 h-14 rounded-full flex items-center justify-center transition-all cursor-pointer border ${
                 isMuted
                   ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-400'
@@ -55,6 +57,7 @@ export const RecordingControls = ({
             <motion.button
               onClick={onStop}
               whileTap={{ scale: 0.92 }}
+              aria-label="Остановить запись"
               className="w-20 h-20 rounded-full bg-surface-container-highest text-error flex items-center justify-center hover:scale-105 transition-transform border border-error/30 cursor-pointer shadow-[0_0_20px_rgba(255,84,73,0.2)]"
             >
               <Square className="w-6 h-6 fill-error" />
@@ -64,6 +67,7 @@ export const RecordingControls = ({
             <motion.button
               onClick={onTogglePause}
               whileTap={{ scale: 0.92 }}
+              aria-label={isPaused ? 'Продолжить запись' : 'Пауза'}
               className={`w-14 h-14 rounded-full flex items-center justify-center transition-all cursor-pointer border ${
                 isPaused
                   ? 'bg-primary/20 border-primary/50 text-primary'

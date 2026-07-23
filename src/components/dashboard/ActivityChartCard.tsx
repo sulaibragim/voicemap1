@@ -7,6 +7,7 @@ import type { TooltipContentProps } from 'recharts/types/component/Tooltip';
 import type { NameType, ValueType } from 'recharts/types/component/DefaultTooltipContent';
 import type { TooltipPayloadEntry } from 'recharts/types/state/tooltipSlice';
 import { parseRecDate, toDateKey } from '../../lib/utils';
+import { plural } from '../../lib/plural';
 
 interface ActivityChartCardProps {
   recordings: Recording[];
@@ -223,7 +224,7 @@ export const ActivityChartCard = ({ recordings, notes, onOpenRecording }: Activi
               <p className="text-xs font-bold text-on-surface-variant mb-3 uppercase tracking-wider">
                 {selectedDayData?.label ?? ''} &mdash;{' '}
                 {selectedDayRecs.length + selectedDayNotes.length}{' '}
-                {(selectedDayRecs.length + selectedDayNotes.length) === 1 ? 'штука' : (selectedDayRecs.length + selectedDayNotes.length) < 5 ? 'штуки' : 'штук'}
+                {plural(selectedDayRecs.length + selectedDayNotes.length, ['запись', 'записи', 'записей'])}
               </p>
               <div className="space-y-2">
                 {selectedDayRecs.length === 0 && selectedDayNotes.length === 0 ? (

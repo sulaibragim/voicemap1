@@ -1,6 +1,9 @@
 import { useRef, useState, useEffect } from 'react';
 
-export function useRecordingAudio() {
+// audioUrl передаётся снаружи: <audio> рендерится условно и может появиться позже
+// (URL приходит асинхронно после транскрипции). Эффект зависит от audioUrl,
+// поэтому слушатели навешиваются именно тогда, когда элемент реально смонтирован.
+export function useRecordingAudio(audioUrl?: string | null) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -44,7 +47,7 @@ export function useRecordingAudio() {
       audio.removeEventListener('timeupdate', setAudioTime);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, []);
+  }, [audioUrl]);
 
   const togglePlay = () => {
     if (audioRef.current) {

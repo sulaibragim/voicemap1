@@ -50,9 +50,12 @@ export const SpaceRecordingCard = ({ rec, spaces, onOpen, onDelete, onPin, onMov
       </div>
 
       {/* Context menu button */}
-      <div className="absolute right-4 top-4 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute right-4 top-4 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
         <button
           onClick={e => { e.stopPropagation(); setShowMenu(v => !v); }}
+          aria-label="Действия"
+          aria-haspopup="true"
+          aria-expanded={showMenu}
           className="w-7 h-7 flex items-center justify-center rounded-full bg-surface-container-high hover:bg-white/15 transition-colors cursor-pointer text-on-surface-variant"
         >
           <span className="text-xs font-bold leading-none">···</span>

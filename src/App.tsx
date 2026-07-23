@@ -10,12 +10,11 @@ import { retranscribeFromUrl, deleteAudioFromR2, processRecordingAsync } from '.
 import { useToast } from './hooks/useToast';
 import { useDailyTip } from './hooks/useDailyTip';
 
-import type { Note, NoteType, Recording, Space, AppSettings } from './types';
-import { defaultAppSettings } from './types';
+import type { Note, NoteType, Recording, Space } from './types';
 import { useReminders } from './hooks/useReminders';
-import { usePeople } from './lib/usePeople';
 import { useAuth } from './hooks/useAuth';
 import { useFirestoreData } from './hooks/useFirestoreData';
+import { useUserProfile } from './hooks/useUserProfile';
 import { LoginScreen } from './components/auth/LoginScreen';
 
 // Eager — нужны на первом экране (Dashboard)
@@ -82,6 +81,10 @@ const ViewLoader = () => (
   </div>
 );
 
+// Dev-only: моковый пользователь для демо-просмотра интерфейса без реального входа.
+// Активируется только в dev-сборке (import.meta.env.DEV) по кнопке на экране входа.
+const DEMO_USER = { uid: 'demo-local', displayName: 'Демо', email: 'demo@voicemap.local', photoURL: null };
+
 function suggestSpaceId(recording: Recording, spaces: Space[]): string | undefined {
   for (const space of spaces) {
     const nl = space.name.toLowerCase();
@@ -94,20 +97,12 @@ function suggestSpaceId(recording: Recording, spaces: Space[]): string | undefin
 export default function App() {
   const { user: authUser, loading: authLoading, signInWithGoogle, logout } = useAuth();
 
-  const [appSettings, setAppSettings] = useState<AppSettings>(() => {
-    try {
-      const saved = localStorage.getItem('voicemap_settings');
-      return saved ? { ...defaultAppSettings, ...JSON.parse(saved) } : defaultAppSettings;
-    } catch { return defaultAppSettings; }
-  });
-
-  const updateSettings = (patch: Partial<AppSettings>) => {
-    setAppSettings(prev => {
-      const next = { ...prev, ...patch };
-      localStorage.setItem('voicemap_settings', JSON.stringify(next));
-      return next;
-    });
-  };
+  const {
+    settings: appSettings, updateSettings,
+    assistantProfile, updateAssistantProfile,
+    addPersonFromRecording, getKnownNames,
+    profileLoading,
+  } = useUserProfile(authUser?.uid ?? null);
 
   const {
     recordings, notes, spaces, loading: dataLoading,
@@ -124,6 +119,23 @@ export default function App() {
   const [quickNoteType, setQuickNoteType] = useState<NoteType | null>(null);
   const [spacePickerRecordingId, setSpacePickerRecordingId] = useState<string | null>(null);
   const [selectedRecordingId, setSelectedRecordingId] = useState<string | null>(null);
+
+  // Dev-only демо-просмотр без входа. effectiveUser проходит гейт логина, но uid в хуки
+  // данных НЕ передаётся (остаётся null → локальный режим, без Firestore) — данные засеиваются ниже.
+  const [demoMode, setDemoMode] = useState(false);
+  const effectiveUser = authUser ?? (demoMode ? DEMO_USER : null);
+
+  useEffect(() => {
+    // import.meta.env.DEV статически = false в проде → Vite/terser вырезает тело эффекта целиком
+    if (!import.meta.env.DEV || !demoMode || authUser) return;
+    // Грузим демо-данные в локальный state (Firestore не трогаем)
+    import('./data/demoSeed').then(({ initialRecordings, initialNotes }) => {
+      setRecordingsLocal(initialRecordings);
+      setNotesLocal(initialNotes);
+    }).catch(e => console.error('[demoMode] failed to load demo seed:', e));
+    // setRecordingsLocal/setNotesLocal стабильны (обёртки над setState)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [demoMode, authUser]);
 
   // Если запись_detail открыта но запись не найдена — возвращаемся на дашборд
   // Проверяем только ПОСЛЕ завершения загрузки данных из Firestore
@@ -143,15 +155,7 @@ export default function App() {
     catch { return []; }
   });
 
-  // Профиль ассистента (имя, тон, правила)
-  const [assistantProfile, setAssistantProfile] = useState<import('./lib/assistantPrompt').AssistantProfile>(() => {
-    try {
-      const saved = localStorage.getItem('voicemap_assistant_profile');
-      return saved ? JSON.parse(saved) : { name: 'VoiceMap AI', tone: 'friendly', useEmoji: false, customRules: [] };
-    } catch { return { name: 'VoiceMap AI', tone: 'friendly', useEmoji: false, customRules: [] }; }
-  });
   const [isProcessing, setIsProcessing] = useState(false);
-  const _user = authUser ?? { uid: 'local-user', displayName: 'Пользователь', email: '', photoURL: null };
 
   const { toast, showToast } = useToast();
   const { dailyTip, isGeneratingTip } = useDailyTip(recordings);
@@ -162,21 +166,12 @@ export default function App() {
     showToast,
   });
 
-  const { addFromRecording, getNames } = usePeople();
-
   useEffect(() => {
     localStorage.setItem('voicemap_daily_focus', JSON.stringify(dailyFocus));
   }, [dailyFocus]);
 
-  useEffect(() => {
-    localStorage.setItem('voicemap_assistant_profile', JSON.stringify(assistantProfile));
-  }, [assistantProfile]);
-
-  // ВНИМАНИЕ: НЕ дублируем spaces в localStorage — useFirestoreData уже их сохраняет в Firestore.
-  // Был useEffect, который писал voicemap_spaces в localStorage — это создавало второй источник правды
-  // и приводило к рассинхрону между Firestore и localStorage. Удалено намеренно.
-
   const handleLogout = async () => {
+    setDemoMode(false);
     await logout();
   };
 
@@ -237,7 +232,7 @@ export default function App() {
     // обновление сервера улетит в несуществующий док, а клиент потом перепишет
     // pending-данными уже готовую транскрипцию.
     await addRecording(pendingRecording);
-    addFromRecording(pendingRecording);
+    addPersonFromRecording(pendingRecording);
     setNavStack(prev => [...prev, { view: 'dashboard', spaceMapActiveId: null }]);
     setSelectedRecordingId(recordingId);
     setSpacePickerRecordingId(recordingId);
@@ -252,7 +247,7 @@ export default function App() {
         title: 'Новая запись',
         date,
         duration,
-        knownPeople: getNames(),
+        knownPeople: getKnownNames(),
       });
       await patchRecordingItem(recordingId, { audioUrl: publicUrl, r2Key });
       console.log('[handleFinishRecording] Upload done, background transcription queued');
@@ -263,6 +258,9 @@ export default function App() {
     }
   };
 
+  // ⚠️ Dev-only фича (кнопка видна только в dev-сборке, см. SettingsView):
+  // пишет только в локальный state и localStorage, в Firestore НЕ сохраняет —
+  // при активном Firestore-листенере следующий снапшот всё откатит.
   const handleResetDemo = async () => {
     localStorage.removeItem('voicemap_recordings');
     localStorage.removeItem('voicemap_notes');
@@ -278,6 +276,21 @@ export default function App() {
     }
   };
 
+  // Полное удаление записи: revoke blob-URL'ов (основного аудио и дополнений),
+  // удаление файла из R2 и самого документа. Единый хелпер для всех мест удаления.
+  const removeRecording = (id: string) => {
+    const target = recordings.find(r => r.id === id);
+    if (target?.audioUrl?.startsWith('blob:')) URL.revokeObjectURL(target.audioUrl);
+    target?.appendAudios?.forEach(a => {
+      if (a.url?.startsWith('blob:')) URL.revokeObjectURL(a.url);
+    });
+    if (target?.r2Key) {
+      deleteAudioFromR2(target.r2Key).catch(err => console.warn('R2 delete failed:', err));
+    }
+    deleteRecordingItem(id);
+    showToast('Запись удалена', 'success');
+  };
+
   const renderView = () => {
     if (currentView === 'gallery') {
       return <NotesGallery notes={notes} onBack={() => setCurrentView('dashboard')} setCurrentView={setCurrentView} onDeleteNote={(id) => {
@@ -290,19 +303,6 @@ export default function App() {
 
     if (currentView === 'library') {
       const openDetail = (id: string) => openRecording(id);
-      const deleteRecording = (id: string) => {
-        const target = recordings.find(r => r.id === id);
-        if (target?.audioUrl?.startsWith('blob:')) URL.revokeObjectURL(target.audioUrl);
-        target?.appendAudios?.forEach(a => {
-          if (a.url?.startsWith('blob:')) URL.revokeObjectURL(a.url);
-        });
-        // Удаляем аудио из R2 если есть ключ
-        if (target?.r2Key) {
-          deleteAudioFromR2(target.r2Key).catch(err => console.warn('R2 delete failed:', err));
-        }
-        deleteRecordingItem(id);
-        showToast('Запись удалена', 'success');
-      };
       return (
         <>
           {/* Desktop: interactive map */}
@@ -323,7 +323,7 @@ export default function App() {
               recordings={recordings}
               onBack={() => setCurrentView('dashboard')}
               onOpenDetail={openDetail}
-              onDeleteRecording={deleteRecording}
+              onDeleteRecording={removeRecording}
               onUpdateRecording={(updated) => updateRecordingItem(updated)}
             />
           </div>
@@ -342,12 +342,7 @@ export default function App() {
             activeSpaceId={spaceMapActiveId}
             onSetActiveSpaceId={setSpaceMapActiveId}
             onUpdateSpace={(updated) => updateSpaceItem(updated)}
-            onDeleteRecording={(id) => {
-              const target = recordings.find(r => r.id === id);
-              if (target?.audioUrl?.startsWith('blob:')) URL.revokeObjectURL(target.audioUrl);
-              deleteRecordingItem(id);
-              showToast('Запись удалена', 'success');
-            }}
+            onDeleteRecording={removeRecording}
             onUpdateRecording={(updated) => updateRecordingItem(updated)}
             onCreateSpace={(data) => {
               const newSpace: Space = { ...data, id: 'space-' + Date.now(), createdAt: new Date().toISOString() };
@@ -363,17 +358,12 @@ export default function App() {
     if (currentView === 'recording_detail' && selectedRecordingId) {
       const rec = recordings.find(r => r.id === selectedRecordingId);
       if (rec) {
-        return <RecordingDetail recording={rec} onBack={goBack} onDelete={() => {
-          if (rec.audioUrl?.startsWith('blob:')) URL.revokeObjectURL(rec.audioUrl);
-          rec.appendAudios?.forEach(a => {
-            if (a.url?.startsWith('blob:')) URL.revokeObjectURL(a.url);
-          });
-          if (rec.r2Key) {
-            deleteAudioFromR2(rec.r2Key).catch(err => console.warn('R2 delete failed:', err));
-          }
-          deleteRecordingItem(rec.id);
+        // key={rec.id} — при переходе между связанными записями компонент полностью
+        // пересоздаётся, и весь локальный UI-state (activeTab, transcriptMode,
+        // isCondensing, mobileTab и т.д.) сбрасывается автоматически
+        return <RecordingDetail key={rec.id} recording={rec} onBack={goBack} onDelete={() => {
+          removeRecording(rec.id);
           goBack();
-          showToast('Запись удалена', 'success');
         }} onUpdate={(updatedRec) => {
           updateRecordingItem(updatedRec);
         }} showToast={showToast} allRecordings={recordings} onOpenRecording={(id) => openRecording(id)} onRetranscribe={async () => {
@@ -389,7 +379,7 @@ export default function App() {
             : url.includes('.ogg') ? 'audio/ogg'
             : 'audio/mp4';
           try {
-            const result = await retranscribeFromUrl(url, mimeType, getNames());
+            const result = await retranscribeFromUrl(url, mimeType, getKnownNames());
             updateRecordingItem({ ...recording, ...result, title: result.title || recording.title });
             showToast('Транскрипция готова ✓', 'success');
           } catch (err) {
@@ -467,7 +457,7 @@ export default function App() {
     // Dashboard
     return (
       <div className="min-h-screen bg-background text-on-surface pb-32 font-body selection:bg-primary/30 relative">
-        <Header currentView={currentView} setCurrentView={setCurrentView} onLogout={handleLogout} onReset={handleResetDemo} user={authUser ?? undefined} />
+        <Header currentView={currentView} setCurrentView={setCurrentView} onLogout={handleLogout} onReset={handleResetDemo} user={effectiveUser ?? undefined} />
         <main className="max-w-[1440px] mx-auto px-4 pt-6 lg:px-8 lg:pt-12">
           <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12">
             <LiveSessionCard onStartRecording={() => setCurrentView('recording_session')} />
@@ -524,8 +514,8 @@ export default function App() {
     );
   };
 
-  // Пока Firebase проверяет сессию — показываем сплеш
-  if (authLoading) {
+  // Пока Firebase проверяет сессию или грузит профиль — показываем сплеш
+  if (authLoading || (authUser && profileLoading)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="w-8 h-8 text-primary animate-spin" />
@@ -534,8 +524,13 @@ export default function App() {
   }
 
   // Не авторизован — показываем экран входа
-  if (!authUser) {
-    return <LoginScreen onGoogleSignIn={signInWithGoogle} />;
+  if (!effectiveUser) {
+    return (
+      <LoginScreen
+        onGoogleSignIn={signInWithGoogle}
+        onDemoMode={import.meta.env.DEV ? () => setDemoMode(true) : undefined}
+      />
+    );
   }
 
   return (
@@ -551,6 +546,7 @@ export default function App() {
         {/* Floating AI Assistant Button */}
         <button
           onClick={() => setIsAssistantOpen(true)}
+          aria-label="Открыть ассистента"
           className={`fixed bottom-24 md:bottom-32 right-4 md:right-8 w-14 h-14 bg-primary text-on-primary-fixed rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(175,162,255,0.4)] hover:scale-110 transition-transform z-[150] cursor-pointer ${isAssistantOpen ? 'hidden' : currentView === 'recording_detail' ? 'hidden md:flex' : ''}`}
         >
           <Brain className="w-6 h-6" />
@@ -560,10 +556,12 @@ export default function App() {
         <AnimatePresence>
           {toast && (
             <motion.div
+              role="status"
+              aria-live="polite"
               initial={{ opacity: 0, y: 50, x: '-50%' }}
               animate={{ opacity: 1, y: 0, x: '-50%' }}
               exit={{ opacity: 0, y: 50, x: '-50%' }}
-              className={`fixed bottom-8 left-1/2 z-[500] px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 font-bold text-sm ${
+              className={`fixed bottom-8 left-1/2 z-[500] max-w-[90vw] px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 font-bold text-sm ${
                 toast.type === 'error' ? 'bg-error text-white' :
                 toast.type === 'success' ? 'bg-secondary text-on-secondary' :
                 'bg-surface-container-highest text-white'
@@ -610,10 +608,9 @@ export default function App() {
           showToast('Запись обновлена', 'success');
         }}
         onLearnRule={(rule) => {
-          setAssistantProfile(prev => ({
-            ...prev,
-            customRules: [...prev.customRules.slice(-9), rule],
-          }));
+          updateAssistantProfile({
+            customRules: [...assistantProfile.customRules.slice(-9), rule],
+          });
         }}
       />
 

@@ -31,7 +31,7 @@ export const RecentRecordings = ({ recordings, onOpenLibrary, onOpenDetail }: Re
             <AudioLines className="w-10 h-10" />
           </div>
           <h3 className="font-headline text-2xl font-bold mb-2">Нет записей</h3>
-          <p className="text-on-surface-variant">Нажмите на кнопку микрофона, чтобы начать первую запись.</p>
+          <p className="text-on-surface-variant">Нажми на кнопку микрофона, чтобы начать первую запись.</p>
         </div>
       ) : (
         <div className="grid grid-cols-12 gap-8">

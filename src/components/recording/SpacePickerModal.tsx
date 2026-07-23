@@ -45,6 +45,7 @@ export const SpacePickerModal = ({ recording, spaces, suggestedSpaceId, onAssign
             <p className="text-sm text-on-surface-variant mt-1 line-clamp-1">{recording.title}</p>
             <button
               onClick={() => onAssign(null)}
+              aria-label="Закрыть"
               className="absolute right-5 top-5 w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4 text-on-surface-variant" />

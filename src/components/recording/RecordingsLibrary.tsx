@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import type * as React from 'react';
 import { Search, ArrowLeft, Calendar, Clock, Trash2, ChevronRight, AudioLines, X, Pin } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { plural } from '../../lib/plural';
 import type { Recording } from '../../types';
 import { SwipeCard } from './SwipeCard';
 import { getTagColor, getTagTextColor, sortItems, groupByDate, type SortMode } from '../../lib/recordingUtils';
@@ -192,7 +193,7 @@ export const RecordingsLibrary = ({
             ) : (
               <motion.div key="title" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex-1">
                 <h1 className="font-headline text-xl font-bold">Библиотека</h1>
-                <p className="text-[11px] text-on-surface-variant">{recordings.length} записей</p>
+                <p className="text-[11px] text-on-surface-variant">{recordings.length} {plural(recordings.length, ['запись', 'записи', 'записей'])}</p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -241,7 +242,7 @@ export const RecordingsLibrary = ({
           <div className="flex flex-col items-center justify-center py-20 gap-4 text-on-surface-variant">
             <AudioLines className="w-12 h-12 opacity-30" />
             <p className="font-bold text-lg">Записей не найдено</p>
-            <p className="text-sm opacity-60 text-center">Попробуйте другой тег или поисковый запрос</p>
+            <p className="text-sm opacity-60 text-center">Попробуй другой тег или поисковый запрос</p>
           </div>
         ) : (
           <div className="space-y-6">

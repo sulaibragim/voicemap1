@@ -27,7 +27,9 @@ interface RecordingDetailProps {
 
 
 export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToast, allRecordings = [], onOpenRecording, onRetranscribe }: RecordingDetailProps) => {
-  const { audioRef, isPlaying, setIsPlaying, currentTime, duration, togglePlay, handleSeek } = useRecordingAudio();
+  // audioUrl передаём в хук: он может появиться позже (после фоновой транскрипции),
+  // и слушатели <audio> должны навеситься в момент появления элемента
+  const { audioRef, isPlaying, setIsPlaying, currentTime, duration, togglePlay, handleSeek } = useRecordingAudio(recording.audioUrl);
   const [activeTab, setActiveTab] = useState<'transcript' | 'keyMoments'>('transcript');
   const [transcriptMode, setTranscriptMode] = useState<'full' | 'condensed'>('full');
   const [isCondensing, setIsCondensing] = useState(false);

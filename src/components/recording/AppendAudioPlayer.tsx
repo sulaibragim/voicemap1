@@ -56,7 +56,7 @@ export const AppendAudioPlayer = ({ url, label, addedAt }: AppendAudioPlayerProp
   return (
     <div className="bg-surface-container p-3 md:p-4 rounded-2xl border border-amber-400/20 flex items-center gap-3">
       <audio ref={ref} src={url} className="hidden" />
-      <button onClick={toggle} className="w-9 h-9 rounded-full bg-amber-400/20 text-amber-400 flex items-center justify-center hover:bg-amber-400/30 transition-colors shrink-0">
+      <button onClick={toggle} aria-label={playing ? 'Пауза' : 'Воспроизвести'} className="w-9 h-9 rounded-full bg-amber-400/20 text-amber-400 flex items-center justify-center hover:bg-amber-400/30 transition-colors shrink-0">
         {playing ? <Pause className="w-4 h-4" fill="currentColor" /> : <Play className="w-4 h-4 ml-0.5" fill="currentColor" />}
       </button>
       <div className="flex-1 min-w-0">

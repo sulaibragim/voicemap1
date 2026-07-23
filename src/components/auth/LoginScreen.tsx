@@ -4,9 +4,12 @@ import { AudioLines, Loader2 } from 'lucide-react';
 
 interface LoginScreenProps {
   onGoogleSignIn: () => Promise<void>;
+  // Dev-only: App передаёт этот обработчик только в dev-сборке (import.meta.env.DEV).
+  // В проде проп не приходит — кнопка не рендерится.
+  onDemoMode?: () => void;
 }
 
-export const LoginScreen = ({ onGoogleSignIn }: LoginScreenProps) => {
+export const LoginScreen = ({ onGoogleSignIn, onDemoMode }: LoginScreenProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,6 +99,16 @@ export const LoginScreen = ({ onGoogleSignIn }: LoginScreenProps) => {
 
           {error && (
             <p className="text-xs text-error text-center">{error}</p>
+          )}
+
+          {/* Dev-only: просмотр интерфейса без входа (демо-данные, без Firestore) */}
+          {onDemoMode && (
+            <button
+              onClick={onDemoMode}
+              className="w-full text-xs text-on-surface-variant/70 hover:text-on-surface transition-colors py-2 cursor-pointer"
+            >
+              Демо-режим (без входа) — только для разработки
+            </button>
           )}
         </div>
 

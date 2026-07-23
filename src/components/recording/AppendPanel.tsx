@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { appendToRecording, transcribeRecording, transcribeAudio, uploadAudioToR2 } from '../../lib/api';
+import { appendToRecording, transcribeRecording, transcribeChatVoice, uploadAudioToR2 } from '../../lib/api';
 import { X, Plus, Mic, Headphones, Keyboard, Loader2, Square } from 'lucide-react';
 import { useAppendAudio } from './useAppendAudio';
 import type { Recording, TranscriptItem } from '../../types';
@@ -155,11 +155,8 @@ export const AppendPanel = ({ recording, isAppending, onOpen, onClose, onUpdate,
         reader.onerror = reject;
         reader.readAsDataURL(blob);
       });
-      const text = await transcribeAudio(
-        base64,
-        blob.type || 'audio/webm',
-        'Transcribe this voice message exactly as spoken. Return only the transcribed text, no extra formatting.'
-      );
+      // Промпт для транскрипции теперь фиксирован на сервере (/chat-voice) — клиент не передаёт свой prompt
+      const text = await transcribeChatVoice(base64, blob.type || 'audio/webm');
       setAppendQuery(text);
       setAppendMode('text');
       showToast('Речь распознана — проверь и отправь', 'info');

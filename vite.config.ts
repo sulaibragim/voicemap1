@@ -27,5 +27,29 @@ export default defineConfig(({mode}) => {
     optimizeDeps: {
       include: ['@capacitor/core'],
     },
+    build: {
+      rollupOptions: {
+        output: {
+          // Разбиваем тяжёлые вендоры в отдельные чанки: быстрее старт (параллельная загрузка)
+          // и лучше кэширование — обновление кода приложения не инвалидирует firebase/charts
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return;
+            if (id.includes('firebase') || id.includes('@firebase')) return 'firebase';
+            if (id.includes('recharts') || id.includes('d3-') || id.includes('victory')) return 'charts';
+            if (
+              id.includes('react-markdown') || id.includes('remark') || id.includes('micromark') ||
+              id.includes('mdast') || id.includes('unist') || id.includes('hast') ||
+              id.includes('property-information') || id.includes('vfile')
+            ) return 'markdown';
+            if (id.includes('/motion/') || id.includes('framer')) return 'motion';
+            if (
+              id.includes('react-dom') || id.includes('/react/') ||
+              id.includes('/scheduler/') || id.includes('react-is')
+            ) return 'react-vendor';
+            return 'vendor';
+          },
+        },
+      },
+    },
   };
 });

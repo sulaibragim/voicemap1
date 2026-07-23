@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 import { Lightbulb, CheckSquare, Bell, Check, AlarmClock } from 'lucide-react';
 import type { Note, NoteType } from '../../types';
+import { NOTE_HEX } from '../../lib/noteTheme';
 
 interface MapNoteNodeProps {
   note: Note;
@@ -15,10 +16,11 @@ interface MapNoteNodeProps {
   onSnooze?: (note: Note, hours: number) => void;
 }
 
+// Цвета берутся из единого источника NOTE_HEX (src/lib/noteTheme.ts)
 const TYPE_CONFIG: Record<NoteType, { color: string; bg: string; icon: typeof Lightbulb; label: string }> = {
-  'Идея':        { color: '#7B61FF', bg: '#7B61FF18', icon: Lightbulb,   label: 'Идея' },
-  'Задача':      { color: '#4FC3F7', bg: '#4FC3F718', icon: CheckSquare, label: 'Задача' },
-  'Напоминание': { color: '#FFB74D', bg: '#FFB74D18', icon: Bell,        label: 'Напоминание' },
+  'Идея':        { color: NOTE_HEX['Идея'],        bg: `${NOTE_HEX['Идея']}18`,        icon: Lightbulb,   label: 'Идея' },
+  'Задача':      { color: NOTE_HEX['Задача'],      bg: `${NOTE_HEX['Задача']}18`,      icon: CheckSquare, label: 'Задача' },
+  'Напоминание': { color: NOTE_HEX['Напоминание'], bg: `${NOTE_HEX['Напоминание']}18`, icon: Bell,        label: 'Напоминание' },
 };
 
 const CARD_W = 160;
@@ -126,8 +128,9 @@ export const MapNoteNode = ({
               <span
                 className="text-[8px] px-1.5 py-0.5 rounded font-bold mb-2 inline-block"
                 style={{
-                  background: note.priority === 'high' ? '#FF545918' : note.priority === 'medium' ? '#FFB74D18' : '#81C78418',
-                  color: note.priority === 'high' ? '#FF5459' : note.priority === 'medium' ? '#FFB74D' : '#81C784',
+                  // high = error, medium = warning, low = on-surface-variant (см. index.css)
+                  background: note.priority === 'high' ? '#ff6e8418' : note.priority === 'medium' ? '#FFB74D18' : '#acaaae18',
+                  color: note.priority === 'high' ? '#ff6e84' : note.priority === 'medium' ? '#FFB74D' : '#acaaae',
                 }}
               >
                 {note.priority === 'high' ? '↑ Высокий' : note.priority === 'medium' ? '→ Средний' : '↓ Низкий'}
@@ -153,9 +156,9 @@ export const MapNoteNode = ({
                   <button
                     onClick={() => onComplete(note)}
                     className="flex items-center gap-1 text-[9px] font-bold px-2 py-1 rounded-lg cursor-pointer transition-all"
-                    style={{ background: '#4FC3F718', color: '#4FC3F7', border: '1px solid #4FC3F730' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#4FC3F730')}
-                    onMouseLeave={e => (e.currentTarget.style.background = '#4FC3F718')}
+                    style={{ background: '#4af8e318', color: '#4af8e3', border: '1px solid #4af8e330' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#4af8e330')}
+                    onMouseLeave={e => (e.currentTarget.style.background = '#4af8e318')}
                   >
                     <Check className="w-2.5 h-2.5" />
                     Готово

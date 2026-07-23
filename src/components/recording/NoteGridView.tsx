@@ -1,4 +1,5 @@
 import { motion } from 'motion/react';
+import { plural } from '../../lib/plural';
 import type { Note, NoteType } from '../../types';
 import { NOTE_COLORS } from '../../lib/mapUtils';
 
@@ -31,7 +32,7 @@ export const NoteGridView = ({ gridNotes, gridSort, setGridSort, onOpenNotes, ac
             {label}
           </button>
         ))}
-        <span className="ml-auto text-[10px] text-on-surface-variant/40">{gridNotes.length} заметок</span>
+        <span className="ml-auto text-[10px] text-on-surface-variant/40">{gridNotes.length} {plural(gridNotes.length, ['заметка', 'заметки', 'заметок'])}</span>
       </div>
       {gridNotes.length === 0 ? (
         <p className="text-center text-on-surface-variant mt-20">Заметок нет</p>

@@ -48,6 +48,11 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Для уведомлений (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Точное планирование уведомлений (напоминания по времени) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Восстановление уведомлений после перезагрузки -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Для Foreground Service записи в фоне -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />

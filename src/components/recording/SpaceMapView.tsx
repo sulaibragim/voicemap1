@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { Plus, ArrowLeft, LayoutList, Mic, Pencil, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { plural } from '../../lib/plural';
 import type { Recording, Space } from '../../types';
 import { MapCluster } from './MapCluster';
 import { CreateSpaceModal } from './CreateSpaceModal';
@@ -93,7 +94,7 @@ export const SpaceMapView = ({
 
         <h1 className="font-headline text-xl font-black tracking-tighter uppercase flex-1 flex items-center flex-wrap gap-2">
           {activeSpace
-            ? <><span style={{ color: activeSpace.color }}>{activeSpace.emoji} {activeSpace.name}</span><span className="text-sm text-on-surface-variant font-normal normal-case">— {spaceRecordings.length} записей</span></>
+            ? <><span style={{ color: activeSpace.color }}>{activeSpace.emoji} {activeSpace.name}</span><span className="text-sm text-on-surface-variant font-normal normal-case">— {spaceRecordings.length} {plural(spaceRecordings.length, ['запись', 'записи', 'записей'])}</span></>
             : <span className="text-primary">Голосовые записи</span>
           }
           {activeSpaceId && activeSpace && (

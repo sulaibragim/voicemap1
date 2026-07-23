@@ -2,6 +2,7 @@ import { motion } from 'motion/react';
 import { Mic, FileText } from 'lucide-react';
 import type { Recording, Note } from '../../types';
 import { CY, NOTE_COLORS, NOTE_TYPES } from '../../lib/mapUtils';
+import { plural } from '../../lib/plural';
 import { MapCluster } from './MapCluster';
 
 interface TagPosition {
@@ -88,7 +89,7 @@ export const LibraryMapOverview = ({
         style={{ left: 430 - 120, top: CY + 172 + 20, width: 240 }}
       >
         <p className="text-[11px] text-on-surface-variant/60">
-          {recordings.length} записей · {totalTasks} задач
+          {recordings.length} {plural(recordings.length, ['запись', 'записи', 'записей'])} · {totalTasks} {plural(totalTasks, ['задача', 'задачи', 'задач'])}
         </p>
       </div>
 
@@ -112,7 +113,7 @@ export const LibraryMapOverview = ({
         style={{ left: 1170 - 120, top: CY + 172 + 20, width: 240 }}
       >
         <p className="text-[11px] text-on-surface-variant/60">
-          {notes.length} заметок · {incompleteTasks} активных
+          {notes.length} {plural(notes.length, ['заметка', 'заметки', 'заметок'])} · {incompleteTasks} {plural(incompleteTasks, ['активная', 'активные', 'активных'])}
         </p>
       </div>
     </motion.div>

@@ -1,5 +1,6 @@
 ﻿import { Loader2, RefreshCw, Pencil } from 'lucide-react';
 import { ActionItemsSection } from './ActionItemsSection';
+import { plural } from '../../lib/plural';
 import type { Recording } from '../../types';
 
 interface RecordingMobileSummaryTabProps {
@@ -60,8 +61,8 @@ export const RecordingMobileSummaryTab = ({
       <div>
         <p className="text-xs text-on-surface-variant mb-1.5">
           {recording.date} · {recording.duration}
-          {(recording.actionItems?.length ?? 0) > 0 && <> · <span className="text-secondary">{recording.actionItems!.length} задач</span></>}
-          {(recording.ideas?.length ?? 0) > 0 && <> · {recording.ideas!.length} идей</>}
+          {(recording.actionItems?.length ?? 0) > 0 && <> · <span className="text-secondary">{recording.actionItems!.length} {plural(recording.actionItems!.length, ['задача', 'задачи', 'задач'])}</span></>}
+          {(recording.ideas?.length ?? 0) > 0 && <> · {recording.ideas!.length} {plural(recording.ideas!.length, ['идея', 'идеи', 'идей'])}</>}
         </p>
         {recording.tags.length > 0 && (
           <div className="flex flex-wrap gap-1">
@@ -162,7 +163,7 @@ export const RecordingMobileSummaryTab = ({
               );
             })}
           </div>
-          <p className="text-[10px] text-on-surface-variant/40 mt-1">Нажмите на имя чтобы переименовать</p>
+          <p className="text-[10px] text-on-surface-variant/40 mt-1">Нажми на имя чтобы переименовать</p>
         </div>
       )}
     </div>

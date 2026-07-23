@@ -57,7 +57,7 @@ export const CreateSpaceModal = ({ open, onClose, onCreate }: CreateSpaceModalPr
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-headline text-xl font-bold">Новое пространство</h2>
-              <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors cursor-pointer">
+              <button onClick={onClose} aria-label="Закрыть" className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors cursor-pointer">
                 <X className="w-4 h-4 text-on-surface-variant" />
               </button>
             </div>
@@ -92,6 +92,8 @@ export const CreateSpaceModal = ({ open, onClose, onCreate }: CreateSpaceModalPr
                 <button
                   key={e}
                   onClick={() => setEmoji(e)}
+                  aria-label={`Выбрать эмодзи ${e}`}
+                  aria-pressed={emoji === e}
                   className={`w-9 h-9 rounded-xl text-lg flex items-center justify-center transition-all cursor-pointer ${emoji === e ? 'scale-110 ring-2 ring-primary' : 'hover:bg-white/10'}`}
                 >
                   {e}
@@ -106,6 +108,8 @@ export const CreateSpaceModal = ({ open, onClose, onCreate }: CreateSpaceModalPr
                 <button
                   key={c}
                   onClick={() => setColor(c)}
+                  aria-label={`Выбрать цвет ${c}`}
+                  aria-pressed={color === c}
                   className={`w-8 h-8 rounded-full transition-all cursor-pointer ${color === c ? 'scale-125 ring-2 ring-white/60 ring-offset-2 ring-offset-surface-container-high' : 'hover:scale-110'}`}
                   style={{ backgroundColor: c }}
                 />

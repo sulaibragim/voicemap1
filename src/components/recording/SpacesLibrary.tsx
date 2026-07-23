@@ -3,6 +3,7 @@ import { ArrowLeft, Plus, Search, X, AudioLines, Globe } from 'lucide-react';
 import { SpaceRecordingCard } from './SpaceRecordingCard';
 import { SpacesEmptyState } from './SpacesEmptyState';
 import { motion, AnimatePresence } from 'motion/react';
+import { plural } from '../../lib/plural';
 import type { Recording, Space } from '../../types';
 import { groupByDate } from '../../lib/recordingUtils';
 import { CreateSpaceModal } from './CreateSpaceModal';
@@ -84,7 +85,7 @@ export const SpacesLibrary = ({
           </button>
           <div className="flex-1 min-w-0">
             <h1 className="font-headline text-lg font-bold leading-tight">Библиотека</h1>
-            <p className="text-[11px] text-on-surface-variant">{recordings.length} записей</p>
+            <p className="text-[11px] text-on-surface-variant">{recordings.length} {plural(recordings.length, ['запись', 'записи', 'записей'])}</p>
           </div>
           <button
             onClick={() => setViewMode('map')}
@@ -173,13 +174,13 @@ export const SpacesLibrary = ({
                 <span className="text-3xl">{activeSpace.emoji}</span>
                 <div>
                   <h2 className="font-headline text-2xl font-bold" style={{ color: activeSpace.color }}>{activeSpace.name}</h2>
-                  <p className="text-xs text-on-surface-variant">{filtered.length} записей</p>
+                  <p className="text-xs text-on-surface-variant">{filtered.length} {plural(filtered.length, ['запись', 'записи', 'записей'])}</p>
                 </div>
               </div>
             ) : (
               <div>
                 <h2 className="font-headline text-2xl font-bold">Все записи</h2>
-                <p className="text-xs text-on-surface-variant">{filtered.length} записей</p>
+                <p className="text-xs text-on-surface-variant">{filtered.length} {plural(filtered.length, ['запись', 'записи', 'записей'])}</p>
               </div>
             )}
           </div>

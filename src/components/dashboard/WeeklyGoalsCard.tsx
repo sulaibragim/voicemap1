@@ -4,6 +4,7 @@ import { Mic, CheckSquare, Lightbulb, Smile, Bell, ChevronRight, ChevronDown } f
 import type { Recording, Note } from '../../types';
 import { StatRow, Divider } from './StatRow';
 import { parseDuration, formatTotalTime, getMostFrequentMood, snoozeNote } from '../../lib/dashboardUtils';
+import { plural } from '../../lib/plural';
 
 interface BrainStatsCardProps {
   recordings: Recording[];
@@ -87,9 +88,9 @@ export const BrainStatsCard = ({ recordings, notes, onNavigate, onUpdateNote, on
   const isEmpty = recordings.length === 0;
 
   // Склонения
-  const recWord = recordings.length === 1 ? 'запись' : recordings.length < 5 ? 'записи' : 'записей';
-  const ideaWord = totalIdeas === 1 ? 'идея' : totalIdeas < 5 ? 'идеи' : 'идей';
-  const remWord = totalReminders === 1 ? 'напоминание ждёт' : totalReminders < 5 ? 'напоминания ждут' : 'напоминаний ждут';
+  const recWord = plural(recordings.length, ['запись', 'записи', 'записей']);
+  const ideaWord = plural(totalIdeas, ['идея', 'идеи', 'идей']);
+  const remWord = plural(totalReminders, ['напоминание ждёт', 'напоминания ждут', 'напоминаний ждут']);
 
   return (
     <motion.div
@@ -243,7 +244,7 @@ export const BrainStatsCard = ({ recordings, notes, onNavigate, onUpdateNote, on
                                   <button
                                     onClick={() => onUpdateNote({ ...(rem as typeof rem & { note: Note }).note, isCompleted: true, completedAt: new Date().toISOString(), kanbanStatus: 'done' })}
                                     className="text-[10px] font-bold px-2 py-0.5 rounded-md cursor-pointer transition-all"
-                                    style={{ background: 'rgba(79,195,247,0.12)', color: '#4FC3F7' }}
+                                    style={{ background: '#4af8e320', color: '#4af8e3' }}
                                     title="Выполнено"
                                   >✓</button>
                                   <button
@@ -279,7 +280,7 @@ export const BrainStatsCard = ({ recordings, notes, onNavigate, onUpdateNote, on
                                   <button
                                     onClick={() => doneTask((rem as typeof rem & { recordingId: string }).recordingId, (rem as typeof rem & { taskIndex: number }).taskIndex)}
                                     className="text-[10px] font-bold px-2 py-0.5 rounded-md cursor-pointer transition-all"
-                                    style={{ background: 'rgba(79,195,247,0.12)', color: '#4FC3F7' }}
+                                    style={{ background: '#4af8e320', color: '#4af8e3' }}
                                     title="Готово — убрать напоминание"
                                   >✓</button>
                                 </>

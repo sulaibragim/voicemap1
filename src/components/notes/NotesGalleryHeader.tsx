@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import type { Note } from '../../types';
 import { type FilterTab, type ViewMode, type SortBy } from '../../lib/noteUtils';
+import { pluralWithNumber } from '../../lib/plural';
 
 // Константы уровня модуля (перенесены из тела NotesGallery)
 const filterTabs: { key: FilterTab; label: string; icon: typeof Lightbulb; activeColor: string; activeBg: string }[] = [
@@ -75,7 +76,7 @@ export const NotesGalleryHeader = ({
             </h1>
             {!showCompleted && (
               <p className="text-xs text-on-surface-variant mt-0.5 flex items-center gap-2">
-                <span>{totalActive} {totalActive === 1 ? 'заметка' : totalActive < 5 ? 'заметки' : 'заметок'}</span>
+                <span>{pluralWithNumber(totalActive, ['заметка', 'заметки', 'заметок'])}</span>
                 {pinnedCount > 0 && (
                   <span className="flex items-center gap-0.5 text-primary/70"><Pin className="w-2.5 h-2.5" />{pinnedCount} закреплено</span>
                 )}

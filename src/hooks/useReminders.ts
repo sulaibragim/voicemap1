@@ -1,4 +1,5 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { LocalNotifications } from '@capacitor/local-notifications';
 import type { Note, RecurringPattern } from '../types';
 
 interface UseRemindersProps {
@@ -25,89 +26,154 @@ function getNextRecurringDate(dueDate: string, pattern: RecurringPattern): strin
   return date.toISOString().split('T')[0];
 }
 
-export function useReminders({ notes, onUpdateNote, showToast }: UseRemindersProps) {
-  const permissionRef = useRef<NotificationPermission>('default');
-  // Locks to предотвратить дублирование уведомлений между тиками до ре-рендера
-  const notifiedOneHourRef = useRef<Set<string>>(new Set());
-  const notifiedFiveMinRef = useRef<Set<string>>(new Set());
+// Generates a stable numeric ID from note.id string
+function noteIdToNumeric(noteId: string, suffix: number): number {
+  let hash = 0;
+  for (let i = 0; i < noteId.length; i++) {
+    hash = ((hash << 5) - hash) + noteId.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash) * 10 + suffix;
+}
 
-  // Request notification permission on mount
+async function requestPermissions() {
+  try {
+    const result = await LocalNotifications.requestPermissions();
+    return result.display === 'granted';
+  } catch {
+    return false;
+  }
+}
+
+// Обрезаем длинный текст заметки для тоста — иначе он занимает весь экран
+function truncateForToast(text: string, max = 80): string {
+  return text.length > max ? `${text.slice(0, max).trimEnd()}…` : text;
+}
+
+export function useReminders({ notes, onUpdateNote, showToast }: UseRemindersProps) {
+  // permitted — useState, а не ref: разрешение приходит асинхронно, и эффект
+  // планирования должен перезапуститься для уже загруженных заметок
+  const [permitted, setPermitted] = useState(false);
+  const scheduledRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
-    if ('Notification' in window) {
-      if (Notification.permission === 'granted') {
-        permissionRef.current = 'granted';
-      } else if (Notification.permission !== 'denied') {
-        Notification.requestPermission().then(p => {
-          permissionRef.current = p;
-        });
-      }
-    }
+    requestPermissions().then(granted => {
+      setPermitted(granted);
+    });
   }, []);
 
-  const sendNotification = useCallback((title: string, body: string) => {
-    showToast(`🔔 ${title}: ${body}`, 'info');
-    if ('Notification' in window && permissionRef.current === 'granted') {
-      try {
-        new Notification(title, { body, icon: '/favicon.ico' });
-      } catch {
-        // Fallback: toast is already shown
+  const scheduleNativeNotification = useCallback(async (
+    noteId: string,
+    title: string,
+    body: string,
+    at: Date,
+    suffix: number
+  ) => {
+    if (!permitted) return;
+    const id = noteIdToNumeric(noteId, suffix);
+    try {
+      await LocalNotifications.schedule({
+        notifications: [{
+          id,
+          title,
+          body,
+          schedule: { at },
+          sound: 'default',
+          smallIcon: 'ic_launcher',
+          actionTypeId: '',
+          extra: { noteId },
+        }],
+      });
+    } catch {
+      // ignore scheduling errors silently
+    }
+  }, [permitted]);
+
+  // Re-schedule all reminders whenever notes change (и когда пришло разрешение)
+  useEffect(() => {
+    if (!permitted) return;
+
+    const now = new Date();
+
+    for (const note of notes) {
+      if (note.type !== 'Напоминание' || !note.dueDate || !note.dueTime) continue;
+
+      const due = new Date(`${note.dueDate}T${note.dueTime}`);
+      if (due <= now) continue; // already passed
+
+      const key = `${note.id}-${note.dueDate}-${note.dueTime}`;
+      if (scheduledRef.current.has(key)) continue; // already scheduled this exact reminder
+
+      scheduledRef.current.add(key);
+
+      // Schedule: 1 hour before
+      const oneHourBefore = new Date(due.getTime() - 60 * 60 * 1000);
+      if (oneHourBefore > now && !note.notifiedOneHour) {
+        scheduleNativeNotification(
+          note.id,
+          'Напоминание через 1 час',
+          note.content,
+          oneHourBefore,
+          1
+        );
+      }
+
+      // Schedule: 5 min before
+      const fiveMinBefore = new Date(due.getTime() - 5 * 60 * 1000);
+      if (fiveMinBefore > now && !note.notifiedFiveMin) {
+        scheduleNativeNotification(
+          note.id,
+          'Напоминание через 5 минут',
+          note.content,
+          fiveMinBefore,
+          2
+        );
+      }
+
+      // Schedule: exactly at due time
+      scheduleNativeNotification(
+        note.id,
+        '🔔 ' + note.content,
+        'Время пришло!',
+        due,
+        3
+      );
+
+      // Handle recurring: after due, reschedule
+      if (note.isRecurring && note.recurringPattern && note.recurringPattern !== 'none') {
+        // We'll reschedule on next app open via the poll below
       }
     }
-  }, [showToast]);
+  }, [notes, permitted, scheduleNativeNotification]);
 
-  // Check reminders every 30 seconds
+  // Poll every 30s to handle: "due now" toast + recurring reschedule
   useEffect(() => {
     const check = () => {
       const now = new Date();
-
-      // Защита от memory leak: чистим id из ref-Set'ов, которых больше нет
-      // в актуальном списке notes (заметка удалена или больше не Напоминание).
-      // Без этого Set растёт бесконечно при долгом использовании приложения.
-      const currentReminderIds = new Set(
-        notes.filter(n => n.type === 'Напоминание').map(n => n.id)
-      );
-      for (const id of notifiedOneHourRef.current) {
-        if (!currentReminderIds.has(id)) notifiedOneHourRef.current.delete(id);
-      }
-      for (const id of notifiedFiveMinRef.current) {
-        if (!currentReminderIds.has(id)) notifiedFiveMinRef.current.delete(id);
-      }
-
       for (const note of notes) {
         if (note.type !== 'Напоминание' || !note.dueDate || !note.dueTime) continue;
 
         const due = new Date(`${note.dueDate}T${note.dueTime}`);
-        const diffMs = due.getTime() - now.getTime();
-        const diffMin = diffMs / (1000 * 60);
+        const diffMin = (due.getTime() - now.getTime()) / 60000;
 
-        // 1 hour notification (between 55 and 65 min before)
-        if (!note.notifiedOneHour && !notifiedOneHourRef.current.has(note.id) && diffMin > 55 && diffMin <= 65) {
-          notifiedOneHourRef.current.add(note.id);
-          sendNotification('Напоминание через 1 час', note.content);
-          onUpdateNote({ ...note, notifiedOneHour: true });
+        // Show in-app toast when due (-2 to +1 min)
+        if (diffMin >= -2 && diffMin <= 1 && !note.notifiedFiveMin) {
+          showToast(`🔔 ${truncateForToast(note.content)}`, 'info');
+          onUpdateNote({ ...note, notifiedFiveMin: true, notifiedOneHour: true });
         }
 
-        // 5 min notification (between 3 and 7 min before)
-        if (!note.notifiedFiveMin && !notifiedFiveMinRef.current.has(note.id) && diffMin > 3 && diffMin <= 7) {
-          notifiedFiveMinRef.current.add(note.id);
-          sendNotification('Напоминание через 5 минут', note.content);
-          onUpdateNote({ ...note, notifiedFiveMin: true });
-        }
-
-        // Due now (between -2 and 1 min)
-        if (diffMin >= -2 && diffMin <= 1 && note.notifiedFiveMin) {
-          if (note.isRecurring && note.recurringPattern && note.recurringPattern !== 'none') {
-            // Reschedule recurring reminder — сбрасываем оба lock'а
-            notifiedOneHourRef.current.delete(note.id);
-            notifiedFiveMinRef.current.delete(note.id);
-            const nextDate = getNextRecurringDate(note.dueDate, note.recurringPattern);
-            onUpdateNote({
-              ...note,
-              dueDate: nextDate,
-              notifiedOneHour: false,
-              notifiedFiveMin: false,
-            });
-          }
+        // Reschedule recurring after due time passed
+        if (diffMin < -2 && note.isRecurring && note.recurringPattern && note.recurringPattern !== 'none' && note.notifiedFiveMin) {
+          const nextDate = getNextRecurringDate(note.dueDate, note.recurringPattern);
+          const nextKey = `${note.id}-${nextDate}-${note.dueTime}`;
+          scheduledRef.current.delete(`${note.id}-${note.dueDate}-${note.dueTime}`);
+          scheduledRef.current.delete(nextKey); // force re-schedule
+          onUpdateNote({
+            ...note,
+            dueDate: nextDate,
+            notifiedOneHour: false,
+            notifiedFiveMin: false,
+          });
         }
       }
     };
@@ -115,5 +181,5 @@ export function useReminders({ notes, onUpdateNote, showToast }: UseRemindersPro
     check();
     const interval = setInterval(check, 30000);
     return () => clearInterval(interval);
-  }, [notes, onUpdateNote, sendNotification]);
+  }, [notes, onUpdateNote, showToast]);
 }

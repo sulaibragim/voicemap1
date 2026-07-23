@@ -1,5 +1,6 @@
 import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
+import { plural } from '../../lib/plural';
 
 interface MapClusterProps {
   label: string;
@@ -17,15 +18,9 @@ interface MapClusterProps {
 
 function pluralize(n: number, unit: string): string {
   // Supported units: 'запись', 'заметка'
-  if (unit === 'заметка') {
-    if (n === 1) return 'заметка';
-    if (n >= 2 && n <= 4) return 'заметки';
-    return 'заметок';
-  }
+  if (unit === 'заметка') return plural(n, ['заметка', 'заметки', 'заметок']);
   // default: 'запись'
-  if (n === 1) return 'запись';
-  if (n >= 2 && n <= 4) return 'записи';
-  return 'записей';
+  return plural(n, ['запись', 'записи', 'записей']);
 }
 
 export const MapCluster = ({

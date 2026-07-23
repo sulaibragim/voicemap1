@@ -125,6 +125,7 @@ export const DatePicker = ({ value, onChange, onClose, anchorRef }: DatePickerPr
       <div className="flex items-center justify-between mb-2">
         <button
           onClick={prevMonth}
+          aria-label="Предыдущий месяц"
           className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-on-surface-variant transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
@@ -134,6 +135,7 @@ export const DatePicker = ({ value, onChange, onClose, anchorRef }: DatePickerPr
         </span>
         <button
           onClick={nextMonth}
+          aria-label="Следующий месяц"
           className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-on-surface-variant transition-colors"
         >
           <ChevronRight className="w-4 h-4" />

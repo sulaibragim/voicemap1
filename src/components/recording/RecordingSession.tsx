@@ -43,15 +43,21 @@ export const RecordingSession = ({ onFinish, onCancel, showToast, autoStopMinute
     return () => clearInterval(interval);
   }, [isRecording, isPaused, autoStopMinutes, showToast]);
 
-  // Cleanup на unmount
+  // Cleanup на unmount — останавливаем и веб-, и нативную запись
   useEffect(() => {
     return () => {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
       }
       streamRef.current?.getTracks().forEach(t => t.stop());
+      // Нативная Android-запись: если foreground service ещё пишет — останавливаем,
+      // иначе микрофон продолжит запись после ухода с экрана. Файл не читаем — он не нужен.
+      if (nativeFilePathRef.current) {
+        nativeFilePathRef.current = null;
+        void stopNativeRecording();
+      }
     };
-  }, []);
+  }, [stopNativeRecording]);
 
   const startRecording = async () => {
     durationRef.current = 0;
@@ -181,6 +187,13 @@ export const RecordingSession = ({ onFinish, onCancel, showToast, autoStopMinute
   };
 
   const handleCancel = () => {
+    // Нативная Android-запись: останавливаем foreground service — иначе микрофон
+    // продолжит писать после «Отмены». API нативного плагина не умеет отменять/удалять,
+    // поэтому просто останавливаем и сбрасываем ref — файл при отмене нам не нужен.
+    if (isNative && nativeFilePathRef.current) {
+      nativeFilePathRef.current = null;
+      void stopNativeRecording();
+    }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }

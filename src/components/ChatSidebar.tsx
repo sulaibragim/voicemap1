@@ -148,7 +148,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
       const newAssistantMsg: Message = {
         id: makeId(),
         role: 'assistant',
-        text: result.text || 'Извините, не смог обработать запрос.',
+        text: result.text || 'Прости, не смог обработать запрос.',
         recordingId: validRecordingId,
         actionDone,
       };
@@ -208,6 +208,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
             </div>
             <button
               onClick={onClose}
+              aria-label="Закрыть"
               className="p-2 rounded-full hover:bg-white/10 transition-colors text-on-surface-variant hover:text-white"
             >
               <X className="w-5 h-5" />
@@ -266,6 +267,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
               <div className="flex items-center gap-4 bg-error/10 border border-error/30 rounded-full p-2 pr-4">
                 <button
                   onClick={stopRecording}
+                  aria-label="Остановить запись голосового сообщения"
                   className="w-10 h-10 rounded-full bg-error text-white flex items-center justify-center hover:scale-105 transition-transform animate-pulse"
                 >
                   <Square className="w-4 h-4" fill="currentColor" />
@@ -297,6 +299,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
                   <button
                     onClick={() => handleSend(inputValue)}
                     disabled={!inputValue.trim() || isProcessing}
+                    aria-label="Отправить сообщение"
                     className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-primary text-on-primary-fixed disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105 transition-transform"
                   >
                     <Send className="w-4 h-4" />

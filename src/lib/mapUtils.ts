@@ -1,4 +1,5 @@
 import type { Recording, Note, NoteType } from '../types';
+import { NOTE_HEX } from './noteTheme';
 
 // Canvas dimensions
 export const CW = 1600;
@@ -6,11 +7,8 @@ export const CH = 760;
 export const CX = CW / 2;
 export const CY = CH / 2;
 
-export const NOTE_COLORS: Record<NoteType, string> = {
-  'Идея':        '#7B61FF',
-  'Задача':      '#4FC3F7',
-  'Напоминание': '#FFB74D',
-};
+// Единый источник цвета типов заметок — см. src/lib/noteTheme.ts
+export const NOTE_COLORS: Record<NoteType, string> = NOTE_HEX;
 
 export const NOTE_TYPES: NoteType[] = ['Идея', 'Задача', 'Напоминание'];
 

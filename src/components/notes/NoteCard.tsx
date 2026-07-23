@@ -54,13 +54,14 @@ export const NoteCard = ({ note, onSelect, onToggleComplete, onTogglePin, onDele
             <Icon className="w-3.5 h-3.5" />
             <span className="text-[10px] font-black uppercase tracking-widest">{note.type}</span>
           </div>
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all">
+          <div className="flex items-center gap-0.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
             {/* Snooze на карточке напоминания */}
             {note.type === 'Напоминание' && !note.isCompleted && (
               <button
                 onClick={(e) => onSnooze(note, 1, e)}
                 className="p-1.5 rounded-lg hover:bg-yellow-500/15 hover:text-yellow-400 text-on-surface-variant transition-all cursor-pointer"
                 title="Отложить на 1 час"
+                aria-label="Отложить на 1 час"
               >
                 <AlarmClock className="w-3.5 h-3.5" />
               </button>
@@ -71,6 +72,7 @@ export const NoteCard = ({ note, onSelect, onToggleComplete, onTogglePin, onDele
                 onClick={(e) => { e.stopPropagation(); onToggleComplete(note); }}
                 className="p-1.5 rounded-lg hover:bg-secondary/15 hover:text-secondary text-on-surface-variant transition-all cursor-pointer"
                 title="Отметить выполненной"
+                aria-label="Отметить выполненной"
               >
                 <Check className="w-3.5 h-3.5" />
               </button>
@@ -80,6 +82,7 @@ export const NoteCard = ({ note, onSelect, onToggleComplete, onTogglePin, onDele
               onClick={(e) => onTogglePin(note, e)}
               className="p-1.5 rounded-lg hover:bg-primary/10 hover:text-primary text-on-surface-variant transition-all cursor-pointer"
               title={note.isPinned ? 'Открепить' : 'Закрепить'}
+              aria-label={note.isPinned ? 'Открепить' : 'Закрепить'}
             >
               {note.isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
             </button>
@@ -87,6 +90,7 @@ export const NoteCard = ({ note, onSelect, onToggleComplete, onTogglePin, onDele
             <button
               onClick={(e) => { e.stopPropagation(); onDelete(note.id); }}
               className="p-1.5 rounded-lg hover:bg-error/10 hover:text-error text-on-surface-variant transition-all cursor-pointer"
+              aria-label="Удалить заметку"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>

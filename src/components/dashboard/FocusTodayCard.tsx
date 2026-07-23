@@ -93,7 +93,7 @@ export const FocusTodayCard = ({ recordings, notes = [], assistantTasks = [], on
                     <button
                       onClick={() => onToggleAssistantTask?.(item.id)}
                       className={`flex-shrink-0 mt-0.5 transition-colors cursor-pointer ${
-                        item.done ? 'text-primary' : 'text-on-surface-variant/30 hover:text-on-surface-variant/60'
+                        item.done ? 'text-secondary' : 'text-on-surface-variant/30 hover:text-on-surface-variant/60'
                       }`}
                       title={item.done ? 'Отметить невыполненной' : 'Отметить выполненной'}
                     >

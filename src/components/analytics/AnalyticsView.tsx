@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { ArrowLeft, Mic, Lightbulb, CheckSquare, Clock } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { motion } from 'motion/react';
+import { plural } from '../../lib/plural';
 import type { Recording } from '../../types';
 import { parseRecDate, toDateKey } from '../../lib/utils';
 import { ActivityHeatmap } from './ActivityHeatmap';
@@ -118,7 +119,7 @@ export const AnalyticsView = ({ recordings, onBack }: Props) => {
           style={{ background: 'rgba(28,28,33,0.9)', boxShadow: '0 0 60px rgba(123,97,255,0.06)' }}>
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-headline text-xl font-bold">Активность за год</h3>
-            <span className="text-xs text-on-surface-variant/50">{recordings.length} записей · {stats.totalHours} ч</span>
+            <span className="text-xs text-on-surface-variant/50">{recordings.length} {plural(recordings.length, ['запись', 'записи', 'записей'])} · {stats.totalHours} ч</span>
           </div>
           <ActivityHeatmap recordings={recordings} />
         </motion.div>

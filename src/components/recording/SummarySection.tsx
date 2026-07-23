@@ -214,7 +214,7 @@ export const SummarySection = ({
                 );
               })}
             </div>
-            <p className="text-[10px] text-on-surface-variant/40">Нажмите на имя чтобы переименовать</p>
+            <p className="text-[10px] text-on-surface-variant/40">Нажми на имя чтобы переименовать</p>
           </div>
         )}
       </div>
