@@ -1,4 +1,4 @@
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { Mic } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -10,7 +10,12 @@ interface LiveSessionCardProps {
 
 const WAVE_HEIGHTS = [8, 16, 10, 24, 14, 32, 20, 12, 28, 18, 36, 14, 22, 10, 18, 26, 12, 30, 16, 8];
 
-export const LiveSessionCard = ({ onStartRecording, importSlot }: LiveSessionCardProps) => (
+export const LiveSessionCard = ({ onStartRecording, importSlot }: LiveSessionCardProps) => {
+  // Системное «уменьшить движение» глушит CSS-анимации через index.css,
+  // но JS-анимации motion нужно останавливать вручную
+  const reduceMotion = useReducedMotion();
+
+  return (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -29,8 +34,8 @@ export const LiveSessionCard = ({ onStartRecording, importSlot }: LiveSessionCar
       {[0, 1, 2].map(i => (
         <motion.div key={i} className="absolute rounded-full border border-primary/15"
           style={{ width: 76 + i * 34, height: 76 + i * 34 }}
-          animate={{ opacity: [0.7, 0], scale: [0.82, 1.28] }}
-          transition={{ duration: 2.6, repeat: Infinity, delay: i * 0.75, ease: 'easeOut' }} />
+          animate={reduceMotion ? { opacity: 0.25 } : { opacity: [0.7, 0], scale: [0.82, 1.28] }}
+          transition={reduceMotion ? { duration: 0 } : { duration: 2.6, repeat: Infinity, delay: i * 0.75, ease: 'easeOut' }} />
       ))}
     </div>
 
@@ -57,11 +62,16 @@ export const LiveSessionCard = ({ onStartRecording, importSlot }: LiveSessionCar
       </div>
     )}
 
-    {/* Decorative waveform at bottom */}
-    <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center gap-[3px] px-6 pb-0 opacity-[0.07] pointer-events-none">
+    {/* Decorative waveform at bottom — дышит, на hover проявляется сильнее */}
+    <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center gap-[3px] px-6 pb-0 opacity-[0.13] group-hover:opacity-30 transition-opacity duration-500 pointer-events-none">
       {WAVE_HEIGHTS.map((h, i) => (
-        <div key={i} className="w-[5px] rounded-t-sm flex-shrink-0" style={{ height: h, background: '#7B61FF' }} />
+        <div
+          key={i}
+          className="vm-wave-bar w-[5px] rounded-t-sm flex-shrink-0"
+          style={{ height: h, background: '#7B61FF', animationDelay: `${(i % 7) * 0.13}s` }}
+        />
       ))}
     </div>
   </motion.div>
-);
+  );
+};

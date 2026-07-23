@@ -6,7 +6,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Brain, Loader2 } from 'lucide-react';
-import { retranscribeFromUrl, deleteAudioFromR2, deleteRecordingChunks, processRecordingAsync, QuotaExceededError } from './lib/api';
+import { retranscribeFromUrl, deleteAudioFromR2, deleteRecordingChunks, processRecordingAsync, QuotaExceededError, setApiLanguage } from './lib/api';
 import { quotaToastMessage } from './lib/usageFormat';
 import { guessAudioMimeFromUrl } from './lib/audioMime';
 import { parseDurationToSeconds } from './lib/recordingUtils';
@@ -91,6 +91,8 @@ export default function App() {
   } = useFirestoreData(authUser?.uid ?? null);
 
   const [currentView, setCurrentView] = useState('dashboard');
+  // Предвыбранный тег библиотеки — живёт только на время одного перехода из записи
+  const [libraryTag, setLibraryTag] = useState<string | null>(null);
   type NavEntry = { view: string };
   const [navStack, setNavStack] = useState<NavEntry[]>([]);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
@@ -136,6 +138,14 @@ export default function App() {
     }
   }, [currentView, pendingSeek]);
 
+  // Ушли из библиотеки — забываем предвыбранный тег, иначе он применится к следующему заходу
+  useEffect(() => {
+    if (currentView !== 'library' && libraryTag !== null) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLibraryTag(null);
+    }
+  }, [currentView, libraryTag]);
+
   // Фокус-задачи от ассистента
   const [dailyFocus, setDailyFocus] = useState<Array<{ id: string; task: string; done: boolean }>>(() => {
     try { return JSON.parse(localStorage.getItem('voicemap_daily_focus') || '[]'); }
@@ -156,6 +166,12 @@ export default function App() {
     localStorage.setItem('voicemap_daily_focus', JSON.stringify(dailyFocus));
   }, [dailyFocus]);
 
+  // Язык вывода AI держим в модуле api — иначе его пришлось бы протаскивать
+  // параметром через каждый вызов. Синхронизируем при загрузке и смене настройки.
+  useEffect(() => {
+    setApiLanguage(appSettings.language);
+  }, [appSettings.language]);
+
   const handleLogout = async () => {
     setDemoMode(false);
     await logout();
@@ -168,6 +184,13 @@ export default function App() {
     setSelectedRecordingId(id);
     setPendingSeek(seekTo ?? null);
     setCurrentView('recording_detail');
+  };
+
+  // Открыть библиотеку, сразу отфильтрованную по тегу (клик по тегу внутри записи)
+  const openLibraryWithTag = (tag: string) => {
+    setNavStack(prev => [...prev, { view: currentView }]);
+    setLibraryTag(tag);
+    setCurrentView('library');
   };
 
   const goBack = () => {
@@ -327,7 +350,9 @@ export default function App() {
       // Карта-космос убрана как обязательные «ворота»: пользователь ищет, а не листает глазами.
       return (
         <RecordingsLibrary
+          key={libraryTag ?? 'all'}
           recordings={recordings}
+          initialTag={libraryTag ?? undefined}
           onBack={() => setCurrentView('dashboard')}
           onOpenDetail={openDetail}
           onDeleteRecording={removeRecording}
@@ -347,7 +372,7 @@ export default function App() {
           goBack();
         }} onUpdate={(updatedRec) => {
           updateRecordingItem(updatedRec);
-        }} showToast={showToast} allRecordings={recordings} onOpenRecording={(id) => openRecording(id)} onRetranscribe={async () => {
+        }} showToast={showToast} allRecordings={recordings} onOpenRecording={(id) => openRecording(id)} onOpenTag={openLibraryWithTag} onRetranscribe={async () => {
           // Повторная транскрипция: фетчим аудио с R2 через сервер и обрабатываем Gemini File API
           const recording = recordings.find(r => r.id === selectedRecordingId);
           if (!recording?.audioUrl) {

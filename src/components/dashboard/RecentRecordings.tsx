@@ -53,7 +53,11 @@ export const RecentRecordings = ({ recordings, onOpenLibrary, onOpenDetail }: Re
               </div>
               <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
                 {recent[0].aiStatus === 'processing' ? (
-                  <span className="px-3 py-1 bg-surface-container-highest rounded-lg text-xs font-medium text-on-surface-variant whitespace-nowrap flex-shrink-0 animate-pulse">Обрабатывается...</span>
+                  <>
+                    <span className="vm-shimmer h-6 w-24 rounded-lg flex-shrink-0" />
+                    <span className="vm-shimmer h-6 w-16 rounded-lg flex-shrink-0" />
+                    <span className="vm-shimmer h-6 w-20 rounded-lg flex-shrink-0" />
+                  </>
                 ) : recent[0].aiStatus === 'error' ? (
                   <span className="px-3 py-1 bg-error/20 rounded-lg text-xs font-medium text-error whitespace-nowrap flex-shrink-0">Ошибка обработки</span>
                 ) : recent[0].aiStatus === 'quota' ? (
@@ -68,8 +72,16 @@ export const RecentRecordings = ({ recordings, onOpenLibrary, onOpenDetail }: Re
           )}
 
           <div className="col-span-12 lg:col-span-4 space-y-8">
-            {recent.slice(1).map((item) => (
-              <div key={item.id} onClick={() => onOpenDetail(item.id)} className="flex gap-3 lg:gap-6 group cursor-pointer bg-surface-container p-3 lg:p-4 rounded-2xl border border-transparent hover:border-white/10 transition-colors">
+            {recent.slice(1).map((item, i) => (
+              <motion.div
+                key={item.id}
+                initial={{ opacity: 0, x: 24 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ type: 'spring', stiffness: 220, damping: 26, delay: 0.9 + i * 0.08 }}
+                whileHover={{ y: -3 }}
+                onClick={() => onOpenDetail(item.id)}
+                className="flex gap-3 lg:gap-6 group cursor-pointer bg-surface-container p-3 lg:p-4 rounded-2xl border border-transparent hover:border-white/10 transition-colors"
+              >
                 <div className="w-16 h-16 lg:w-24 lg:h-24 flex-shrink-0 rounded-2xl overflow-hidden bg-surface-container-highest flex items-center justify-center">
                   <AudioLines className="w-10 h-10 text-on-surface-variant group-hover:scale-110 transition-transform" />
                 </div>
@@ -77,7 +89,10 @@ export const RecentRecordings = ({ recordings, onOpenLibrary, onOpenDetail }: Re
                   <p className="text-[10px] font-label font-bold text-primary tracking-widest uppercase mb-1">{item.date}</p>
                   <h4 className="font-headline text-lg font-bold group-hover:text-primary transition-colors leading-tight truncate">{item.title}</h4>
                   {item.aiStatus === 'processing' ? (
-                    <p className="text-sm text-on-surface-variant mt-2 animate-pulse">Обрабатывается...</p>
+                    <div className="mt-2 space-y-1.5">
+                      <span className="vm-shimmer block h-3 w-full rounded" />
+                      <span className="vm-shimmer block h-3 w-3/5 rounded" />
+                    </div>
                   ) : item.aiStatus === 'error' ? (
                     <p className="text-sm text-error mt-2">Ошибка обработки</p>
                   ) : item.aiStatus === 'quota' ? (
@@ -86,7 +101,7 @@ export const RecentRecordings = ({ recordings, onOpenLibrary, onOpenDetail }: Re
                     <p className="text-sm text-on-surface-variant mt-2 line-clamp-2">{item.summary}</p>
                   )}
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>

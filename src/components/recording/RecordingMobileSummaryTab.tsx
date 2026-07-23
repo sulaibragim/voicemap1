@@ -1,5 +1,6 @@
 ﻿import { Loader2, RefreshCw, Pencil } from 'lucide-react';
 import { ActionItemsSection } from './ActionItemsSection';
+import { RecordingTags } from './RecordingTags';
 import { plural } from '../../lib/plural';
 import type { Recording } from '../../types';
 
@@ -65,13 +66,12 @@ export const RecordingMobileSummaryTab = ({
           {(recording.ideas?.length ?? 0) > 0 && <> · {recording.ideas!.length} {plural(recording.ideas!.length, ['идея', 'идеи', 'идей'])}</>}
         </p>
         {recording.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {recording.tags.map(tag => (
-              <span key={tag} className="px-2 py-0.5 bg-primary/10 text-primary rounded-full text-[10px] font-bold">
-                #{tag.replace(/^#/, '')}
-              </span>
-            ))}
-          </div>
+          <RecordingTags
+            tags={recording.tags}
+            mentions={recording.mentions}
+            participants={recording.participants}
+            collapsedCount={6}
+          />
         )}
       </div>
       {recording.mentions && recording.mentions.length > 0 && (

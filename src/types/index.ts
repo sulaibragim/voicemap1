@@ -83,6 +83,11 @@ export interface KnownPerson {
 }
 
 export interface AppSettings {
+  /**
+   * Язык интерфейса И вывода AI: саммари, идеи, задачи, ответы поиска.
+   * Речь в транскрипте этим НЕ переводится — там всегда язык, на котором говорили.
+   */
+  language: 'ru' | 'en';
   userName: string;
   autoStopMinutes: 5 | 10 | 15 | 30 | null;
   transcriptionLang: 'auto' | 'ru' | 'en';
@@ -97,6 +102,8 @@ export interface AppSettings {
 }
 
 export const defaultAppSettings: AppSettings = {
+  // ⚠️ Перед запуском на США дефолт меняем на 'en' (см. ROADMAP 4.5)
+  language: 'ru',
   userName: '',
   autoStopMinutes: 15,
   transcriptionLang: 'auto',

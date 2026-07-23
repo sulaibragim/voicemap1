@@ -5,6 +5,7 @@ import { isValidRecordingId, resolveExt, uploadBuffer, R2_PUBLIC_URL } from '../
 import { getAI, uploadAudioToFileAPI, buildTranscribePayload } from '../lib/gemini';
 import { checkQuota, chargeUsage } from '../lib/quotaGuard';
 import { parseDurationToSeconds, type UsageSnapshot } from '../lib/usage';
+import { resolveLang } from '../lib/lang';
 import { chunkTranscript, toTranscriptEntries } from '../lib/chunk';
 import { embedTexts } from '../lib/embeddings';
 import { indexChunks } from '../lib/vectorStore';
@@ -19,7 +20,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
     recordingId: string;
     audioBase64: string;
     contentType: string;
-    metadata: { title: string; date: string; duration: string; knownPeople: string[] };
+    metadata: { title: string; date: string; duration: string; knownPeople: string[]; lang?: unknown };
   };
   const { uid } = req as AuthRequest;
 
@@ -79,7 +80,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
       console.log(`[process-recording] Background transcription for ${recordingId}`);
       const ai = getAI();
       const { fileUri, fileMimeType } = await uploadAudioToFileAPI(ai, buffer, contentType || 'audio/mp4');
-      const { prompt, config } = buildTranscribePayload(metadata.knownPeople || []);
+      const { prompt, config } = buildTranscribePayload(metadata.knownPeople || [], resolveLang(metadata.lang));
 
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',

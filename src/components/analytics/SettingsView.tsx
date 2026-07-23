@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Download, Trash2, RefreshCw, Database, FileText, Mic, User, MessageSquare, Sparkles, Info, Search, Loader2, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Download, Trash2, RefreshCw, Database, FileText, Mic, User, MessageSquare, Sparkles, Info, Search, Loader2, ShieldAlert, Languages } from 'lucide-react';
 import { ConsentNotice } from '../recording/ConsentNotice';
 import { plural } from '../../lib/plural';
 import { backfillSearchIndex } from '../../lib/api';
@@ -163,6 +163,21 @@ export const SettingsView = ({
             </div>
           </div>
         </section>
+
+        {/* Язык */}
+        <Section title="Язык">
+          <RowChips
+            icon={Languages}
+            label="Язык приложения и AI"
+            description="Саммари, идеи и ответы поиска будут на этом языке. Речь в транскрипте не переводится"
+            options={[
+              { label: 'Русский', value: 'ru' },
+              { label: 'English', value: 'en' },
+            ]}
+            value={settings.language}
+            onChange={v => { onSettingsChange({ language: v as AppSettings['language'] }); showToast('Настройки сохранены', 'success'); }}
+          />
+        </Section>
 
         {/* Лимит расшифровки */}
         <Section title="Лимит расшифровки">

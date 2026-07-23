@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { langName, silencePlaceholder, type OutputLang } from './lang';
 
 export function getAI(): GoogleGenAI {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -29,20 +30,31 @@ export function sanitizeKnownPeople(input: unknown): string[] {
     .map(name => name.slice(0, 100));
 }
 
-export function buildTranscribePayload(knownPeople: string[] = []): { prompt: string; config: Record<string, unknown> } {
+export function buildTranscribePayload(
+  knownPeople: string[] = [],
+  lang: OutputLang = 'ru',
+): { prompt: string; config: Record<string, unknown> } {
   const knownPeoplePrefix = knownPeople.length > 0
     ? `Known participants from previous recordings: ${knownPeople.join(', ')}. Use these names when identifying speakers. `
     : '';
 
+  const language = langName(lang);
+  // Метки спикеров тоже локализуем: они попадают в интерфейс рядом с репликами.
+  const speakerLabels = lang === 'en'
+    ? '"Speaker 1", "Speaker 2"'
+    : '"Участник 1", "Участник 2"';
+  const soloLabel = lang === 'en' ? '"Me"' : '"Я"';
+
   const prompt = knownPeoplePrefix +
     'Please analyze this personal audio note or voice journal. ' +
-    'CRITICAL: If the audio is empty, silent, or contains no speech, return JSON with title \'[Тишина]\' and empty fields. ' +
-    'LANGUAGE RULE: transcript.text must be in the EXACT language spoken. ALL other fields MUST be in Russian. ' +
+    `CRITICAL: If the audio is empty, silent, or contains no speech, return JSON with title '${silencePlaceholder(lang)}' and empty fields. ` +
+    // Речь не переводим никогда — транскрипт это цитаты, а не пересказ.
+    `LANGUAGE RULE: transcript.text must be in the EXACT language spoken — never translate speech. ALL other fields MUST be in ${language}. ` +
     '1. Transcribe ALL speech verbatim, grouped by speaker turns. ' +
-    'SPEAKER DIARIZATION: Listen for voice changes. Label as "Участник 1", "Участник 2" etc. Replace with actual name if heard. ' +
-    'Each speaker change = new transcript item. Solo = "Я". ' +
-    '2. Short Russian summary. 3. 3-5 key moments in Russian. 4. ALL action items in Russian. ' +
-    '5. Creative ideas in Russian. 6. Mentions (names, tools, places). ' +
+    `SPEAKER DIARIZATION: Listen for voice changes. Label as ${speakerLabels} etc. Replace with actual name if heard. ` +
+    `Each speaker change = new transcript item. Solo = ${soloLabel}. ` +
+    `2. Short summary in ${language}. 3. 3-5 key moments in ${language}. 4. ALL action items in ${language}. ` +
+    `5. Creative ideas in ${language}. 6. Mentions (names, tools, places). ` +
     '7. Open questions. 8. Map names to speaker labels. 9. Rich action items with assignee/deadline. ' +
     '10. Big strategic questions. Return JSON.';
 

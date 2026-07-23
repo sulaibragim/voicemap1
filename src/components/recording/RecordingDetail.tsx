@@ -26,10 +26,12 @@ interface RecordingDetailProps {
   onRetranscribe?: () => Promise<void>;
   /** Таймкод из голосового поиска ("MM:SS" / "H:MM:SS") — перемотать сюда при открытии */
   initialSeek?: string;
+  /** Клик по тегу — открыть библиотеку, отфильтрованную по нему */
+  onOpenTag?: (tag: string) => void;
 }
 
 
-export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToast, allRecordings = [], onOpenRecording, onRetranscribe, initialSeek }: RecordingDetailProps) => {
+export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToast, allRecordings = [], onOpenRecording, onRetranscribe, initialSeek, onOpenTag }: RecordingDetailProps) => {
   // audioUrl передаём в хук: он может появиться позже (после фоновой транскрипции),
   // и слушатели <audio> должны навеситься в момент появления элемента
   const { audioRef, isPlaying, setIsPlaying, currentTime, duration, togglePlay, handleSeek } = useRecordingAudio(recording.audioUrl);
@@ -63,10 +65,6 @@ export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToa
     onUpdate({ ...recording, transcript: newTranscript, condensedTranscript: newCondensed, speakerNames: { ...(recording.speakerNames || {}), [oldName]: trimmed } });
     showToast(`${oldName} → ${trimmed}`, 'success');
   };
-
-  // Редактирование тегов
-  const [isAddingTag, setIsAddingTag] = useState(false);
-  const [newTagValue, setNewTagValue] = useState('');
 
   const handleTimestampClick = (timestamp: string) => {
     if (audioRef.current) {
@@ -119,10 +117,8 @@ export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToa
     showToast('Название обновлено', 'success');
   };
 
-  const handleAddTag = () => {
-    const trimmed = newTagValue.trim().toLowerCase();
-    setIsAddingTag(false);
-    setNewTagValue('');
+  const handleAddTag = (value: string) => {
+    const trimmed = value.trim().toLowerCase();
     if (!trimmed || recording.tags.includes(trimmed)) return;
     onUpdate({ ...recording, tags: [...recording.tags, trimmed] });
   };
@@ -245,12 +241,9 @@ export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToa
         editTitleValue={editTitleValue}
         setEditTitleValue={setEditTitleValue}
         handleTitleSave={handleTitleSave}
-        isAddingTag={isAddingTag}
-        setIsAddingTag={setIsAddingTag}
-        newTagValue={newTagValue}
-        setNewTagValue={setNewTagValue}
         handleAddTag={handleAddTag}
         handleRemoveTag={handleRemoveTag}
+        onOpenTag={onOpenTag}
         showExportMenu={showExportMenu}
         setShowExportMenu={setShowExportMenu}
         exportMenuRef={exportMenuRef}

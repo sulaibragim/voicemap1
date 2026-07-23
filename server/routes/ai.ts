@@ -5,6 +5,7 @@ import { requireAuth, type AuthRequest } from '../lib/auth';
 import { getAI, uploadAudioToFileAPI, buildTranscribePayload, sanitizeKnownPeople } from '../lib/gemini';
 import { checkQuota, chargeUsage, sendQuotaExceeded } from '../lib/quotaGuard';
 import { getUsage, parseDurationToSeconds } from '../lib/usage';
+import { resolveLang, langRule, silencePlaceholder, type OutputLang } from '../lib/lang';
 import { embedTexts } from '../lib/embeddings';
 import { searchChunks, deleteChunksForRecording, indexChunks, type ChunkHit } from '../lib/vectorStore';
 import { chunkTranscript, toTranscriptEntries } from '../lib/chunk';
@@ -33,23 +34,23 @@ interface SearchResponseBody {
 function buildSearchContext(hits: ChunkHit[]): string {
   return hits
     .map((hit, idx) => (
-      `[Чанк ${idx + 1}] recordingId="${hit.recordingId}" title="${hit.title}" timestamp="${hit.startTimestamp}"\n${hit.text}`
+      `[Chunk ${idx + 1}] recordingId="${hit.recordingId}" title="${hit.title}" timestamp="${hit.startTimestamp}"\n${hit.text}`
     ))
     .join('\n\n---\n\n');
 }
 
-function buildSearchPrompt(query: string, context: string): string {
-  return `Ты — AI-ассистент голосового блокнота VoiceMap. Пользователь задал вопрос, а ниже приведены релевантные фрагменты (чанки) из его собственных голосовых записей, найденные векторным поиском.
+function buildSearchPrompt(query: string, context: string, lang: OutputLang): string {
+  return `You are the AI assistant of VoiceMap, a voice notebook. The user asked a question; below are the relevant fragments (chunks) from their own voice recordings, found by vector search.
 
-СТРОГИЕ ПРАВИЛА:
-1. Отвечай ТОЛЬКО на основе информации из приведённых ниже фрагментов. Не придумывай факты, которых там нет.
-2. Если ответа во фрагментах нет — честно скажи, что не нашёл информации по этому вопросу.
-3. Отвечай по-русски, кратко и по делу.
-4. В поле sources укажи ТОЛЬКО те чанки (recordingId, title, timestamp), на которые ты реально опирался при ответе, с коротким snippet — цитатой или пересказом в одно предложение.
+STRICT RULES:
+1. Answer ONLY from the fragments below. Never invent facts that are not there.
+2. If the answer is not in the fragments, say honestly that you found nothing on this question.
+3. ${langRule(lang)} Keep the answer short and to the point.
+4. In "sources" list ONLY the chunks (recordingId, title, timestamp) you actually relied on, each with a short snippet — a quote or a one-sentence paraphrase.
 
-Вопрос пользователя: "${query}"
+User question: "${query}"
 
-Найденные фрагменты:
+Found fragments:
 ${context}`;
 }
 
@@ -67,11 +68,12 @@ router.get('/usage', requireAuth, async (req: Request, res: Response) => {
 
 router.post('/tip', requireAuth, async (req, res) => {
   try {
-    const { context } = req.body;
+    const { context, lang } = req.body;
+    const outputLang = resolveLang(lang);
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: `Based on the following recent recordings context, generate a short, personalized daily advice for the user to improve their productivity, communication, or well-being. Return JSON with 'title' (short uppercase category like 'ПРОДУКТИВНОСТЬ') and 'text' (the advice itself, 1-2 sentences).\n\nIMPORTANT: Write BOTH 'title' and 'text' in Russian language only. No English.\n\nContext:\n${context}`,
+      contents: `Based on the following recent recordings context, generate a short, personalized daily advice for the user to improve their productivity, communication, or well-being. Return JSON with 'title' (a short uppercase category word, e.g. 'PRODUCTIVITY') and 'text' (the advice itself, 1-2 sentences).\n\nIMPORTANT: ${langRule(outputLang)}\n\nContext:\n${context}`,
       config: {
         responseMimeType: 'application/json',
         responseSchema: {
@@ -95,7 +97,7 @@ router.post('/transcribe', requireAuth, async (req, res) => {
     // Клиент передаёт ТОЛЬКО audio/mimeType/knownPeople/durationSeconds — prompt и config строятся
     // исключительно на сервере, чтобы исключить возможность превратить эндпоинт в открытый
     // LLM-прокси с произвольным промптом.
-    const { audio, mimeType, knownPeople, durationSeconds } = req.body;
+    const { audio, mimeType, knownPeople, durationSeconds, lang } = req.body;
     if (!audio || typeof audio !== 'string' || audio.length < 10) {
       return res.status(400).json({ error: 'Invalid or missing audio data' });
     }
@@ -122,7 +124,7 @@ router.post('/transcribe', requireAuth, async (req, res) => {
       audioPart = { inlineData: { data: audio, mimeType: mimeType || 'audio/webm' } };
     }
 
-    const { prompt, config } = buildTranscribePayload(sanitizeKnownPeople(knownPeople));
+    const { prompt, config } = buildTranscribePayload(sanitizeKnownPeople(knownPeople), resolveLang(lang));
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: [audioPart, prompt],
@@ -139,8 +141,8 @@ router.post('/transcribe', requireAuth, async (req, res) => {
 router.post('/retranscribe', requireAuth, async (req, res) => {
   try {
     // Аналогично /transcribe: prompt/config клиент передать не может, только audioUrl/mimeType/knownPeople.
-    const { audioUrl, mimeType, knownPeople, durationSeconds } = req.body as {
-      audioUrl: string; mimeType: string; knownPeople?: unknown; durationSeconds?: unknown;
+    const { audioUrl, mimeType, knownPeople, durationSeconds, lang } = req.body as {
+      audioUrl: string; mimeType: string; knownPeople?: unknown; durationSeconds?: unknown; lang?: unknown;
     };
     if (!audioUrl || typeof audioUrl !== 'string') {
       res.status(400).json({ error: 'audioUrl is required' });
@@ -167,7 +169,7 @@ router.post('/retranscribe', requireAuth, async (req, res) => {
 
     const ai = getAI();
     const { fileUri, fileMimeType } = await uploadAudioToFileAPI(ai, buffer, mimeType || 'audio/mp4');
-    const { prompt, config } = buildTranscribePayload(sanitizeKnownPeople(knownPeople));
+    const { prompt, config } = buildTranscribePayload(sanitizeKnownPeople(knownPeople), resolveLang(lang));
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: [{ fileData: { fileUri, mimeType: fileMimeType } }, prompt],
@@ -187,17 +189,20 @@ router.post('/retranscribe', requireAuth, async (req, res) => {
 
 router.post('/chat-voice', requireAuth, async (req, res) => {
   try {
-    const { audio, mimeType } = req.body;
+    const { audio, mimeType, lang } = req.body;
     if (!audio || typeof audio !== 'string' || audio.length < 10) {
       return res.status(400).json({ error: 'Invalid or missing audio data' });
     }
+    // Голосовой ввод НЕ переводим — расшифровка идёт на языке речи.
+    // Локализуется только заглушка тишины: она показывается пользователю как есть.
+    const silence = silencePlaceholder(resolveLang(lang));
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: {
         parts: [
           { inlineData: { data: audio, mimeType } },
-          { text: 'Transcribe this voice message EXACTLY in the language spoken (auto-detect Russian or English). Do not translate. If the audio is empty, silent, or contains no speech, return strictly "[Тишина]". Do not invent or hallucinate speech.' },
+          { text: `Transcribe this voice message EXACTLY in the language spoken (auto-detect). Do not translate. If the audio is empty, silent, or contains no speech, return strictly "${silence}". Do not invent or hallucinate speech.` },
         ],
       },
     });
@@ -284,7 +289,8 @@ Extract the desired reminder date and time. Return JSON:
 
 router.post('/develop-idea', requireAuth, async (req, res) => {
   try {
-    const { idea, recordingTitle } = req.body;
+    const { idea, recordingTitle, lang } = req.body;
+    const outputLang = resolveLang(lang);
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -292,7 +298,7 @@ router.post('/develop-idea', requireAuth, async (req, res) => {
 
 "${idea}"
 
-Develop this idea in 3-5 sentences. Be specific, practical, and thought-provoking. Connect it to real applications or deeper implications. Write in Russian. Don't start with "This idea..." or "Эта идея..." — dive straight into the substance.`,
+Develop this idea in 3-5 sentences. Be specific, practical, and thought-provoking. Connect it to real applications or deeper implications. ${langRule(outputLang)} Don't open with "This idea..." — dive straight into the substance.`,
     });
     res.json({ text: response.text });
   } catch (error) {
@@ -368,17 +374,19 @@ router.post('/parse-tasks', requireAuth, async (req, res) => {
 
 router.post('/weekly-review', requireAuth, async (req, res) => {
   try {
-    const { recordings } = req.body as {
+    const { recordings, lang } = req.body as {
       recordings: Array<{ title: string; summary: string; ideas?: string[]; actionItems?: string[]; tags?: string[] }>;
+      lang?: unknown;
     };
+    const outputLang = resolveLang(lang);
     const ai = getAI();
     const context = recordings.map(r =>
-      `— ${r.title}: ${r.summary}${r.ideas?.length ? `. Идеи: ${r.ideas.join(', ')}` : ''}${r.actionItems?.length ? `. Задачи: ${r.actionItems.join(', ')}` : ''}`
+      `— ${r.title}: ${r.summary}${r.ideas?.length ? `. Ideas: ${r.ideas.join(', ')}` : ''}${r.actionItems?.length ? `. Tasks: ${r.actionItems.join(', ')}` : ''}`
     ).join('\n');
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: `Ты персональный AI-ассистент. Пользователь делал голосовые записи на этой неделе:\n\n${context}\n\nПроанализируй и верни:\n1. mainTheme — главная тема недели (2-5 слов)\n2. themeSummary — что объединяет все записи недели (2-3 предложения, по-русски)\n3. insight — один конкретный вывод о паттерне мышления или продуктивности (1 предложение)`,
+      contents: `You are a personal AI assistant. Here are the user's voice recordings from this week:\n\n${context}\n\nAnalyse them and return:\n1. mainTheme — the main theme of the week (2-5 words)\n2. themeSummary — what ties the week's recordings together (2-3 sentences)\n3. insight — one concrete observation about their thinking or productivity pattern (1 sentence)\n\n${langRule(outputLang)}`,
       config: {
         responseMimeType: 'application/json',
         responseSchema: {
@@ -404,7 +412,8 @@ router.post('/weekly-review', requireAuth, async (req, res) => {
 router.post('/search', requireAuth, async (req: Request, res: Response) => {
   try {
     const { uid } = req as AuthRequest;
-    const { query, limit } = req.body as { query?: unknown; limit?: unknown };
+    const { query, limit, lang } = req.body as { query?: unknown; limit?: unknown; lang?: unknown };
+    const outputLang = resolveLang(lang);
 
     if (typeof query !== 'string' || query.trim().length === 0) {
       res.status(400).json({ error: 'query is required and must be a non-empty string' });
@@ -421,7 +430,10 @@ router.post('/search', requireAuth, async (req: Request, res: Response) => {
     const hits = await searchChunks(uid, queryVector, effectiveLimit);
 
     if (hits.length === 0) {
-      const empty: SearchResponseBody = { answer: 'Ничего не нашёл по этому запросу.', sources: [] };
+      const empty: SearchResponseBody = {
+        answer: outputLang === 'en' ? 'Nothing found for this query.' : 'Ничего не нашёл по этому запросу.',
+        sources: [],
+      };
       res.json(empty);
       return;
     }
@@ -430,7 +442,7 @@ router.post('/search', requireAuth, async (req: Request, res: Response) => {
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: buildSearchPrompt(cleanQuery, context),
+      contents: buildSearchPrompt(cleanQuery, context, outputLang),
       config: {
         responseMimeType: 'application/json',
         responseSchema: {

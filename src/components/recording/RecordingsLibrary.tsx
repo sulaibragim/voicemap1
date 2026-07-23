@@ -13,6 +13,8 @@ interface RecordingsLibraryProps {
   onOpenDetail: (id: string) => void;
   onDeleteRecording: (id: string) => void;
   onUpdateRecording?: (updated: Recording) => void;
+  /** Тег, по которому библиотека открывается сразу отфильтрованной (клик по тегу в записи) */
+  initialTag?: string;
 }
 
 const SORT_LABELS: Record<SortMode, string> = {
@@ -27,9 +29,10 @@ export const RecordingsLibrary = ({
   onOpenDetail,
   onDeleteRecording,
   onUpdateRecording,
+  initialTag,
 }: RecordingsLibraryProps) => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [activeTag, setActiveTag] = useState<string | null>(initialTag ?? null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>('date');

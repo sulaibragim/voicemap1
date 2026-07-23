@@ -8,6 +8,23 @@ import { auth } from '../firebase';
 const API_BASE = (import.meta.env.VITE_API_URL ?? '') + '/api/ai';
 const API_ROOT = (import.meta.env.VITE_API_URL ?? '');
 
+// ── Язык вывода AI ───────────────────────────────────────────────────────────
+// Держим в модуле, а не протаскиваем параметром через два десятка вызовов.
+// На сервер уходит только код языка из закрытого списка — промпт клиент не передаёт.
+
+export type OutputLang = 'ru' | 'en';
+
+let outputLang: OutputLang = 'ru';
+
+/** Вызывается из App при загрузке и смене настроек пользователя. */
+export function setApiLanguage(lang: OutputLang): void {
+  outputLang = lang;
+}
+
+export function getApiLanguage(): OutputLang {
+  return outputLang;
+}
+
 async function getAuthHeader(): Promise<Record<string, string>> {
   const user = auth.currentUser;
   if (!user) return {};
@@ -71,7 +88,9 @@ async function post<T>(endpoint: string, body: Record<string, unknown>): Promise
   const res = await fetch(`${API_BASE}${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeader },
-    body: JSON.stringify(body),
+    // lang добавляется ко всем AI-запросам централизованно — на нём сервер
+    // выбирает язык саммари, идей, задач и ответов поиска
+    body: JSON.stringify({ lang: outputLang, ...body }),
   });
   if (!res.ok) {
     throw await toApiError(res);
@@ -366,7 +385,10 @@ export async function processRecordingAsync(
   const res = await fetch(`${API_ROOT}/api/process-recording`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeader },
-    body: JSON.stringify({ recordingId, audioBase64: base64, contentType, metadata }),
+    body: JSON.stringify({
+      recordingId, audioBase64: base64, contentType,
+      metadata: { ...metadata, lang: outputLang },
+    }),
   });
 
   if (!res.ok) {

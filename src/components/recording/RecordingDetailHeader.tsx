@@ -1,6 +1,7 @@
 import type * as React from 'react';
-import { ArrowLeft, X, Plus, Share2, Download, Pencil, ChevronDown, Copy, FileText, Send, MoreHorizontal, Trash2 } from 'lucide-react';
+import { ArrowLeft, Share2, Download, Pencil, ChevronDown, Copy, FileText, Send, MoreHorizontal, Trash2 } from 'lucide-react';
 import { plural } from '../../lib/plural';
+import { RecordingTags } from './RecordingTags';
 import type { Recording } from '../../types';
 
 interface RecordingDetailHeaderProps {
@@ -13,12 +14,10 @@ interface RecordingDetailHeaderProps {
   setEditTitleValue: (v: string) => void;
   handleTitleSave: () => void;
   // Редактирование тегов
-  isAddingTag: boolean;
-  setIsAddingTag: (v: boolean) => void;
-  newTagValue: string;
-  setNewTagValue: (v: string) => void;
-  handleAddTag: () => void;
+  handleAddTag: (value: string) => void;
   handleRemoveTag: (tag: string) => void;
+  /** Клик по тегу — открыть библиотеку с фильтром по нему */
+  onOpenTag?: (tag: string) => void;
   // Дропдаун экспорта
   showExportMenu: boolean;
   setShowExportMenu: React.Dispatch<React.SetStateAction<boolean>>;
@@ -43,12 +42,9 @@ export const RecordingDetailHeader = ({
   editTitleValue,
   setEditTitleValue,
   handleTitleSave,
-  isAddingTag,
-  setIsAddingTag,
-  newTagValue,
-  setNewTagValue,
   handleAddTag,
   handleRemoveTag,
+  onOpenTag,
   showExportMenu,
   setShowExportMenu,
   exportMenuRef,
@@ -96,39 +92,15 @@ export const RecordingDetailHeader = ({
             {(recording.actionItems?.length ?? 0) > 0 && <> · <span className="text-secondary">{recording.actionItems!.length} {plural(recording.actionItems!.length, ['задача', 'задачи', 'задач'])}</span></>}
             {(recording.ideas?.length ?? 0) > 0 && <> · {recording.ideas!.length} {plural(recording.ideas!.length, ['идея', 'идеи', 'идей'])}</>}
           </p>
-          <div className="hidden md:flex items-center flex-wrap gap-1 mt-1">
-            {recording.tags.map(tag => (
-              <span key={tag} className="group/tag flex items-center gap-0.5 px-2 py-0.5 bg-primary/10 text-primary rounded-full text-[10px] font-bold">
-                #{tag.replace(/^#/, '')}
-                <button
-                  onClick={() => handleRemoveTag(tag)}
-                  className="opacity-0 group-hover/tag:opacity-100 transition-opacity ml-0.5 hover:text-error cursor-pointer"
-                  title="Удалить тег"
-                >
-                  <X className="w-2.5 h-2.5" />
-                </button>
-              </span>
-            ))}
-            {isAddingTag ? (
-              <input
-                autoFocus
-                value={newTagValue}
-                onChange={e => setNewTagValue(e.target.value)}
-                onBlur={handleAddTag}
-                onKeyDown={e => { if (e.key === 'Enter') handleAddTag(); if (e.key === 'Escape') { setIsAddingTag(false); setNewTagValue(''); } }}
-                placeholder="тег"
-                className="bg-transparent border-b border-primary outline-none text-[10px] text-primary w-16 placeholder-primary/40"
-              />
-            ) : (
-              <button
-                onClick={() => setIsAddingTag(true)}
-                className="flex items-center gap-0.5 px-1.5 py-0.5 bg-white/5 text-on-surface-variant rounded-full text-[10px] hover:bg-white/10 hover:text-primary transition-colors cursor-pointer"
-                title="Добавить тег"
-              >
-                <Plus className="w-2.5 h-2.5" /> тег
-              </button>
-            )}
-          </div>
+          <RecordingTags
+            className="hidden md:flex mt-1.5"
+            tags={recording.tags}
+            mentions={recording.mentions}
+            participants={recording.participants}
+            onOpenTag={onOpenTag}
+            onAddTag={handleAddTag}
+            onRemoveTag={handleRemoveTag}
+          />
         </div>
       </div>
       <div className="flex items-center gap-1.5 md:gap-3 flex-shrink-0">
