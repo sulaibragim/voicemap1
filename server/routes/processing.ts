@@ -3,6 +3,8 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { requireAuth, type AuthRequest } from '../lib/auth';
 import { isValidRecordingId, resolveExt, uploadBuffer, R2_PUBLIC_URL } from '../lib/r2';
 import { getAI, uploadAudioToFileAPI, buildTranscribePayload } from '../lib/gemini';
+import { checkQuota, chargeUsage } from '../lib/quotaGuard';
+import { parseDurationToSeconds, type UsageSnapshot } from '../lib/usage';
 import { chunkTranscript, toTranscriptEntries } from '../lib/chunk';
 import { embedTexts } from '../lib/embeddings';
 import { indexChunks } from '../lib/vectorStore';
@@ -38,6 +40,19 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
   const key = `audio/${uid}/${recordingId}.${ext}`;
   const buffer = Buffer.from(audioBase64, 'base64');
 
+  // Лимит месяца проверяем ДО обращения к Gemini, но ПОСЛЕ загрузки в R2:
+  // хранение стоит копейки, а терять аудио пользователя из-за упёршегося
+  // лимита нельзя — он расшифрует запись после апгрейда тарифа.
+  const clientSeconds = parseDurationToSeconds(metadata?.duration);
+  let quotaExceeded: UsageSnapshot | null;
+  try {
+    quotaExceeded = await checkQuota(uid, clientSeconds);
+  } catch (e) {
+    console.error('[process-recording] quota check failed:', e);
+    res.status(500).json({ error: 'Quota check failed' });
+    return;
+  }
+
   try {
     await uploadBuffer(key, buffer, contentType);
   } catch (e) {
@@ -48,6 +63,13 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
 
   const publicUrl = `${R2_PUBLIC_URL}/${key}`;
   console.log(`[process-recording] R2 OK: ${publicUrl}`);
+
+  if (quotaExceeded) {
+    console.log(`[process-recording] Quota exceeded for ${uid}, transcription skipped (${recordingId})`);
+    res.json({ publicUrl, r2Key: key, queued: false, quota: quotaExceeded });
+    return;
+  }
+
   res.json({ publicUrl, r2Key: key, queued: true });
 
   setImmediate(async () => {
@@ -64,6 +86,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
         contents: [{ parts: [{ fileData: { fileUri, mimeType: fileMimeType } }, { text: prompt }] }],
         config,
       });
+      await chargeUsage(uid, response.usageMetadata, clientSeconds);
 
       const text = response.text ?? '';
       let parsed: Record<string, unknown> = {};

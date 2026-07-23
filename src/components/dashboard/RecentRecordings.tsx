@@ -56,6 +56,8 @@ export const RecentRecordings = ({ recordings, onOpenLibrary, onOpenDetail }: Re
                   <span className="px-3 py-1 bg-surface-container-highest rounded-lg text-xs font-medium text-on-surface-variant whitespace-nowrap flex-shrink-0 animate-pulse">Обрабатывается...</span>
                 ) : recent[0].aiStatus === 'error' ? (
                   <span className="px-3 py-1 bg-error/20 rounded-lg text-xs font-medium text-error whitespace-nowrap flex-shrink-0">Ошибка обработки</span>
+                ) : recent[0].aiStatus === 'quota' ? (
+                  <span className="px-3 py-1 bg-warning/20 rounded-lg text-xs font-medium text-warning whitespace-nowrap flex-shrink-0">Лимит исчерпан — без расшифровки</span>
                 ) : (
                   (recent[0].tags || []).map((tag, i) => (
                     <span key={i} className="px-3 py-1 bg-surface-container-highest rounded-lg text-xs font-medium text-on-surface-variant whitespace-nowrap flex-shrink-0">{tag}</span>
@@ -78,6 +80,8 @@ export const RecentRecordings = ({ recordings, onOpenLibrary, onOpenDetail }: Re
                     <p className="text-sm text-on-surface-variant mt-2 animate-pulse">Обрабатывается...</p>
                   ) : item.aiStatus === 'error' ? (
                     <p className="text-sm text-error mt-2">Ошибка обработки</p>
+                  ) : item.aiStatus === 'quota' ? (
+                    <p className="text-sm text-warning mt-2">Лимит исчерпан — без расшифровки</p>
                   ) : (
                     <p className="text-sm text-on-surface-variant mt-2 line-clamp-2">{item.summary}</p>
                   )}

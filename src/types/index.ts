@@ -54,7 +54,9 @@ export interface Recording {
   participants?: Participant[];
   richActionItems?: RichActionItem[];
   bigQuestions?: string[];
-  aiStatus?: 'processing' | 'done' | 'error';  // статус AI-обработки
+  // Статус AI-обработки. 'quota' — аудио сохранено, но расшифровка пропущена:
+  // израсходован месячный лимит. Запись можно расшифровать после апгрейда тарифа.
+  aiStatus?: 'processing' | 'done' | 'error' | 'quota';
   // Отметка о том, что запись проиндексирована для RAG-поиска (Firestore Timestamp с сервера).
   // Тип не уточняем до конкретной формы Timestamp — клиент это поле только читает
   // (наличие/отсутствие), а не парсит как дату.

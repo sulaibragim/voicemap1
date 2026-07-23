@@ -4,6 +4,7 @@ import { plural } from '../../lib/plural';
 import { backfillSearchIndex } from '../../lib/api';
 import type { Recording, Note, AppSettings } from '../../types';
 import { Section, Divider, RowToggle, RowChips, RowAction } from './SettingsRows';
+import { UsageCard } from './UsageCard';
 
 const FEEDBACK_EMAIL = 'mailto:sulaibragim@gmail.com?subject=VoiceMap';
 const APP_VERSION = '0.1.0-alpha';
@@ -155,6 +156,11 @@ export const SettingsView = ({
             </div>
           </div>
         </section>
+
+        {/* Лимит расшифровки */}
+        <Section title="Лимит расшифровки">
+          <UsageCard />
+        </Section>
 
         {/* Запись */}
         <Section title="Запись">

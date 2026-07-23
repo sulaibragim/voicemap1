@@ -6,8 +6,10 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Brain, Loader2 } from 'lucide-react';
-import { retranscribeFromUrl, deleteAudioFromR2, deleteRecordingChunks, processRecordingAsync } from './lib/api';
+import { retranscribeFromUrl, deleteAudioFromR2, deleteRecordingChunks, processRecordingAsync, QuotaExceededError } from './lib/api';
+import { quotaToastMessage } from './lib/usageFormat';
 import { guessAudioMimeFromUrl } from './lib/audioMime';
+import { parseDurationToSeconds } from './lib/recordingUtils';
 import { useToast } from './hooks/useToast';
 
 import type { NoteType, Recording } from './types';
@@ -224,12 +226,26 @@ export default function App() {
     // чтобы НЕ затереть свежие поля title/summary/transcript, которые сервер
     // мог уже записать через фоновую транскрипцию.
     try {
-      const { publicUrl, r2Key } = await processRecordingAsync(blob, recordingId, {
+      const { publicUrl, r2Key, queued, quota } = await processRecordingAsync(blob, recordingId, {
         title: 'Новая запись',
         date,
         duration,
         knownPeople: getKnownNames(),
       });
+
+      // Лимит месяца исчерпан: аудио в R2 уже лежит, расшифровки не будет.
+      // Помечаем запись отдельным статусом, чтобы не выдавать это за ошибку.
+      if (!queued) {
+        await patchRecordingItem(recordingId, {
+          audioUrl: publicUrl,
+          r2Key,
+          title: 'Без расшифровки',
+          aiStatus: 'quota',
+        });
+        showToast(quotaToastMessage(quota), 'error');
+        return;
+      }
+
       await patchRecordingItem(recordingId, { audioUrl: publicUrl, r2Key });
       console.log('[handleFinishRecording] Upload done, background transcription queued');
     } catch (err) {
@@ -329,10 +345,21 @@ export default function App() {
           const url = recording.audioUrl;
           const mimeType = guessAudioMimeFromUrl(url);
           try {
-            const result = await retranscribeFromUrl(url, mimeType, getKnownNames());
-            updateRecordingItem({ ...recording, ...result, title: result.title || recording.title });
+            // Длительность нужна серверу для предпроверки месячного лимита расшифровки
+            const durationSeconds = parseDurationToSeconds(recording.duration);
+            const result = await retranscribeFromUrl(url, mimeType, getKnownNames(), durationSeconds);
+            updateRecordingItem({
+              ...recording,
+              ...result,
+              title: result.title || recording.title,
+              aiStatus: 'done',
+            });
             showToast('Транскрипция готова ✓', 'success');
           } catch (err) {
+            if (err instanceof QuotaExceededError) {
+              showToast(quotaToastMessage(err.usage), 'error');
+              return;
+            }
             console.error('[retranscribe] failed:', err);
             showToast('Ошибка повторной транскрипции', 'error');
           }

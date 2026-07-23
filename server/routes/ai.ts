@@ -3,6 +3,8 @@ import { Type } from '@google/genai';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { requireAuth, type AuthRequest } from '../lib/auth';
 import { getAI, uploadAudioToFileAPI, buildTranscribePayload, sanitizeKnownPeople } from '../lib/gemini';
+import { checkQuota, chargeUsage, sendQuotaExceeded } from '../lib/quotaGuard';
+import { getUsage, parseDurationToSeconds } from '../lib/usage';
 import { embedTexts } from '../lib/embeddings';
 import { searchChunks, deleteChunksForRecording, indexChunks, type ChunkHit } from '../lib/vectorStore';
 import { chunkTranscript, toTranscriptEntries } from '../lib/chunk';
@@ -51,6 +53,18 @@ function buildSearchPrompt(query: string, context: string): string {
 ${context}`;
 }
 
+// GET /api/ai/usage — сколько минут расшифровки израсходовано в этом месяце и каков лимит тарифа.
+// Только чтение; счётчик пишет исключительно сервер при фактических расшифровках.
+router.get('/usage', requireAuth, async (req: Request, res: Response) => {
+  try {
+    const { uid } = req as AuthRequest;
+    res.json(await getUsage(uid));
+  } catch (error) {
+    console.error('[/ai/usage]', error);
+    res.status(500).json({ error: 'Failed to load usage' });
+  }
+});
+
 router.post('/tip', requireAuth, async (req, res) => {
   try {
     const { context } = req.body;
@@ -78,12 +92,24 @@ router.post('/tip', requireAuth, async (req, res) => {
 
 router.post('/transcribe', requireAuth, async (req, res) => {
   try {
-    // Клиент передаёт ТОЛЬКО audio/mimeType/knownPeople — prompt и config строятся исключительно на сервере,
-    // чтобы исключить возможность превратить эндпоинт в открытый LLM-прокси с произвольным промптом.
-    const { audio, mimeType, knownPeople } = req.body;
+    // Клиент передаёт ТОЛЬКО audio/mimeType/knownPeople/durationSeconds — prompt и config строятся
+    // исключительно на сервере, чтобы исключить возможность превратить эндпоинт в открытый
+    // LLM-прокси с произвольным промптом.
+    const { audio, mimeType, knownPeople, durationSeconds } = req.body;
     if (!audio || typeof audio !== 'string' || audio.length < 10) {
       return res.status(400).json({ error: 'Invalid or missing audio data' });
     }
+
+    // Лимит месяца. Заявленная клиентом длительность нужна только для предпроверки —
+    // списываем потом по фактическим токенам (см. chargeUsage).
+    const { uid } = req as AuthRequest;
+    const clientSeconds = parseDurationToSeconds(durationSeconds);
+    const exceeded = await checkQuota(uid, clientSeconds);
+    if (exceeded) {
+      sendQuotaExceeded(res, exceeded);
+      return;
+    }
+
     const ai = getAI();
 
     let audioPart: Record<string, unknown>;
@@ -102,6 +128,7 @@ router.post('/transcribe', requireAuth, async (req, res) => {
       contents: [audioPart, prompt],
       config,
     });
+    await chargeUsage(uid, response.usageMetadata, clientSeconds);
     res.json({ text: response.text });
   } catch (error) {
     console.error('[/ai/transcribe]', error);
@@ -112,13 +139,23 @@ router.post('/transcribe', requireAuth, async (req, res) => {
 router.post('/retranscribe', requireAuth, async (req, res) => {
   try {
     // Аналогично /transcribe: prompt/config клиент передать не может, только audioUrl/mimeType/knownPeople.
-    const { audioUrl, mimeType, knownPeople } = req.body as {
-      audioUrl: string; mimeType: string; knownPeople?: unknown;
+    const { audioUrl, mimeType, knownPeople, durationSeconds } = req.body as {
+      audioUrl: string; mimeType: string; knownPeople?: unknown; durationSeconds?: unknown;
     };
     if (!audioUrl || typeof audioUrl !== 'string') {
       res.status(400).json({ error: 'audioUrl is required' });
       return;
     }
+
+    // Повтор расшифровки стоит столько же, сколько первая — лимит применяется и здесь.
+    const { uid } = req as AuthRequest;
+    const clientSeconds = parseDurationToSeconds(durationSeconds);
+    const exceeded = await checkQuota(uid, clientSeconds);
+    if (exceeded) {
+      sendQuotaExceeded(res, exceeded);
+      return;
+    }
+
     console.log('[/ai/retranscribe] Fetching:', audioUrl);
     const fetchRes = await fetch(audioUrl);
     if (!fetchRes.ok) {
@@ -136,6 +173,7 @@ router.post('/retranscribe', requireAuth, async (req, res) => {
       contents: [{ fileData: { fileUri, mimeType: fileMimeType } }, prompt],
       config,
     });
+    await chargeUsage(uid, response.usageMetadata, clientSeconds);
     res.json({ text: response.text });
   } catch (error) {
     console.error('[/ai/retranscribe]', error);

@@ -71,9 +71,24 @@ service cloud.firestore {
 
     // ── Правила доступа к документам ─────────────────────────────
 
-    // Пользователь может читать свой профиль-документ (если понадобится)
+    // Профиль пользователя. Поле plan (тариф) назначает только сервер через
+    // Admin SDK — иначе лимит расшифровки обходился бы одной правкой документа.
+    // ВАЖНО: клиент пишет профиль через setDoc(..., {merge: true}), поэтому
+    // request.resource.data — это документ ПОСЛЕ слияния. Проверять «поля plan нет»
+    // на update нельзя (оно там будет), проверяем «plan не изменился».
     match /users/{uid} {
-      allow read, write: if isOwner(uid);
+      allow read:   if isOwner(uid);
+      allow create: if isOwner(uid) && !('plan' in request.resource.data);
+      allow update: if isOwner(uid) &&
+                       request.resource.data.get('plan', '') == resource.data.get('plan', '');
+      allow delete: if isOwner(uid);
+    }
+
+    // Счётчик израсходованных секунд расшифровки за месяц (users/{uid}/usage/{YYYY-MM}).
+    // Пишет исключительно сервер (Admin SDK обходит эти правила), клиент только читает.
+    match /users/{uid}/usage/{month} {
+      allow read:  if isOwner(uid);
+      allow write: if false;
     }
 
     // Recordings

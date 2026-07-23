@@ -15,6 +15,57 @@ async function getAuthHeader(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${token}` };
 }
 
+// ── Лимит расшифровки ────────────────────────────────────────────────────────
+
+/** Расход минут расшифровки за текущий месяц (сервер: GET /api/ai/usage) */
+export interface TranscriptionUsage {
+  plan: 'free' | 'pro' | 'team';
+  /** Календарный месяц в UTC, формат YYYY-MM */
+  month: string;
+  usedSeconds: number;
+  limitSeconds: number;
+  remainingSeconds: number;
+}
+
+/** Сервер ответил 429: месячный лимит расшифровки исчерпан. */
+export class QuotaExceededError extends Error {
+  readonly usage?: TranscriptionUsage;
+
+  constructor(usage?: TranscriptionUsage) {
+    super('Transcription quota exceeded');
+    this.name = 'QuotaExceededError';
+    this.usage = usage;
+  }
+}
+
+function isTranscriptionUsage(value: unknown): value is TranscriptionUsage {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.plan === 'string'
+    && typeof v.month === 'string'
+    && typeof v.usedSeconds === 'number'
+    && typeof v.limitSeconds === 'number'
+    && typeof v.remainingSeconds === 'number';
+}
+
+/**
+ * 429 приходит от двух разных вещей: месячного лимита расшифровки
+ * (error: 'quota_exceeded') и общего rate-limit'а сервера. Различаем по телу —
+ * иначе «слишком часто» показывалось бы пользователю как «лимит исчерпан».
+ */
+export async function toApiError(res: Response): Promise<Error> {
+  if (res.status !== 429) return new Error(`API error: ${res.status}`);
+  try {
+    const body = await res.json() as { error?: unknown; usage?: unknown };
+    if (body.error === 'quota_exceeded') {
+      return new QuotaExceededError(isTranscriptionUsage(body.usage) ? body.usage : undefined);
+    }
+  } catch {
+    // Тело не JSON — трактуем как обычный rate-limit ниже
+  }
+  return new Error('API error: 429');
+}
+
 async function post<T>(endpoint: string, body: Record<string, unknown>): Promise<T> {
   const authHeader = await getAuthHeader();
   const res = await fetch(`${API_BASE}${endpoint}`, {
@@ -23,9 +74,23 @@ async function post<T>(endpoint: string, body: Record<string, unknown>): Promise
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    throw new Error(`API error: ${res.status}`);
+    throw await toApiError(res);
   }
   return res.json() as Promise<T>;
+}
+
+/** Текущий расход минут расшифровки. При ошибке возвращает null — UI просто не показывает блок. */
+export async function fetchTranscriptionUsage(): Promise<TranscriptionUsage | null> {
+  try {
+    const authHeader = await getAuthHeader();
+    const res = await fetch(`${API_BASE}/usage`, { headers: authHeader });
+    if (!res.ok) return null;
+    const body = await res.json() as unknown;
+    return isTranscriptionUsage(body) ? body : null;
+  } catch (e) {
+    console.warn('[fetchTranscriptionUsage] failed:', e);
+    return null;
+  }
 }
 
 interface AITextResponse {
@@ -57,10 +122,12 @@ interface TranscribeResult {
 export async function transcribeRecording(
   audio: string,
   mimeType: string,
-  knownPeople: string[] = []
+  knownPeople: string[] = [],
+  durationSeconds?: number,
 ): Promise<TranscribeResult> {
-  // prompt/config больше не отправляются — сервер строит их сам (см. server/lib/gemini.ts)
-  const res = await post<AITextResponse>('/transcribe', { audio, mimeType, knownPeople });
+  // prompt/config больше не отправляются — сервер строит их сам (см. server/lib/gemini.ts).
+  // durationSeconds нужен только для предпроверки лимита; списывается фактический расход по токенам.
+  const res = await post<AITextResponse>('/transcribe', { audio, mimeType, knownPeople, durationSeconds });
   const parsed = safeJsonParse<TranscribeResult>(res.text || '{}', {});
   return {
     title: parsed.title,
@@ -82,10 +149,11 @@ export async function transcribeRecording(
 export async function retranscribeFromUrl(
   audioUrl: string,
   mimeType: string,
-  knownPeople: string[] = []
+  knownPeople: string[] = [],
+  durationSeconds?: number,
 ): Promise<TranscribeResult> {
   // prompt/config больше не отправляются — сервер строит их сам (см. server/lib/gemini.ts)
-  const res = await post<AITextResponse>('/retranscribe', { audioUrl, mimeType, knownPeople });
+  const res = await post<AITextResponse>('/retranscribe', { audioUrl, mimeType, knownPeople, durationSeconds });
   const parsed = safeJsonParse<TranscribeResult>(res.text || '{}', {});
   return {
     title: parsed.title,
@@ -283,7 +351,7 @@ export async function processRecordingAsync(
   blob: Blob,
   recordingId: string,
   metadata: { title: string; date: string; duration: string; knownPeople: string[] }
-): Promise<{ publicUrl: string; r2Key: string }> {
+): Promise<{ publicUrl: string; r2Key: string; queued: boolean; quota?: TranscriptionUsage }> {
   const authHeader = await getAuthHeader();
   const contentType = blob.type || 'audio/mp4';
   console.log('[processRecordingAsync] blob size:', blob.size, 'type:', contentType);
@@ -306,8 +374,15 @@ export async function processRecordingAsync(
     throw new Error(`process-recording failed: ${res.status} — ${err}`);
   }
 
-  const { publicUrl, r2Key } = await res.json() as { publicUrl: string; r2Key: string };
-  return { publicUrl, r2Key };
+  // queued: false означает, что аудио сохранено, но расшифровка пропущена из-за
+  // исчерпанного месячного лимита — запись можно расшифровать после апгрейда.
+  const body = await res.json() as { publicUrl: string; r2Key: string; queued?: boolean; quota?: unknown };
+  return {
+    publicUrl: body.publicUrl,
+    r2Key: body.r2Key,
+    queued: body.queued !== false,
+    quota: isTranscriptionUsage(body.quota) ? body.quota : undefined,
+  };
 }
 
 /**

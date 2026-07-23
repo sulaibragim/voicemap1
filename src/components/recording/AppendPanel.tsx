@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { appendToRecording, transcribeRecording, transcribeChatVoice, uploadAudioToR2 } from '../../lib/api';
+import { appendToRecording, transcribeRecording, transcribeChatVoice, uploadAudioToR2, QuotaExceededError } from '../../lib/api';
+import { quotaToastMessage } from '../../lib/usageFormat';
 import { X, Plus, Mic, Headphones, Keyboard, Loader2, Square } from 'lucide-react';
 import { useAppendAudio } from './useAppendAudio';
 import type { Recording, TranscriptItem } from '../../types';
@@ -102,7 +103,7 @@ export const AppendPanel = ({ recording, isAppending, onOpen, onClose, onUpdate,
 
       // Транскрибируем аудио и загружаем в R2 параллельно
       const [transcribeResult, r2Result] = await Promise.allSettled([
-        transcribeRecording(base64, blob.type || 'audio/webm'),
+        transcribeRecording(base64, blob.type || 'audio/webm', [], appendRecordDuration),
         uploadAudioToR2(blob, appendRecordingId),
       ]);
 
@@ -136,7 +137,14 @@ export const AppendPanel = ({ recording, isAppending, onOpen, onClose, onUpdate,
         summary: recording.summary + (r?.summary ? '\n\n**Продолжение:** ' + r.summary : ''),
         appendAudios: [...(recording.appendAudios || []), { url: appendAudioUrl, label: appendLabel, addedAt: appendedAt, r2Key: appendR2Key }],
       });
-      showToast('Аудио добавлено к записи', 'success');
+
+      // Аудио прикрепилось в любом случае, но при исчерпанном лимите расшифровки нет —
+      // говорим об этом прямо, иначе пользователь ждёт текст, который не появится.
+      if (transcribeResult.status === 'rejected' && transcribeResult.reason instanceof QuotaExceededError) {
+        showToast(quotaToastMessage(transcribeResult.reason.usage), 'error');
+      } else {
+        showToast('Аудио добавлено к записи', 'success');
+      }
       success = true;
     } catch {
       showToast('Ошибка обработки аудио', 'error');
