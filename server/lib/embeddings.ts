@@ -13,8 +13,28 @@
 // (это НЕ проверено рантаймом, см. отчёт).
 import { getAI } from './gemini';
 
-export const EMBED_MODEL = 'text-embedding-004';
+// Имя модели вынесено в env: у разных ключей/проектов набор доступных моделей
+// отличается (text-embedding-004 может отдавать 404 NOT_FOUND). Поменять модель
+// можно переменной окружения, без правки кода и пересборки.
+// Проверить, что доступно для конкретного ключа:
+//   curl "https://generativelanguage.googleapis.com/v1beta/models?key=$GEMINI_API_KEY"
+export const EMBED_MODEL = process.env.GEMINI_EMBED_MODEL || 'gemini-embedding-001';
+
+// Размерность вектора. ВАЖНО: должна совпадать с размерностью векторного индекса
+// Firestore (см. server/RAG_SETUP.md). gemini-embedding-001 по умолчанию отдаёт 3072,
+// но поддерживает усечение через outputDimensionality — просим 768.
 export const EMBED_DIM = 768;
+
+// L2-нормализация. При усечении размерности (MRL) вектор перестаёт быть единичным,
+// а косинусная близость в Firestore корректнее работает на нормализованных векторах.
+// Если модель уже вернула нормализованный вектор — операция ничего не меняет.
+function normalize(values: number[]): number[] {
+  let sum = 0;
+  for (const v of values) sum += v * v;
+  const norm = Math.sqrt(sum);
+  if (!norm || !Number.isFinite(norm)) return values;
+  return values.map(v => v / norm);
+}
 
 // Модель Gemini Embedding принимает пакет строк за один вызов (contents: string[]),
 // но разумно ограничиваем размер батча, чтобы не упереться в лимиты размера запроса.
@@ -63,7 +83,7 @@ export async function embedTexts(
           `[embedTexts] Invalid embedding dimension: expected ${EMBED_DIM}, got ${values?.length ?? 0}`,
         );
       }
-      vectors.push(values);
+      vectors.push(normalize(values));
     }
   }
 
