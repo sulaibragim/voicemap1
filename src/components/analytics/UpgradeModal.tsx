@@ -61,7 +61,9 @@ export const UpgradeModal = ({ usage, onClose }: UpgradeModalProps) => {
           {t('upgrade.title')}
         </h2>
         <p className="text-sm text-on-surface-variant leading-relaxed mb-6">
-          {usage
+          {/* «Израсходовал весь лимит» — только когда это правда. При заходе из Настроек
+              с нетронутым лимитом такой текст откровенно врал. */}
+          {usage && usage.remainingSeconds <= 0
             ? t('upgrade.spent', { limit: formatDurationHuman(usage.limitSeconds, lang) })
             : t('upgrade.subtitle')}
         </p>
