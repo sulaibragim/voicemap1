@@ -528,6 +528,23 @@ router.post('/backfill', requireAuth, async (req: Request, res: Response) => {
     // все записи пользователя и фильтруем непроиндексированные на сервере —
     // это разовая миграция, объём записей одного пользователя для этого разумен.
     const snapshot = await recordingsRef.get();
+
+    // Заодно лечим записи с ложным статусом ошибки: расшифровка в них есть, а
+    // aiStatus остался 'error' из-за сбоя на шаге ПОСЛЕ её сохранения. Пользователь
+    // видел «Ошибка обработки» вместо готового саммари. Дёшево и идемпотентно.
+    let statusFixed = 0;
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      const hasTranscript = Array.isArray(data.transcript) && data.transcript.length > 0;
+      if (data.aiStatus === 'error' && hasTranscript) {
+        await doc.ref.update({ aiStatus: 'done' }).catch(() => {});
+        statusFixed += 1;
+      }
+    }
+    if (statusFixed > 0) {
+      console.log(`[/ai/backfill] Исправлен ложный статус ошибки у ${statusFixed} записей`);
+    }
+
     const pending = snapshot.docs.filter(doc => doc.data().ragIndexedAt === undefined);
     const batch = pending.slice(0, effectiveLimit);
 

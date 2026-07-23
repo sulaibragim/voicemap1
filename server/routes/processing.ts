@@ -144,9 +144,34 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
       }
     } catch (err) {
       console.error(`[process-recording] Background transcription failed for ${recordingId}:`, err);
-      await docRef.update({ aiStatus: 'error' }).catch(() => {});
+      await markErrorIfNoTranscript(docRef, recordingId);
     }
   });
 });
+
+/**
+ * Помечает запись ошибкой, но ТОЛЬКО если расшифровки в ней ещё нет.
+ *
+ * Раньше статус ставился безусловно и затирал уже сохранённый результат: сбой
+ * на любом шаге ПОСЛЕ записи транскрипта (например, в индексации) прятал от
+ * пользователя готовые заголовок, саммари и реплики за «Ошибка обработки».
+ * Данные при этом лежали в базе целыми — врал только статус.
+ */
+async function markErrorIfNoTranscript(
+  docRef: FirebaseFirestore.DocumentReference,
+  recordingId: string,
+): Promise<void> {
+  try {
+    const snapshot = await docRef.get();
+    const transcript = snapshot.data()?.transcript;
+    if (Array.isArray(transcript) && transcript.length > 0) {
+      console.warn(`[process-recording] ${recordingId}: сбой после сохранения транскрипта — статус не трогаем`);
+      return;
+    }
+    await docRef.update({ aiStatus: 'error' });
+  } catch (e) {
+    console.warn(`[process-recording] Не удалось выставить статус ошибки для ${recordingId}:`, e);
+  }
+}
 
 export { router as processingRouter };

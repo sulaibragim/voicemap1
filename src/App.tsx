@@ -284,7 +284,13 @@ export default function App() {
     } catch (err) {
       console.warn('[handleFinishRecording] Upload failed:', err);
       showToast('Ошибка загрузки аудио. Попробуй снова.', 'error');
-      await patchRecordingItem(recordingId, { aiStatus: 'error' });
+      // Сервер мог успеть расшифровать запись раньше, чем у клиента отвалилась
+      // сеть. Безусловный 'error' затирал готовый результат: данные лежали в
+      // базе целыми, а пользователь видел «Ошибка обработки».
+      const alreadyTranscribed = recordings.find(r => r.id === recordingId)?.transcript?.length;
+      if (!alreadyTranscribed) {
+        await patchRecordingItem(recordingId, { aiStatus: 'error' });
+      }
     }
   };
 
