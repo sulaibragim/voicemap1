@@ -141,45 +141,9 @@ router.post('/retranscribe', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/chat', requireAuth, async (req, res) => {
-  try {
-    const { prompt } = req.body;
-    const ai = getAI();
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            text: { type: Type.STRING },
-            action: { type: Type.STRING, enum: ['NAVIGATE', 'OPEN_RECORDING', 'SET_FOCUS_TASKS', 'CREATE_NOTE', 'UPDATE_IDEAS', 'NONE'] },
-            actionTarget: { type: Type.STRING, nullable: true },
-            actionData: {
-              type: Type.OBJECT, nullable: true,
-              properties: {
-                type: { type: Type.STRING, nullable: true },
-                content: { type: Type.STRING, nullable: true },
-                dueDate: { type: Type.STRING, nullable: true },
-                dueTime: { type: Type.STRING, nullable: true },
-                tasks: { type: Type.ARRAY, items: { type: Type.STRING }, nullable: true },
-                recordingId: { type: Type.STRING, nullable: true },
-                ideas: { type: Type.ARRAY, items: { type: Type.STRING }, nullable: true },
-              },
-              required: ['type', 'content'],
-            },
-          },
-          required: ['text', 'action', 'actionTarget', 'actionData'],
-        },
-      },
-    });
-    res.json({ text: response.text });
-  } catch (error) {
-    console.error('[/ai/chat]', error);
-    res.status(500).json({ error: 'AI request failed' });
-  }
-});
+// Роут /chat удалён вместе с ассистентом-«действиями»: он принимал произвольный
+// промпт от клиента (открытый LLM-прокси). Поиск по записям живёт в /search,
+// где промпт строится на сервере.
 
 router.post('/chat-voice', requireAuth, async (req, res) => {
   try {

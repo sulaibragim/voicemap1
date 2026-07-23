@@ -1,21 +1,22 @@
 import React from 'react';
-import { Mic, FileAudio, CheckCircle2, StickyNote, Target } from 'lucide-react';
+import { Mic, FileAudio } from 'lucide-react';
 import Markdown from 'react-markdown';
-import type { Message, Recording } from '../types';
+import type { Message } from '../types';
 
 interface ChatMessageBubbleProps {
   msg: Message;
-  recordings: Recording[];
-  onOpenRecording: (id: string) => void;
+  /** Открыть найденную запись на нужной секунде */
+  onOpenRecording: (id: string, seekTo?: string) => void;
   onClose: () => void;
 }
 
 export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
   msg,
-  recordings,
   onOpenRecording,
   onClose,
 }) => {
+  const sources = msg.sources ?? [];
+
   return (
     <div className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
       <div
@@ -35,44 +36,33 @@ export const ChatMessageBubble: React.FC<ChatMessageBubbleProps> = ({
         )}
       </div>
 
-      {/* Бейдж выполненного действия */}
-      {msg.actionDone === 'focus' && (
-        <div className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-secondary/15 border border-secondary/20 rounded-xl">
-          <Target className="w-3.5 h-3.5 text-secondary" />
-          <span className="text-xs font-bold text-secondary">Фокус-задачи добавлены</span>
-          <CheckCircle2 className="w-3.5 h-3.5 text-secondary" />
-        </div>
-      )}
-      {msg.actionDone === 'note' && (
-        <div className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-tertiary/15 border border-tertiary/20 rounded-xl">
-          <StickyNote className="w-3.5 h-3.5 text-tertiary" />
-          <span className="text-xs font-bold text-tertiary">Заметка создана</span>
-          <CheckCircle2 className="w-3.5 h-3.5 text-tertiary" />
-        </div>
-      )}
-      {msg.actionDone === 'ideas' && (
-        <div className="mt-2 flex items-center gap-2 px-3 py-1.5 bg-primary/15 border border-primary/20 rounded-xl">
-          <span className="text-xs">💡</span>
-          <span className="text-xs font-bold text-primary">Идеи обновлены</span>
-          <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
-        </div>
-      )}
-
-      {/* Кнопка открыть запись */}
-      {msg.recordingId && (
-        <div
-          onClick={() => { onOpenRecording(msg.recordingId!); onClose(); }}
-          className="mt-2 max-w-[85%] bg-surface-container-high border border-primary/30 p-3 rounded-xl flex items-center gap-3 cursor-pointer hover:bg-surface-container-highest transition-colors group"
-        >
-          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-            <FileAudio className="w-4 h-4" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-primary">Открыть запись</p>
-            <p className="text-[10px] text-on-surface-variant truncate">
-              {recordings.find(r => r.id === msg.recordingId)?.title ?? 'Запись'}
-            </p>
-          </div>
+      {/* Источники ответа — клик открывает запись на нужной секунде */}
+      {sources.length > 0 && (
+        <div className="mt-2 w-full max-w-[92%] space-y-1.5">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant/70 px-1">
+            Источники
+          </p>
+          {sources.map((src, idx) => (
+            <button
+              key={`${src.recordingId}-${src.timestamp}-${idx}`}
+              type="button"
+              onClick={() => { onOpenRecording(src.recordingId, src.timestamp); onClose(); }}
+              className="w-full text-left bg-surface-container border border-white/5 rounded-xl p-2.5 flex items-start gap-2.5 hover:bg-surface-container-high hover:border-primary/30 transition-colors cursor-pointer group"
+            >
+              <div className="w-7 h-7 shrink-0 rounded-full bg-primary/15 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                <FileAudio className="w-3.5 h-3.5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline gap-2">
+                  <p className="text-xs font-bold text-on-surface truncate">{src.title}</p>
+                  <span className="text-[10px] font-mono text-primary shrink-0">{src.timestamp}</span>
+                </div>
+                <p className="text-[11px] leading-snug text-on-surface-variant line-clamp-2 mt-0.5">
+                  {src.snippet}
+                </p>
+              </div>
+            </button>
+          ))}
         </div>
       )}
     </div>

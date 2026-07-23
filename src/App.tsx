@@ -10,7 +10,7 @@ import { retranscribeFromUrl, deleteAudioFromR2, deleteRecordingChunks, processR
 import { useToast } from './hooks/useToast';
 import { useDailyTip } from './hooks/useDailyTip';
 
-import type { Note, NoteType, Recording } from './types';
+import type { NoteType, Recording } from './types';
 import { useReminders } from './hooks/useReminders';
 import { useAuth } from './hooks/useAuth';
 import { useFirestoreData } from './hooks/useFirestoreData';
@@ -76,7 +76,6 @@ export default function App() {
 
   const {
     settings: appSettings, updateSettings,
-    assistantProfile, updateAssistantProfile,
     addPersonFromRecording, getKnownNames,
     profileLoading,
   } = useUserProfile(authUser?.uid ?? null);
@@ -93,6 +92,8 @@ export default function App() {
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [quickNoteType, setQuickNoteType] = useState<NoteType | null>(null);
   const [selectedRecordingId, setSelectedRecordingId] = useState<string | null>(null);
+  // Таймкод из результата голосового поиска — RecordingDetail перемотает аудио на него один раз
+  const [pendingSeek, setPendingSeek] = useState<string | null>(null);
 
   // Dev-only демо-просмотр без входа. effectiveUser проходит гейт логина, но uid в хуки
   // данных НЕ передаётся (остаётся null → локальный режим, без Firestore) — данные засеиваются ниже.
@@ -123,6 +124,14 @@ export default function App() {
     }
   }, [currentView, selectedRecordingId, recordings, dataLoading]);
 
+  // Ушли с экрана записи — сбрасываем таймкод поиска, чтобы он не применился повторно
+  useEffect(() => {
+    if (currentView !== 'recording_detail' && pendingSeek !== null) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPendingSeek(null);
+    }
+  }, [currentView, pendingSeek]);
+
   // Фокус-задачи от ассистента
   const [dailyFocus, setDailyFocus] = useState<Array<{ id: string; task: string; done: boolean }>>(() => {
     try { return JSON.parse(localStorage.getItem('voicemap_daily_focus') || '[]'); }
@@ -149,10 +158,12 @@ export default function App() {
     await logout();
   };
 
-  // Открыть запись с сохранением откуда пришли (для кнопки «Назад»)
-  const openRecording = (id: string) => {
+  // Открыть запись с сохранением откуда пришли (для кнопки «Назад»).
+  // seekTo — таймкод "MM:SS"/"H:MM:SS" из источника голосового поиска.
+  const openRecording = (id: string, seekTo?: string) => {
     setNavStack(prev => [...prev, { view: currentView }]);
     setSelectedRecordingId(id);
+    setPendingSeek(seekTo ?? null);
     setCurrentView('recording_detail');
   };
 
@@ -294,7 +305,7 @@ export default function App() {
         // key={rec.id} — при переходе между связанными записями компонент полностью
         // пересоздаётся, и весь локальный UI-state (activeTab, transcriptMode,
         // isCondensing, mobileTab и т.д.) сбрасывается автоматически
-        return <RecordingDetail key={rec.id} recording={rec} onBack={goBack} onDelete={() => {
+        return <RecordingDetail key={rec.id} recording={rec} initialSeek={pendingSeek ?? undefined} onBack={goBack} onDelete={() => {
           removeRecording(rec.id);
           goBack();
         }} onUpdate={(updatedRec) => {
@@ -500,43 +511,11 @@ export default function App() {
         </AnimatePresence>
       </div>
 
+      {/* Голосовой поиск по записям: ответ + источники с переходом на нужную секунду */}
       <ChatSidebar
         isOpen={isAssistantOpen}
         onClose={() => setIsAssistantOpen(false)}
-        recordings={recordings}
-        notes={notes}
-        profile={assistantProfile}
         onOpenRecording={openRecording}
-        currentView={currentView}
-        setCurrentView={setCurrentView}
-        onSetFocusTasks={(tasks) => {
-          const newTasks = tasks.map(task => ({ id: `${Date.now()}-${Math.random()}`, task, done: false }));
-          setDailyFocus(prev => [...newTasks, ...prev]);
-          showToast(`Добавлено ${tasks.length} фокус-задач`, 'success');
-        }}
-        onCreateNote={(data) => {
-          const note: Note = {
-            id: Date.now().toString(),
-            type: data.type as NoteType,
-            content: data.content,
-            date: new Date().toLocaleDateString('ru-RU'),
-            isCompleted: false,
-            dueDate: data.dueDate,
-            dueTime: data.dueTime,
-          };
-          addNote(note);
-          showToast('Заметка создана', 'success');
-        }}
-        onUpdateRecording={(id, updates) => {
-          const rec = recordings.find(r => r.id === id);
-          if (rec) updateRecordingItem({ ...rec, ...updates });
-          showToast('Запись обновлена', 'success');
-        }}
-        onLearnRule={(rule) => {
-          updateAssistantProfile({
-            customRules: [...assistantProfile.customRules.slice(-9), rule],
-          });
-        }}
       />
 
       {isProcessing && (

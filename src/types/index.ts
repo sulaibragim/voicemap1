@@ -94,11 +94,20 @@ export const defaultAppSettings: AppSettings = {
   extractTasks: true,
 };
 
+/** Источник ответа поиска: запись + момент внутри неё */
+export interface MessageSource {
+  recordingId: string;
+  title: string;
+  /** Таймкод внутри записи: "12:34" или "1:02:33" */
+  timestamp: string;
+  snippet: string;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant';
   text: string;
-  recordingId?: string;
   isAudio?: boolean;
-  actionDone?: 'focus' | 'note' | 'ideas';
+  /** Найденные записи — показываются под ответом ассистента */
+  sources?: MessageSource[];
 }

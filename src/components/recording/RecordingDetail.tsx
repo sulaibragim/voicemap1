@@ -23,10 +23,12 @@ interface RecordingDetailProps {
   allRecordings?: Recording[];
   onOpenRecording?: (id: string) => void;
   onRetranscribe?: () => Promise<void>;
+  /** Таймкод из голосового поиска ("MM:SS" / "H:MM:SS") — перемотать сюда при открытии */
+  initialSeek?: string;
 }
 
 
-export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToast, allRecordings = [], onOpenRecording, onRetranscribe }: RecordingDetailProps) => {
+export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToast, allRecordings = [], onOpenRecording, onRetranscribe, initialSeek }: RecordingDetailProps) => {
   // audioUrl передаём в хук: он может появиться позже (после фоновой транскрипции),
   // и слушатели <audio> должны навеситься в момент появления элемента
   const { audioRef, isPlaying, setIsPlaying, currentTime, duration, togglePlay, handleSeek } = useRecordingAudio(recording.audioUrl);
@@ -71,6 +73,20 @@ export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToa
       if (!isPlaying) { audioRef.current.play(); setIsPlaying(true); }
     }
   };
+
+  // Перемотка на таймкод из голосового поиска — строго один раз за монтирование.
+  // Ждём duration > 0: аудио с R2 грузится асинхронно, до loadedmetadata seek бесполезен.
+  const didInitialSeekRef = useRef(false);
+  useEffect(() => {
+    if (!initialSeek || didInitialSeekRef.current || duration <= 0) return;
+    const seconds = parseTimestamp(initialSeek);
+    if (!Number.isFinite(seconds) || seconds < 0) return;
+    didInitialSeekRef.current = true;
+    // Клампим: модель могла вернуть таймкод за пределами длительности
+    handleSeek(Math.min(seconds, Math.max(duration - 1, 0)));
+  // handleSeek пересоздаётся каждый рендер — в депы не берём, защита от повтора на ref
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSeek, duration]);
 
   const handleTitleSave = () => {
     const trimmed = editTitleValue.trim();
