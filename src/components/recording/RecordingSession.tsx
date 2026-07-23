@@ -5,6 +5,7 @@ import { RecordingTimerCircle } from './RecordingTimerCircle';
 import { RecordingControls } from './RecordingControls';
 import { ConsentNotice } from './ConsentNotice';
 import { needsConsentNotice } from '../../lib/consent';
+import { useT } from '../../i18n';
 
 interface RecordingSessionProps {
   onFinish: (blob: Blob, duration: number) => void;
@@ -20,6 +21,7 @@ interface RecordingSessionProps {
 export const RecordingSession = ({
   onFinish, onCancel, showToast, autoStopMinutes, consentAcknowledgedAt, onAcknowledgeConsent,
 }: RecordingSessionProps) => {
+  const t = useT();
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -43,7 +45,7 @@ export const RecordingSession = ({
         durationRef.current += 1;
         setDuration(durationRef.current);
         if (autoStopMinutes && durationRef.current >= autoStopMinutes * 60) {
-          showToast(`Автостоп: достигнут лимит ${autoStopMinutes} мин`, 'info');
+          showToast(t('record.autoStop', { minutes: autoStopMinutes }), 'info');
           stopRecordingRef.current?.();
         }
       }, 1000);
@@ -57,7 +59,7 @@ export const RecordingSession = ({
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
       }
-      streamRef.current?.getTracks().forEach(t => t.stop());
+      streamRef.current?.getTracks().forEach(track => track.stop());
       // Нативная Android-запись: если foreground service ещё пишет — останавливаем,
       // иначе микрофон продолжит запись после ухода с экрана. Файл не читаем — он не нужен.
       if (nativeFilePathRef.current) {
@@ -110,7 +112,7 @@ export const RecordingSession = ({
       setIsRecording(true);
     } catch (err) {
       console.error('Error accessing microphone:', err);
-      showToast('Не удалось получить доступ к микрофону.', 'error');
+      showToast(t('record.micError'), 'error');
     }
   };
 
@@ -140,7 +142,7 @@ export const RecordingSession = ({
           const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
           onFinish(blob, durationRef.current);
         } else {
-          showToast('Не удалось сохранить запись', 'error');
+          showToast(t('record.saveError'), 'error');
         }
       }
       return;
@@ -183,15 +185,15 @@ export const RecordingSession = ({
   const toggleMute = () => {
     if (isNative) {
       // В нативном режиме мьют не поддерживается — сообщаем пользователю
-      showToast('Используй паузу для остановки записи', 'info');
+      showToast(t('record.muteUnsupported'), 'info');
       return;
     }
     const tracks = streamRef.current?.getAudioTracks();
     if (!tracks?.length) return;
     const newMuted = !isMuted;
-    tracks.forEach(t => { t.enabled = !newMuted; });
+    tracks.forEach(track => { track.enabled = !newMuted; });
     setIsMuted(newMuted);
-    showToast(newMuted ? 'Микрофон выключен' : 'Микрофон включён', 'info');
+    showToast(newMuted ? t('record.micOff') : t('record.micOn'), 'info');
   };
 
   const handleCancel = () => {
@@ -205,7 +207,7 @@ export const RecordingSession = ({
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
-    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current?.getTracks().forEach(track => track.stop());
     streamRef.current = null;
     setIsRecording(false);
     setIsPaused(false);
@@ -230,14 +232,14 @@ export const RecordingSession = ({
           className="flex items-center gap-2 text-on-surface-variant hover:text-white transition-colors cursor-pointer"
         >
           <ArrowLeft className="w-5 h-5" />
-          <span className="font-bold text-xs tracking-widest uppercase">Отмена</span>
+          <span className="font-bold text-xs tracking-widest uppercase">{t('common.cancel')}</span>
         </button>
       </div>
 
       {/* Заголовок */}
       <div className="text-center mb-4 md:mb-6">
-        <h2 className="font-headline text-3xl md:text-4xl font-bold mb-3 md:mb-4">Живая сессия</h2>
-        <p className="text-on-surface-variant">Запись встречи или интервью</p>
+        <h2 className="font-headline text-3xl md:text-4xl font-bold mb-3 md:mb-4">{t('record.title')}</h2>
+        <p className="text-on-surface-variant">{t('record.subtitle')}</p>
       </div>
 
       {/* Напоминание висит всегда, в том числе во время записи: объявить о записи
@@ -245,7 +247,7 @@ export const RecordingSession = ({
       <div className="flex items-center gap-2 mb-6 md:mb-8 px-4 py-2 rounded-full bg-warning/10 border border-warning/20 mx-4">
         <ShieldAlert className="w-3.5 h-3.5 text-warning shrink-0" />
         <span className="text-xs text-warning text-center">
-          Скажи вслух, что идёт запись — в ряде штатов это обязательно
+          {t('record.consentHint')}
         </span>
       </div>
 
@@ -253,9 +255,9 @@ export const RecordingSession = ({
       {isNative && !isRecording && (
         <div className="flex gap-2 mb-8 bg-surface-container rounded-2xl p-1">
           {([
-            { mode: 'mic'     as AudioMode, label: 'Микрофон', icon: '🎙' },
-            { mode: 'both'    as AudioMode, label: 'Оба',      icon: '🎙+🔊' },
-            { mode: 'speaker' as AudioMode, label: 'Динамик',  icon: '🔊' },
+            { mode: 'mic'     as AudioMode, label: t('record.micOnly'), icon: '🎙' },
+            { mode: 'both'    as AudioMode, label: t('record.both'), icon: '🎙+🔊' },
+            { mode: 'speaker' as AudioMode, label: t('record.speaker'), icon: '🔊' },
           ] as const).map(({ mode, label, icon }) => (
             <button
               key={mode}
@@ -276,7 +278,7 @@ export const RecordingSession = ({
       {isNative && isRecording && (
         <div className="mb-6 flex items-center gap-2 text-xs text-on-surface-variant">
           <Volume2 className="w-3 h-3" />
-          <span>{audioMode === 'mic' ? 'Микрофон' : audioMode === 'both' ? 'Микрофон + Динамик' : 'Динамик'}</span>
+          <span>{audioMode === 'mic' ? t('record.micOnly') : audioMode === 'both' ? t('record.micAndSpeaker') : t('record.speaker')}</span>
         </div>
       )}
 

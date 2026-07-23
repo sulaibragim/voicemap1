@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'motion/react';
 import { AudioLines, Loader2 } from 'lucide-react';
+import { useT } from '../../i18n';
 
 interface LoginScreenProps {
   onGoogleSignIn: () => Promise<void>;
@@ -10,6 +11,7 @@ interface LoginScreenProps {
 }
 
 export const LoginScreen = ({ onGoogleSignIn, onDemoMode }: LoginScreenProps) => {
+  const t = useT();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,7 +23,7 @@ export const LoginScreen = ({ onGoogleSignIn, onDemoMode }: LoginScreenProps) =>
       // При signInWithRedirect страница уйдёт и вернётся — loading остаётся true
     } catch (e: unknown) {
       const code = (e as { code?: string }).code ?? '';
-      const msg = e instanceof Error ? e.message : 'Ошибка входа';
+      const msg = e instanceof Error ? e.message : t('login.errorGeneric');
       if (
         code === 'auth/popup-blocked' ||
         code === 'auth/popup-closed-by-user' ||
@@ -31,13 +33,13 @@ export const LoginScreen = ({ onGoogleSignIn, onDemoMode }: LoginScreenProps) =>
         // popup-closed → пользователь сам закрыл — ошибку не показываем
         setLoading(false);
       } else if (code === 'auth/unauthorized-domain') {
-        setError('Домен не авторизован в Firebase. Добавь его в Authorized domains.');
+        setError(t('login.errorDomain'));
         setLoading(false);
       } else if (code) {
-        setError(`Ошибка: ${code}`);
+        setError(t('login.errorCode', { code }));
         setLoading(false);
       } else if (!msg.includes('popup') && !msg.includes('cancelled')) {
-        setError(`Не удалось войти: ${msg}`);
+        setError(t('login.errorFailed', { message: msg }));
         setLoading(false);
       } else {
         setLoading(false);
@@ -62,7 +64,7 @@ export const LoginScreen = ({ onGoogleSignIn, onDemoMode }: LoginScreenProps) =>
           VoiceMap
         </h1>
         <p className="text-on-surface-variant text-sm text-center max-w-xs">
-          Твой AI-ассистент для голосовых заметок
+          {t('login.tagline')}
         </p>
       </motion.div>
 
@@ -75,8 +77,8 @@ export const LoginScreen = ({ onGoogleSignIn, onDemoMode }: LoginScreenProps) =>
       >
         <div className="bg-surface-container rounded-3xl border border-white/5 p-8 flex flex-col gap-4">
           <div className="text-center mb-2">
-            <p className="text-sm font-bold text-on-surface">Войди чтобы начать</p>
-            <p className="text-xs text-on-surface-variant mt-1">Данные синхронизируются между устройствами</p>
+            <p className="text-sm font-bold text-on-surface">{t('login.title')}</p>
+            <p className="text-xs text-on-surface-variant mt-1">{t('login.subtitle')}</p>
           </div>
 
           <button
@@ -94,7 +96,7 @@ export const LoginScreen = ({ onGoogleSignIn, onDemoMode }: LoginScreenProps) =>
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
             )}
-            {loading ? 'Входим...' : 'Продолжить с Google'}
+            {loading ? t('login.signingIn') : t('login.google')}
           </button>
 
           {error && (
@@ -107,13 +109,13 @@ export const LoginScreen = ({ onGoogleSignIn, onDemoMode }: LoginScreenProps) =>
               onClick={onDemoMode}
               className="w-full text-xs text-on-surface-variant/70 hover:text-on-surface transition-colors py-2 cursor-pointer"
             >
-              Демо-режим (без входа) — только для разработки
+              {t('login.demo')}
             </button>
           )}
         </div>
 
         <p className="text-center text-[11px] text-on-surface-variant/50 mt-6 px-4">
-          Входя в приложение, ты соглашаешься с тем, что голосовые данные обрабатываются AI (Google Gemini) для транскрипции
+          {t('login.consent')}
         </p>
       </motion.div>
 

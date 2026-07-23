@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Brain, Loader2 } from 'lucide-react';
 import { retranscribeFromUrl, deleteAudioFromR2, deleteRecordingChunks, processRecordingAsync, QuotaExceededError, setApiLanguage } from './lib/api';
 import { quotaToastMessage } from './lib/usageFormat';
+import { LangProvider, readStoredLang, storeLang } from './i18n';
 import { guessAudioMimeFromUrl } from './lib/audioMime';
 import { parseDurationToSeconds } from './lib/recordingUtils';
 import { useToast } from './hooks/useToast';
@@ -167,10 +168,18 @@ export default function App() {
   }, [dailyFocus]);
 
   // Язык вывода AI держим в модуле api — иначе его пришлось бы протаскивать
-  // параметром через каждый вызов. Синхронизируем при загрузке и смене настройки.
+  // параметром через каждый вызов. Плюс дублируем в localStorage: экран входа
+  // рендерится до загрузки настроек из Firestore и иначе всегда был бы русским.
   useEffect(() => {
     setApiLanguage(appSettings.language);
-  }, [appSettings.language]);
+    // В localStorage пишем ТОЛЬКО когда настройки реально загружены. Иначе на экране
+    // входа дефолт ('ru') затирает сохранённый выбор — и язык откатывается при каждом
+    // запуске до входа.
+    if (effectiveUser && !profileLoading) storeLang(appSettings.language);
+  }, [appSettings.language, effectiveUser, profileLoading]);
+
+  // До входа настроек ещё нет — берём последний известный язык из localStorage
+  const uiLang = effectiveUser ? appSettings.language : readStoredLang();
 
   const handleLogout = async () => {
     setDemoMode(false);
@@ -535,14 +544,17 @@ export default function App() {
   // Не авторизован — показываем экран входа
   if (!effectiveUser) {
     return (
-      <LoginScreen
-        onGoogleSignIn={signInWithGoogle}
-        onDemoMode={import.meta.env.DEV ? () => setDemoMode(true) : undefined}
-      />
+      <LangProvider lang={uiLang}>
+        <LoginScreen
+          onGoogleSignIn={signInWithGoogle}
+          onDemoMode={import.meta.env.DEV ? () => setDemoMode(true) : undefined}
+        />
+      </LangProvider>
     );
   }
 
   return (
+    <LangProvider lang={uiLang}>
     <div className="flex h-screen w-full overflow-hidden bg-background">
       <div className="relative h-full transition-all duration-300 ease-in-out w-full">
         <div className="h-full w-full overflow-y-auto">
@@ -602,5 +614,6 @@ export default function App() {
         </div>
       )}
     </div>
+    </LangProvider>
   );
 }

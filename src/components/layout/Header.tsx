@@ -1,4 +1,5 @@
 import { AudioLines, Mic, FolderOpen, Target, Settings, Search, LogOut, Bell } from 'lucide-react';
+import { useT, type TKey } from '../../i18n';
 
 interface HeaderProps {
   currentView: string;
@@ -8,15 +9,18 @@ interface HeaderProps {
   user?: { displayName: string; photoURL: string | null; email: string };
 }
 
-const NAV_ITEMS = [
-  { view: 'library',          label: 'Библиотека', icon: AudioLines },
-  { view: 'gallery',          label: 'Архив',      icon: FolderOpen },
-  { view: 'recording_session',label: 'Запись',     icon: Mic,        filled: true },
-  { view: 'focus',            label: 'Фокус',      icon: Target },
-  { view: 'reminders',        label: 'Напоминания', icon: Bell },
+// label — ключ перевода, а не готовая строка: подпись зависит от языка пользователя
+const NAV_ITEMS: Array<{ view: string; label: TKey; icon: typeof AudioLines; filled?: boolean }> = [
+  { view: 'library',          label: 'nav.library',   icon: AudioLines },
+  { view: 'gallery',          label: 'nav.archive',   icon: FolderOpen },
+  { view: 'recording_session',label: 'nav.record',    icon: Mic,        filled: true },
+  { view: 'focus',            label: 'nav.focus',     icon: Target },
+  { view: 'reminders',        label: 'nav.reminders', icon: Bell },
 ];
 
-export const Header = ({ currentView, setCurrentView, onLogout, onReset: _onReset, user }: HeaderProps) => (
+export const Header = ({ currentView, setCurrentView, onLogout, onReset: _onReset, user }: HeaderProps) => {
+  const t = useT();
+  return (
   <header className="hidden md:block w-full sticky top-0 z-[100] bg-[#0e0e11]/60 backdrop-blur-xl border-b border-white/[0.04]">
     <div className="flex items-center justify-between px-6 lg:px-10 py-3 max-w-full">
 
@@ -58,7 +62,7 @@ export const Header = ({ currentView, setCurrentView, onLogout, onReset: _onRese
                 className="w-3.5 h-3.5 flex-shrink-0"
                 fill={filled && active ? 'currentColor' : 'none'}
               />
-              {label}
+              {t(label)}
             </button>
           );
         })}
@@ -68,14 +72,14 @@ export const Header = ({ currentView, setCurrentView, onLogout, onReset: _onRese
       <div className="flex items-center gap-2 flex-shrink-0">
         <button
           onClick={() => setCurrentView('library')}
-          aria-label="Поиск"
+          aria-label={t('nav.search')}
           className="text-slate-400 hover:text-white transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-white/[0.06]"
         >
           <Search className="w-4 h-4" />
         </button>
         <button
           onClick={() => setCurrentView('settings')}
-          aria-label="Настройки"
+          aria-label={t('nav.settings')}
           className="text-slate-400 hover:text-white transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-white/[0.06]"
         >
           <Settings className="w-4 h-4" />
@@ -96,7 +100,7 @@ export const Header = ({ currentView, setCurrentView, onLogout, onReset: _onRese
             <button
               onClick={onLogout}
               className="text-slate-500 hover:text-error transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-error/10"
-              title="Выйти"
+              title={t('nav.logout')}
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>
@@ -106,4 +110,5 @@ export const Header = ({ currentView, setCurrentView, onLogout, onReset: _onRese
 
     </div>
   </header>
-);
+  );
+};

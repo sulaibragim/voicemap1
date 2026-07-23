@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 import { ShieldAlert, Megaphone, Scale } from 'lucide-react';
 import { formatConsentStates } from '../../lib/consent';
+import { useT, useLang } from '../../i18n';
 
 interface ConsentNoticeProps {
   /** Подтверждение прочтения — родитель сохраняет отметку в настройках */
@@ -18,7 +19,10 @@ interface ConsentNoticeProps {
  * для продукта про запись встреч это реальный риск, а не формальность.
  * Показывается один раз, дальше на экране записи остаётся ненавязчивая строка.
  */
-export const ConsentNotice = ({ onAcknowledge, onCancel, readOnly = false }: ConsentNoticeProps) => (
+export const ConsentNotice = ({ onAcknowledge, onCancel, readOnly = false }: ConsentNoticeProps) => {
+  const t = useT();
+  const lang = useLang();
+  return (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
     <motion.div
       initial={{ opacity: 0, scale: 0.96, y: 12 }}
@@ -31,12 +35,10 @@ export const ConsentNotice = ({ onAcknowledge, onCancel, readOnly = false }: Con
       </div>
 
       <h2 className="font-headline text-2xl md:text-3xl font-bold text-on-surface mb-2">
-        Предупреждай о записи
+        {t('consent.title')}
       </h2>
       <p className="text-sm text-on-surface-variant leading-relaxed mb-6">
-        В ряде штатов США ({formatConsentStates()}) записывать разговор можно только
-        с согласия всех участников. Запись без согласия там — нарушение закона, а не
-        просто неловкость.
+        {t('consent.intro', { states: formatConsentStates(lang) })}
       </p>
 
       <div className="space-y-4 mb-6">
@@ -45,10 +47,9 @@ export const ConsentNotice = ({ onAcknowledge, onCancel, readOnly = false }: Con
             <Megaphone className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <p className="text-sm font-bold text-on-surface">Скажи вслух в начале разговора</p>
+            <p className="text-sm font-bold text-on-surface">{t('consent.sayTitle')}</p>
             <p className="text-xs text-on-surface-variant leading-relaxed mt-0.5">
-              «Я записываю нашу встречу» — и дождись ответа. Ответ попадёт в запись
-              и останется доказательством согласия.
+              {t('consent.sayBody')}
             </p>
           </div>
         </div>
@@ -58,10 +59,9 @@ export const ConsentNotice = ({ onAcknowledge, onCancel, readOnly = false }: Con
             <Scale className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <p className="text-sm font-bold text-on-surface">Это не юридическая консультация</p>
+            <p className="text-sm font-bold text-on-surface">{t('consent.legalTitle')}</p>
             <p className="text-xs text-on-surface-variant leading-relaxed mt-0.5">
-              Правила отличаются от штата к штату и от страны к стране. Записываешь
-              по работе — уточни требования своей юрисдикции.
+              {t('consent.legalBody')}
             </p>
           </div>
         </div>
@@ -74,7 +74,7 @@ export const ConsentNotice = ({ onAcknowledge, onCancel, readOnly = false }: Con
             onClick={onCancel}
             className="px-4 py-3 rounded-2xl text-sm font-bold text-on-surface-variant bg-surface-container-high hover:text-on-surface transition-colors cursor-pointer"
           >
-            {readOnly ? 'Закрыть' : 'Назад'}
+            {readOnly ? t('common.close') : t('common.back')}
           </button>
         )}
         {!readOnly && (
@@ -83,10 +83,11 @@ export const ConsentNotice = ({ onAcknowledge, onCancel, readOnly = false }: Con
             onClick={onAcknowledge}
             className="flex-1 px-4 py-3 rounded-2xl text-sm font-bold bg-primary text-on-primary-fixed hover:opacity-90 transition-opacity cursor-pointer"
           >
-            Понятно, буду предупреждать
+            {t('consent.acknowledge')}
           </button>
         )}
       </div>
     </motion.div>
   </div>
-);
+  );
+};

@@ -4,6 +4,7 @@ import { defaultAppSettings } from '../types';
 import type { AssistantProfile } from '../lib/assistantPrompt';
 import { DEFAULT_PROFILE } from '../lib/assistantPrompt';
 import { loadUserProfile, saveUserProfile } from '../lib/firestoreService';
+import { readStoredLang } from '../i18n';
 
 const SAVE_DEBOUNCE_MS = 1000;
 
@@ -18,7 +19,9 @@ interface UseUserProfileReturn {
 }
 
 export function useUserProfile(uid: string | null): UseUserProfileReturn {
-  const [settings, setSettings] = useState<AppSettings>(defaultAppSettings);
+  // Язык берём из localStorage: он мог быть выбран ещё до входа. Значение из
+  // Firestore, если оно есть, перекроет его при загрузке профиля ниже.
+  const [settings, setSettings] = useState<AppSettings>(() => ({ ...defaultAppSettings, language: readStoredLang() }));
   const [assistantProfile, setAssistantProfile] = useState<AssistantProfile>(DEFAULT_PROFILE);
   const [people, setPeople] = useState<KnownPerson[]>([]);
   const [profileLoading, setProfileLoading] = useState(true);
