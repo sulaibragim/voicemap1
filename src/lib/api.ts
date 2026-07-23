@@ -340,6 +340,42 @@ export async function deleteRecordingChunks(recordingId: string): Promise<void> 
   }
 }
 
+// ── Бэкфилл поискового индекса (миграция старых записей) ────────────────────
+
+export interface BackfillResult {
+  processed: number;
+  indexedChunks: number;
+  failed: number;
+  remaining: number;
+}
+
+/** Type guard для ответа /backfill — защищаемся от неожиданной формы JSON */
+function isBackfillResult(value: unknown): value is BackfillResult {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.processed === 'number'
+    && typeof v.indexedChunks === 'number'
+    && typeof v.failed === 'number'
+    && typeof v.remaining === 'number';
+}
+
+/**
+ * Индексирует одну пачку ещё не проиндексированных записей пользователя (сервер: /api/ai/backfill).
+ * Вызывается повторно на клиенте (в цикле), пока в ответе remaining > 0.
+ * Бросает исключение при ошибке сети/сервера — вызывающий код (UI) должен сам решить,
+ * останавливать ли цикл и как показать ошибку пользователю.
+ */
+export async function backfillSearchIndex(limit?: number): Promise<BackfillResult> {
+  const body: Record<string, unknown> = {};
+  if (typeof limit === 'number') body.limit = limit;
+
+  const raw = await post<unknown>('/backfill', body);
+  if (!isBackfillResult(raw)) {
+    throw new Error('backfillSearchIndex: unexpected response shape');
+  }
+  return raw;
+}
+
 /** Parse reminder date/time from transcribed text */
 export async function parseReminderTime(text: string): Promise<{ hasTime: boolean; date?: string; time?: string; summary: string }> {
   const now = new Date();

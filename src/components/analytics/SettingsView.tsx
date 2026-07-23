@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { ArrowLeft, Download, Trash2, RefreshCw, Database, FileText, Mic, User, MessageSquare, Sparkles, Info } from 'lucide-react';
+import { ArrowLeft, Download, Trash2, RefreshCw, Database, FileText, Mic, User, MessageSquare, Sparkles, Info, Search, Loader2 } from 'lucide-react';
 import { plural } from '../../lib/plural';
+import { backfillSearchIndex } from '../../lib/api';
 import type { Recording, Note, AppSettings } from '../../types';
 import { Section, Divider, RowToggle, RowChips, RowAction } from './SettingsRows';
 
@@ -24,6 +25,8 @@ export const SettingsView = ({
 }: SettingsViewProps) => {
   const [confirmClear, setConfirmClear] = useState<'recordings' | 'notes' | 'all' | null>(null);
   const [nameInput, setNameInput] = useState(settings.userName);
+  const [isBackfilling, setIsBackfilling] = useState(false);
+  const [backfillProgress, setBackfillProgress] = useState(0);
 
   const totalMinutes = recordings.reduce((acc, r) => {
     if (!r.duration) return acc;
@@ -44,6 +47,43 @@ export const SettingsView = ({
     a.click();
     URL.revokeObjectURL(url);
     showToast('Данные экспортированы', 'success');
+  };
+
+  // Бэкфилл поискового индекса: старые записи (созданные до появления RAG-поиска)
+  // индексируются пачками — крутим цикл, пока сервер не скажет, что больше нечего индексировать.
+  const handleBackfill = async () => {
+    if (isBackfilling) return;
+    setIsBackfilling(true);
+    setBackfillProgress(0);
+    let totalProcessed = 0;
+    let totalFailed = 0;
+    try {
+      for (;;) {
+        const result = await backfillSearchIndex();
+        totalProcessed += result.processed;
+        totalFailed += result.failed;
+        setBackfillProgress(totalProcessed);
+
+        if (result.remaining <= 0) break;
+        // Защита от бесконечного цикла: за итерацию ничего не обработано, но записи ещё остались —
+        // значит все они падают с ошибкой, дальше крутить цикл бессмысленно.
+        if (result.processed === 0) {
+          showToast(`Не удалось проиндексировать часть записей (${result.remaining} осталось). Попробуйте позже.`, 'error');
+          return;
+        }
+      }
+      showToast(
+        totalFailed > 0
+          ? `Готово: проиндексировано ${totalProcessed} записей, ${totalFailed} с ошибками`
+          : `Готово: проиндексировано ${totalProcessed} записей`,
+        'success',
+      );
+    } catch (e) {
+      console.warn('[SettingsView] backfillSearchIndex failed:', e);
+      showToast('Не удалось проиндексировать записи. Попробуйте позже.', 'error');
+    } finally {
+      setIsBackfilling(false);
+    }
   };
 
   const handleConfirm = () => {
@@ -190,6 +230,35 @@ export const SettingsView = ({
               <RowAction icon={RefreshCw} label="Сбросить до демо" description="Восстановить начальные демо-данные (dev)" iconColor="text-tertiary" bgColor="bg-tertiary/10" onClick={() => { onResetDemo(); onBack(); }} />
             </>
           )}
+        </Section>
+
+        {/* Поиск по записям */}
+        <Section title="Поиск по записям">
+          <div className="p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                <Search className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-on-surface">Индексация старых записей</p>
+                <p className="text-xs text-on-surface-variant">Старые записи не находятся поиском, пока не проиндексированы. Это разовая операция.</p>
+              </div>
+            </div>
+            <button
+              onClick={handleBackfill}
+              disabled={isBackfilling}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-bold bg-surface-container-high text-on-surface hover:text-primary transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isBackfilling ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Проиндексировано {backfillProgress}…</span>
+                </>
+              ) : (
+                <span>Проиндексировать старые записи</span>
+              )}
+            </button>
+          </div>
         </Section>
 
         {/* Фидбэк */}

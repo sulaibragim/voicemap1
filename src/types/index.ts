@@ -55,6 +55,10 @@ export interface Recording {
   richActionItems?: RichActionItem[];
   bigQuestions?: string[];
   aiStatus?: 'processing' | 'done' | 'error';  // статус AI-обработки
+  // Отметка о том, что запись проиндексирована для RAG-поиска (Firestore Timestamp с сервера).
+  // Тип не уточняем до конкретной формы Timestamp — клиент это поле только читает
+  // (наличие/отсутствие), а не парсит как дату.
+  ragIndexedAt?: unknown;
 }
 
 export interface Participant {
