@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { plural } from '../../lib/plural';
 import type { Recording } from '../../types';
 import { SwipeCard } from './SwipeCard';
+import { getCoverForId } from '../../lib/coverTheme';
 import { getTagColor, getTagTextColor, sortItems, groupByDate, type SortMode } from '../../lib/recordingUtils';
 
 interface RecordingsLibraryProps {
@@ -117,6 +118,15 @@ export const RecordingsLibrary = ({
           >
             {/* Spine */}
             <div className={`w-1 flex-shrink-0 ${getTagColor(rec.tags)}`} />
+            {/* Обложка постоянна для записи — выбирается по хешу id, см. lib/coverTheme */}
+            <div className="w-14 md:w-20 flex-shrink-0 overflow-hidden bg-surface-container-highest">
+              <img
+                src={getCoverForId(rec.id)}
+                alt=""
+                loading="lazy"
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+            </div>
             {/* Content */}
             <div className="flex-1 p-4 min-w-0">
               <div className="flex items-start justify-between gap-2 mb-1.5">

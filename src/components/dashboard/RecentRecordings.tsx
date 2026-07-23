@@ -1,5 +1,6 @@
 import { motion } from 'motion/react';
 import { AudioLines, PlayCircle } from 'lucide-react';
+import { getCoverForId } from '../../lib/coverTheme';
 import type { Recording } from '../../types';
 
 interface RecentRecordingsProps {
@@ -37,10 +38,16 @@ export const RecentRecordings = ({ recordings, onOpenLibrary, onOpenDetail }: Re
         <div className="grid grid-cols-12 gap-8">
           {recent[0] && (
             <div className="col-span-12 lg:col-span-8 group cursor-pointer" onClick={() => onOpenDetail(recent[0].id)}>
-              <div className="relative rounded-[40px] overflow-hidden aspect-[16/9] mb-6 bg-surface-container-high border border-white/5 flex items-center justify-center">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-tertiary/20 opacity-50 group-hover:opacity-80 transition-opacity duration-700"></div>
-                <AudioLines className="w-32 h-32 text-primary/30 group-hover:scale-110 transition-transform duration-700" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+              <div className="relative rounded-[40px] overflow-hidden aspect-[16/9] mb-6 bg-surface-container-high border border-white/5">
+                {/* Обложка постоянна для записи — выбирается по хешу id, см. lib/coverTheme */}
+                <img
+                  src={getCoverForId(recent[0].id)}
+                  alt=""
+                  loading="eager"
+                  fetchPriority="high"
+                  className="absolute inset-0 w-full h-full object-cover scale-105 group-hover:scale-110 transition-transform duration-[1200ms] ease-out"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent"></div>
                 <div className="absolute bottom-8 left-8 right-8 flex justify-between items-end">
                   <div>
                     <span className="bg-primary text-on-primary-fixed px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-3 inline-block">Последняя</span>
@@ -82,8 +89,13 @@ export const RecentRecordings = ({ recordings, onOpenLibrary, onOpenDetail }: Re
                 onClick={() => onOpenDetail(item.id)}
                 className="flex gap-3 lg:gap-6 group cursor-pointer bg-surface-container p-3 lg:p-4 rounded-2xl border border-transparent hover:border-white/10 transition-colors"
               >
-                <div className="w-16 h-16 lg:w-24 lg:h-24 flex-shrink-0 rounded-2xl overflow-hidden bg-surface-container-highest flex items-center justify-center">
-                  <AudioLines className="w-10 h-10 text-on-surface-variant group-hover:scale-110 transition-transform" />
+                <div className="w-16 h-16 lg:w-24 lg:h-24 flex-shrink-0 rounded-2xl overflow-hidden bg-surface-container-highest">
+                  <img
+                    src={getCoverForId(item.id)}
+                    alt=""
+                    loading="lazy"
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-label font-bold text-primary tracking-widest uppercase mb-1">{item.date}</p>

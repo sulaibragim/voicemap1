@@ -1,6 +1,7 @@
 import { motion } from 'motion/react';
 import type { Recording } from '../../types';
 import { hasIncompleteTasks } from '../../lib/mapUtils';
+import { getCoverForId } from '../../lib/coverTheme';
 
 interface RecListViewProps {
   recordings: Recording[];
@@ -25,11 +26,14 @@ export const RecListView = ({ recordings, onOpenDetail }: RecListViewProps) => {
             style={{ background: 'rgba(28,28,33,0.75)', borderColor: 'rgba(123,97,255,0.12)' }}
             onClick={() => onOpenDetail(rec.id)}
           >
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-lg mt-0.5"
-              style={{ background: 'rgba(123,97,255,0.1)' }}
-            >
-              🎙
+            {/* Обложка постоянна для записи — выбирается по хешу id, см. lib/coverTheme */}
+            <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0 mt-0.5 bg-surface-container-highest">
+              <img
+                src={getCoverForId(rec.id)}
+                alt=""
+                loading="lazy"
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+              />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2">
