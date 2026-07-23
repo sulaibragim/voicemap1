@@ -6,6 +6,7 @@ import { backfillSearchIndex } from '../../lib/api';
 import type { Recording, Note, AppSettings } from '../../types';
 import { Section, Divider, RowToggle, RowChips, RowAction } from './SettingsRows';
 import { UsageCard } from './UsageCard';
+import { useT } from '../../i18n';
 
 const FEEDBACK_EMAIL = 'mailto:sulaibragim@gmail.com?subject=VoiceMap';
 const APP_VERSION = '0.1.0-alpha';
@@ -25,6 +26,7 @@ interface SettingsViewProps {
 export const SettingsView = ({
   recordings, notes, onBack, onResetDemo, onClearRecordings, onClearNotes, showToast, settings, onSettingsChange,
 }: SettingsViewProps) => {
+  const t = useT();
   const [confirmClear, setConfirmClear] = useState<'recordings' | 'notes' | 'all' | null>(null);
   const [nameInput, setNameInput] = useState(settings.userName);
   const [isBackfilling, setIsBackfilling] = useState(false);
@@ -165,22 +167,22 @@ export const SettingsView = ({
         </section>
 
         {/* Язык */}
-        <Section title="Язык">
+        <Section title={t('settings.languageSection')}>
           <RowChips
             icon={Languages}
-            label="Язык приложения и AI"
-            description="Саммари, идеи и ответы поиска будут на этом языке. Речь в транскрипте не переводится"
+            label={t('settings.languageLabel')}
+            description={t('settings.languageDescription')}
             options={[
               { label: 'Русский', value: 'ru' },
               { label: 'English', value: 'en' },
             ]}
             value={settings.language}
-            onChange={v => { onSettingsChange({ language: v as AppSettings['language'] }); showToast('Настройки сохранены', 'success'); }}
+            onChange={v => { onSettingsChange({ language: v as AppSettings['language'] }); showToast(t('common.settingsSaved'), 'success'); }}
           />
         </Section>
 
         {/* Лимит расшифровки */}
-        <Section title="Лимит расшифровки">
+        <Section title={t('usage.section')}>
           <UsageCard />
         </Section>
 
@@ -198,7 +200,7 @@ export const SettingsView = ({
               { label: '30 мин', value: 30 },
             ]}
             value={settings.autoStopMinutes}
-            onChange={v => { onSettingsChange({ autoStopMinutes: v as AppSettings['autoStopMinutes'] }); showToast('Настройки сохранены', 'success'); }}
+            onChange={v => { onSettingsChange({ autoStopMinutes: v as AppSettings['autoStopMinutes'] }); showToast(t('common.settingsSaved'), 'success'); }}
           />
           <Divider />
           <RowChips
@@ -211,17 +213,17 @@ export const SettingsView = ({
               { label: 'English', value: 'en' },
             ]}
             value={settings.transcriptionLang}
-            onChange={v => { onSettingsChange({ transcriptionLang: v as AppSettings['transcriptionLang'] }); showToast('Настройки сохранены', 'success'); }}
+            onChange={v => { onSettingsChange({ transcriptionLang: v as AppSettings['transcriptionLang'] }); showToast(t('common.settingsSaved'), 'success'); }}
           />
           <Divider />
           <RowAction
             icon={ShieldAlert}
-            label="Согласие на запись"
-            description="В ряде штатов США записывать разговор можно только с согласия всех участников"
+            label={t('consent.settingsLabel')}
+            description={t('consent.settingsDescription')}
             iconColor="text-warning"
             bgColor="bg-warning/10"
             onClick={() => setShowConsent(true)}
-            rightLabel="Прочитать"
+            rightLabel={t('consent.settingsAction')}
           />
         </Section>
 
@@ -237,7 +239,7 @@ export const SettingsView = ({
               { label: 'Подробно', value: 'detailed' },
             ]}
             value={settings.summaryDetail}
-            onChange={v => { onSettingsChange({ summaryDetail: v as AppSettings['summaryDetail'] }); showToast('Настройки сохранены', 'success'); }}
+            onChange={v => { onSettingsChange({ summaryDetail: v as AppSettings['summaryDetail'] }); showToast(t('common.settingsSaved'), 'success'); }}
           />
           <Divider />
           <RowToggle
@@ -245,7 +247,7 @@ export const SettingsView = ({
             label="Выделять идеи"
             description="AI находит идеи в каждой записи"
             checked={settings.extractIdeas}
-            onChange={v => { onSettingsChange({ extractIdeas: v }); showToast('Настройки сохранены', 'success'); }}
+            onChange={v => { onSettingsChange({ extractIdeas: v }); showToast(t('common.settingsSaved'), 'success'); }}
           />
           <Divider />
           <RowToggle
@@ -253,7 +255,7 @@ export const SettingsView = ({
             label="Выделять задачи"
             description="AI находит action items в записях"
             checked={settings.extractTasks}
-            onChange={v => { onSettingsChange({ extractTasks: v }); showToast('Настройки сохранены', 'success'); }}
+            onChange={v => { onSettingsChange({ extractTasks: v }); showToast(t('common.settingsSaved'), 'success'); }}
           />
         </Section>
 

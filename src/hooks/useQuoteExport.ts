@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useTranscriptSelection } from './useTranscriptSelection';
 import { buildQuoteFileName, buildQuoteText } from '../lib/quoteExport';
+import { useT } from '../i18n';
 import type { TranscriptItem } from '../types';
 
 interface UseQuoteExportOptions {
@@ -17,6 +18,7 @@ interface UseQuoteExportOptions {
  * чтобы формат цитаты и поведение не разъехались между версиями.
  */
 export function useQuoteExport({ transcript, title, date, showToast }: UseQuoteExportOptions) {
+  const t = useT();
   const { containerRef, selection, clear } = useTranscriptSelection(transcript);
 
   const handleCopy = useCallback(async () => {
@@ -25,14 +27,14 @@ export function useQuoteExport({ transcript, title, date, showToast }: UseQuoteE
 
     try {
       await navigator.clipboard.writeText(text);
-      showToast('Цитата скопирована с таймкодом', 'success');
+      showToast(t('quote.copied'), 'success');
       clear();
     } catch (e) {
       // Буфер недоступен: небезопасный контекст (http) или запрет в настройках браузера
       console.warn('[useQuoteExport] clipboard write failed:', e);
-      showToast('Браузер не дал доступ к буферу обмена. Скачайте цитату файлом.', 'error');
+      showToast(t('quote.clipboardError'), 'error');
     }
-  }, [selection.fragments, title, date, showToast, clear]);
+  }, [selection.fragments, title, date, showToast, clear, t]);
 
   const handleDownload = useCallback(() => {
     const text = buildQuoteText(selection.fragments, { title, date });
@@ -48,9 +50,9 @@ export function useQuoteExport({ transcript, title, date, showToast }: UseQuoteE
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    showToast('Цитата сохранена', 'success');
+    showToast(t('quote.saved'), 'success');
     clear();
-  }, [selection.fragments, title, date, showToast, clear]);
+  }, [selection.fragments, title, date, showToast, clear, t]);
 
   return { containerRef, selection, handleCopy, handleDownload };
 }

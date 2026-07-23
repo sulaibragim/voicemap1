@@ -42,6 +42,12 @@ export const en: Record<TKey, string> = {
   'search.stopButton': 'Stop',
   'search.placeholder': 'Or type: what did I say about…',
   'search.submit': 'Search',
+  'search.example1': 'What did I promise to do?',
+  'search.example2': 'About the investor',
+  'search.example3': 'Last meeting takeaways',
+  'search.searching': 'Searching…',
+  'search.listening': 'Listening…',
+  'search.stopRecording': 'Stop recording',
   'search.sources': 'Sources',
   'search.clear': 'Clear',
 

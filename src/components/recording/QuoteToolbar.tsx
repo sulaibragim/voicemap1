@@ -1,6 +1,7 @@
 import { Copy, Download, Quote } from 'lucide-react';
 import { buildQuoteRange } from '../../lib/quoteExport';
 import type { QuoteFragment } from '../../lib/quoteExport';
+import { useT } from '../../i18n';
 
 interface QuoteToolbarProps {
   fragments: QuoteFragment[];
@@ -25,10 +26,11 @@ const FLOATING_WIDTH = 260;
  * выделение текста — как в любой статье. Меньше кнопок в покое, меньше экранов.
  */
 export const QuoteToolbar = ({ fragments, rect, variant, onCopy, onDownload }: QuoteToolbarProps) => {
+  const t = useT();
   if (fragments.length === 0) return null;
 
   const range = buildQuoteRange(fragments);
-  const label = fragments.length > 1 ? `${fragments.length} реплики` : range || 'цитата';
+  const label = fragments.length > 1 ? t('quote.replicas', { count: fragments.length }) : range || t('quote.label');
 
   const buttons = (
     <>
@@ -38,12 +40,12 @@ export const QuoteToolbar = ({ fragments, rect, variant, onCopy, onDownload }: Q
         className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-primary text-on-primary-fixed hover:opacity-90 transition-opacity cursor-pointer"
       >
         <Copy className="w-3.5 h-3.5" />
-        Скопировать цитату
+        {t('quote.copy')}
       </button>
       <button
         type="button"
         onClick={onDownload}
-        aria-label="Скачать цитату файлом"
+        aria-label={t('quote.download')}
         className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-surface-container-highest text-on-surface hover:text-primary transition-colors cursor-pointer"
       >
         <Download className="w-3.5 h-3.5" />

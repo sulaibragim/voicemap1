@@ -43,6 +43,12 @@ export const ru = {
   'search.stopButton': 'Стоп',
   'search.placeholder': 'Или напиши: что я говорил про...',
   'search.submit': 'Искать',
+  'search.example1': 'Что я обещал сделать?',
+  'search.example2': 'Про инвестора',
+  'search.example3': 'Итоги последней встречи',
+  'search.searching': 'Ищу...',
+  'search.listening': 'Слушаю…',
+  'search.stopRecording': 'Остановить запись',
   'search.sources': 'Источники',
   'search.clear': 'Очистить',
 

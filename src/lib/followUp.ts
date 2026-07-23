@@ -8,6 +8,7 @@
 
 import { parseRecDate } from './dashboardUtils';
 import { plural } from './plural';
+import type { Lang } from '../i18n';
 import type { Recording, RichActionItem } from '../types';
 
 export interface FollowUpItem {
@@ -151,30 +152,35 @@ export function collectFollowUps(
   return items.slice(0, limit);
 }
 
-const RU_MONTHS_GENITIVE = [
-  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
-  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
-];
+const MONTHS: Record<Lang, string[]> = {
+  ru: ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+       'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'],
+  en: ['January', 'February', 'March', 'April', 'May', 'June',
+       'July', 'August', 'September', 'October', 'November', 'December'],
+};
 
 /**
  * Человеческий вид дедлайна: '2026-04-27' → «27 апреля».
  * Неразобранный текст («на следующей неделе») показываем как есть — сочинять дату нельзя.
  */
-export function formatDeadline(raw: string | undefined, now: Date = new Date()): string {
+export function formatDeadline(raw: string | undefined, now: Date = new Date(), lang: Lang = 'ru'): string {
   if (typeof raw !== 'string' || !raw.trim()) return '';
 
   const parsed = parseDeadline(raw, now);
   if (!parsed) return raw.trim();
 
   const day = parsed.getDate();
-  const month = RU_MONTHS_GENITIVE[parsed.getMonth()];
-  return parsed.getFullYear() === now.getFullYear()
-    ? `${day} ${month}`
-    : `${day} ${month} ${parsed.getFullYear()}`;
+  const month = (MONTHS[lang] ?? MONTHS.ru)[parsed.getMonth()];
+  const sameYear = parsed.getFullYear() === now.getFullYear();
+  // Английский порядок «April 27», русский — «27 апреля»
+  if (lang === 'en') return sameYear ? `${month} ${day}` : `${month} ${day}, ${parsed.getFullYear()}`;
+  return sameYear ? `${day} ${month}` : `${day} ${month} ${parsed.getFullYear()}`;
 }
 
 /** «2 недели назад» / «5 дней назад» / «вчера» — для подписи под задачей. */
-export function formatAge(ageDays: number): string {
+export function formatAge(ageDays: number, lang: Lang = 'ru'): string {
+  if (lang === 'en') return formatAgeEn(ageDays);
+
   if (!Number.isFinite(ageDays) || ageDays <= 0) return 'сегодня';
   if (ageDays === 1) return 'вчера';
   if (ageDays < 7) return `${ageDays} ${plural(ageDays, ['день', 'дня', 'дней'])} назад`;
@@ -185,4 +191,23 @@ export function formatAge(ageDays: number): string {
 
   const months = Math.floor(ageDays / 30);
   return months <= 1 ? 'месяц назад' : `${months} ${plural(months, ['месяц', 'месяца', 'месяцев'])} назад`;
+}
+
+function formatAgeEn(ageDays: number): string {
+  if (!Number.isFinite(ageDays) || ageDays <= 0) return 'today';
+  if (ageDays === 1) return 'yesterday';
+  if (ageDays < 7) return `${ageDays} days ago`;
+
+  const weeks = Math.floor(ageDays / 7);
+  if (weeks === 1) return 'a week ago';
+  if (weeks < 5) return `${weeks} weeks ago`;
+
+  const months = Math.floor(ageDays / 30);
+  return months <= 1 ? 'a month ago' : `${months} months ago`;
+}
+
+/** «3 задачи» / «3 tasks» — счётчик для заголовка карточки. */
+export function formatTaskCount(count: number, lang: Lang = 'ru'): string {
+  if (lang === 'en') return `${count} ${count === 1 ? 'task' : 'tasks'}`;
+  return `${count} ${plural(count, ['задача', 'задачи', 'задач'])}`;
 }

@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { Circle, AlarmClock, UserRound } from 'lucide-react';
-import { collectFollowUps, formatAge, formatDeadline, type FollowUpItem } from '../../lib/followUp';
-import { plural } from '../../lib/plural';
+import { collectFollowUps, formatAge, formatDeadline, formatTaskCount, type FollowUpItem } from '../../lib/followUp';
+import { useT, useLang, type TranslateFn, type Lang } from '../../i18n';
 import type { Recording } from '../../types';
 
 interface FollowUpCardProps {
@@ -12,16 +12,18 @@ interface FollowUpCardProps {
 
 interface FollowUpRowProps {
   item: FollowUpItem;
+  t: TranslateFn;
+  lang: Lang;
   onOpenRecording?: (id: string) => void;
   onToggleDone?: (recordingId: string, taskIdx: number) => void;
 }
 
-const FollowUpRow = ({ item, onOpenRecording, onToggleDone }: FollowUpRowProps) => (
+const FollowUpRow = ({ item, t, lang, onOpenRecording, onToggleDone }: FollowUpRowProps) => (
   <div className="flex items-start gap-3 p-3 rounded-2xl bg-surface-container border border-white/5 hover:border-white/10 transition-colors">
     <button
       type="button"
       onClick={() => onToggleDone?.(item.recordingId, item.taskIndex)}
-      aria-label="Отметить выполненным"
+      aria-label={t('followUp.markDone')}
       className="shrink-0 mt-0.5 cursor-pointer"
     >
       <Circle className="w-5 h-5 text-outline-variant hover:text-secondary transition-colors" />
@@ -39,12 +41,12 @@ const FollowUpRow = ({ item, onOpenRecording, onToggleDone }: FollowUpRowProps) 
           {item.recordingTitle}
         </button>
 
-        <span className="text-xs text-on-surface-variant">{formatAge(item.ageDays)}</span>
+        <span className="text-xs text-on-surface-variant">{formatAge(item.ageDays, lang)}</span>
 
         {item.isOverdue && item.deadline && (
           <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-error bg-error/10 px-2 py-0.5 rounded-full">
             <AlarmClock className="w-3 h-3" />
-            срок был {formatDeadline(item.deadline)}
+            {t('followUp.deadlineWas', { date: formatDeadline(item.deadline, new Date(), lang) })}
           </span>
         )}
 
@@ -66,6 +68,8 @@ const FollowUpRow = ({ item, onOpenRecording, onToggleDone }: FollowUpRowProps) 
  * карточка не рендерится вовсе: напоминать не о чем, место занимать незачем.
  */
 export const FollowUpCard = ({ recordings, onOpenRecording, onToggleDone }: FollowUpCardProps) => {
+  const t = useT();
+  const lang = useLang();
   const items = collectFollowUps(recordings);
   if (items.length === 0) return null;
 
@@ -81,12 +85,12 @@ export const FollowUpCard = ({ recordings, onOpenRecording, onToggleDone }: Foll
       <div className="flex items-start justify-between gap-4 mb-4 md:mb-6">
         <div>
           <h2 className="font-headline text-xl md:text-3xl font-bold text-on-surface">
-            Обещал и не сделал
+            {t('followUp.title')}
           </h2>
           <p className="text-xs md:text-sm text-on-surface-variant mt-1">
             {overdueCount > 0
-              ? `${overdueCount} ${plural(overdueCount, ['задача', 'задачи', 'задач'])} с прошедшим сроком`
-              : 'Висят с прошлых записей'}
+              ? t('followUp.overdue', { count: formatTaskCount(overdueCount, lang) })
+              : t('followUp.stale')}
           </p>
         </div>
         <div className="w-10 h-10 md:w-12 md:h-12 rounded-2xl bg-warning/15 flex items-center justify-center shrink-0">
@@ -99,6 +103,8 @@ export const FollowUpCard = ({ recordings, onOpenRecording, onToggleDone }: Foll
           <FollowUpRow
             key={`${item.recordingId}-${item.taskIndex}`}
             item={item}
+            t={t}
+            lang={lang}
             onOpenRecording={onOpenRecording}
             onToggleDone={onToggleDone}
           />

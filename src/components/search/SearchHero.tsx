@@ -5,20 +5,26 @@ import { searchRecordings, transcribeChatVoice, type SearchResult } from '../../
 import { useChatRecording } from '../../hooks/useChatRecording';
 import { SearchVoiceButton } from './SearchVoiceButton';
 import { SearchResultPanel } from './SearchResultPanel';
+import { useT, type TKey } from '../../i18n';
 
 interface SearchHeroProps {
   /** Открыть источник ответа на нужной секунде записи */
   onOpenSource: (recordingId: string, timestamp: string) => void;
 }
 
-// Примеры запросов — клик сразу подставляет и ищет
-const EXAMPLE_QUERIES = ['Что я обещал сделать?', 'Про инвестора', 'Итоги последней встречи'];
+// Примеры запросов — клик сразу подставляет и ищет. Ключи, а не строки: зависят от языка
+const EXAMPLE_QUERY_KEYS: TKey[] = ['search.example1', 'search.example2', 'search.example3'];
+
+// Заглушка пустого аудио приходит с сервера на языке пользователя (см. server/lib/lang.ts),
+// поэтому сверяем с обоими вариантами — иначе на английском тишина уйдёт в поиск как запрос.
+const SILENCE_MARKERS = ['[Тишина]', '[Silence]'];
 
 /**
  * Главный герой-блок дашборда — голосовой/текстовый поиск по своим записям.
  * Состояния: пусто → слушаю (запись голоса) → ищу (транскрипция/поиск) → есть ответ.
  */
 export const SearchHero = ({ onOpenSource }: SearchHeroProps) => {
+  const t = useT();
   const [query, setQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [result, setResult] = useState<SearchResult | null>(null);
@@ -38,7 +44,7 @@ export const SearchHero = ({ onOpenSource }: SearchHeroProps) => {
     onAudioReady: async (base64Audio, mimeType) => {
       try {
         const transcript = await transcribeChatVoice(base64Audio, mimeType);
-        if (!transcript || transcript.trim() === '[Тишина]') {
+        if (!transcript || SILENCE_MARKERS.includes(transcript.trim())) {
           setIsSearching(false);
           return;
         }
@@ -67,10 +73,10 @@ export const SearchHero = ({ onOpenSource }: SearchHeroProps) => {
       {/* Заголовок */}
       <div className="text-center md:text-left mb-6">
         <h1 className="font-headline text-2xl md:text-4xl font-black tracking-tight text-on-surface">
-          Спроси свои записи
+          {t('search.title')}
         </h1>
         <p className="text-sm md:text-base text-on-surface-variant mt-1">
-          Найду нужный момент в любой записи
+          {t('search.subtitle')}
         </p>
       </div>
 
@@ -91,7 +97,7 @@ export const SearchHero = ({ onOpenSource }: SearchHeroProps) => {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && runSearch(query)}
           disabled={isBusy}
-          placeholder="Или напиши: что я говорил про..."
+          placeholder={t('search.placeholder')}
           className="w-full bg-surface-container-high border border-white/10 rounded-full py-3.5 pl-5 pr-14 text-sm md:text-base focus:outline-none focus:border-primary/50 transition-colors disabled:opacity-50"
         />
         <button
@@ -106,16 +112,19 @@ export const SearchHero = ({ onOpenSource }: SearchHeroProps) => {
 
       {/* Чипы-примеры */}
       <div className="flex flex-wrap gap-2">
-        {EXAMPLE_QUERIES.map(chip => (
+        {EXAMPLE_QUERY_KEYS.map(key => {
+          const chip = t(key);
+          return (
           <button
-            key={chip}
+            key={key}
             onClick={() => { setQuery(chip); void runSearch(chip); }}
             disabled={isBusy}
             className="text-xs font-bold px-3.5 py-2 rounded-full bg-surface-container-high border border-white/8 text-on-surface-variant hover:text-primary hover:border-primary/30 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {chip}
           </button>
-        ))}
+          );
+        })}
       </div>
 
       <SearchResultPanel

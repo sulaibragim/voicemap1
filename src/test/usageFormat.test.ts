@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import type { TranscriptionUsage } from '../lib/api';
 import {
   formatDurationHuman,
-  formatUsageLine,
   usagePercent,
   isUsageLow,
   planLabel,
@@ -38,10 +37,16 @@ describe('formatDurationHuman', () => {
   });
 });
 
-describe('formatUsageLine', () => {
-  it('собирает строку «использовано X из Y» — то, что просили в ROADMAP', () => {
-    expect(formatUsageLine(usage({ usedSeconds: 8 * 3600, limitSeconds: 20 * 3600 })))
-      .toBe('Использовано 8 ч из 20 ч');
+describe('formatDurationHuman — английский', () => {
+  it('использует английские единицы', () => {
+    expect(formatDurationHuman(2 * 3600 + 15 * 60, 'en')).toBe('2 h 15 min');
+    expect(formatDurationHuman(45 * 60, 'en')).toBe('45 min');
+    expect(formatDurationHuman(30, 'en')).toBe('less than a minute');
+    expect(formatDurationHuman(0, 'en')).toBe('0 min');
+  });
+
+  it('не оставляет кириллицы в английском выводе', () => {
+    expect(formatDurationHuman(3661, 'en')).not.toMatch(/[а-яА-Я]/);
   });
 });
 
@@ -73,6 +78,11 @@ describe('planLabel', () => {
     expect(planLabel('pro')).toBe('Pro');
     expect(planLabel('team')).toBe('Team');
   });
+
+  it('на английском отдаёт английскую подпись', () => {
+    expect(planLabel('free', 'en')).toBe('Free');
+    expect(planLabel('pro', 'en')).toBe('Pro');
+  });
 });
 
 describe('quotaToastMessage', () => {
@@ -84,6 +94,13 @@ describe('quotaToastMessage', () => {
     const message = quotaToastMessage(undefined);
     expect(message).toContain('Лимит расшифровки исчерпан');
     expect(message).not.toContain('(');
+  });
+
+  it('на английском не смешивает языки', () => {
+    const message = quotaToastMessage(usage({ limitSeconds: 2 * 3600 }), 'en');
+    expect(message).toContain('Transcription limit reached');
+    expect(message).toContain('2 h per month');
+    expect(message).not.toMatch(/[а-яА-Я]/);
   });
 
   it('всегда говорит, что аудио не потеряно', () => {

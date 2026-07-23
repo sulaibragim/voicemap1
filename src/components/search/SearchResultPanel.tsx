@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
+import { useT } from '../../i18n';
 import { FileAudio, X } from 'lucide-react';
 import type { SearchResult } from '../../lib/api';
 
@@ -10,7 +11,9 @@ interface SearchResultPanelProps {
 }
 
 /** Ответ поиска + источники прямо в блоке SearchHero, без модалки */
-export const SearchResultPanel = ({ result, onOpenSource, onClear }: SearchResultPanelProps) => (
+export const SearchResultPanel = ({ result, onOpenSource, onClear }: SearchResultPanelProps) => {
+  const t = useT();
+  return (
   <AnimatePresence>
     {result && (
       <motion.div
@@ -27,7 +30,7 @@ export const SearchResultPanel = ({ result, onOpenSource, onClear }: SearchResul
           {result.sources.length > 0 && (
             <div>
               <p className="text-[10px] font-black uppercase tracking-wide text-on-surface-variant/70 mb-2">
-                Источники
+                {t('search.sources')}
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {result.sources.map((src, idx) => (
@@ -60,10 +63,11 @@ export const SearchResultPanel = ({ result, onOpenSource, onClear }: SearchResul
             className="self-start flex items-center gap-1.5 px-4 py-2 rounded-full bg-surface-container-high text-on-surface-variant hover:text-on-surface transition-colors text-xs font-bold cursor-pointer"
           >
             <X className="w-3 h-3" />
-            Очистить
+            {t('search.clear')}
           </button>
         </div>
       </motion.div>
     )}
   </AnimatePresence>
 );
+};
