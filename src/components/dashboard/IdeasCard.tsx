@@ -1,4 +1,5 @@
 import { motion } from 'motion/react';
+import { useT } from '../../i18n';
 import { Brain, ChevronRight, StickyNote } from 'lucide-react';
 import type { Recording, Note } from '../../types';
 
@@ -16,6 +17,7 @@ interface IdeasCardProps {
 }
 
 export const IdeasCard = ({ recordings, notes = [], onOpenRecording }: IdeasCardProps) => {
+  const t = useT();
   const recIdeas: IdeaItem[] = recordings
     .flatMap(r => (r.ideas || []).map(idea => ({
       idea,
@@ -29,7 +31,7 @@ export const IdeasCard = ({ recordings, notes = [], onOpenRecording }: IdeasCard
     .map(n => ({
       idea: n.content,
       recordingId: undefined,
-      recordingTitle: 'Быстрая заметка',
+      recordingTitle: t('note.quickNote'),
       isNote: true,
     }));
 
@@ -43,8 +45,8 @@ export const IdeasCard = ({ recordings, notes = [], onOpenRecording }: IdeasCard
       className="col-span-12 md:col-span-8 lg:col-span-8 bg-surface-container p-4 lg:p-10 rounded-3xl overflow-hidden relative md:h-[380px] flex flex-col"
     >
       <div className="flex justify-between items-start mb-4 lg:mb-10 flex-shrink-0">
-        <h3 className="font-headline text-2xl lg:text-4xl font-bold">Идеи & Инсайты</h3>
-        <span className="px-4 py-1 rounded-full bg-tertiary/10 text-tertiary font-bold text-[10px] tracking-widest uppercase">{allIdeas.length} Новых</span>
+        <h3 className="font-headline text-2xl lg:text-4xl font-bold">{t('card.ideasTitle')}</h3>
+        <span className="px-4 py-1 rounded-full bg-tertiary/10 text-tertiary font-bold text-[10px] tracking-widest uppercase">{t('card.ideasCount', { count: allIdeas.length })}</span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 flex-1 overflow-y-auto pr-1">
         {allIdeas.length > 0 ? allIdeas.map(({ idea, recordingId, recordingTitle, isNote }, i) => (
@@ -66,7 +68,7 @@ export const IdeasCard = ({ recordings, notes = [], onOpenRecording }: IdeasCard
             </div>
           </button>
         )) : (
-          <div className="col-span-2 text-on-surface-variant text-sm">Нет новых идей.</div>
+          <div className="col-span-2 text-on-surface-variant text-sm">{t('card.ideasEmpty')}</div>
         )}
       </div>
     </motion.div>

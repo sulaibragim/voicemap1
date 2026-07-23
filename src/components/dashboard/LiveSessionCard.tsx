@@ -1,4 +1,5 @@
 import { motion, useReducedMotion } from 'motion/react';
+import { useT } from '../../i18n';
 import { Mic } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -11,6 +12,7 @@ interface LiveSessionCardProps {
 const WAVE_HEIGHTS = [8, 16, 10, 24, 14, 32, 20, 12, 28, 18, 36, 14, 22, 10, 18, 26, 12, 30, 16, 8];
 
 export const LiveSessionCard = ({ onStartRecording, importSlot }: LiveSessionCardProps) => {
+  const t = useT();
   // Системное «уменьшить движение» глушит CSS-анимации через index.css,
   // но JS-анимации motion нужно останавливать вручную
   const reduceMotion = useReducedMotion();
@@ -49,7 +51,7 @@ export const LiveSessionCard = ({ onStartRecording, importSlot }: LiveSessionCar
     </div>
 
     <span className="relative z-10 mt-3 text-[10px] font-black tracking-[0.2em] uppercase text-on-surface-variant">
-      Запись
+      {t('nav.record')}
     </span>
 
     {/* Импорт готового аудио — вторичное действие. stopPropagation, чтобы клик не стартовал запись */}

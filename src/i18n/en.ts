@@ -89,6 +89,58 @@ export const en: Record<TKey, string> = {
   'dashboard.processError': 'Processing failed',
   'dashboard.quotaExceeded': 'Limit reached — not transcribed',
 
+  // ── Note types ─────────────────────────────────────────────────────────
+  // NOTE: the NoteType values themselves stay Russian — they are identifiers in
+  // Firestore checked by security rules. Only the labels are translated.
+  'note.idea': 'Idea',
+  'note.ideaDesc': 'A creative thought or insight',
+  'note.task': 'Task',
+  'note.taskDesc': 'Something to get done',
+  'note.reminder': 'Reminder',
+  'note.reminderDesc': 'Reminds you at the right time',
+  'note.quickNote': 'Quick note',
+
+  // ── Dashboard cards ────────────────────────────────────────────────────
+  'card.ideasTitle': 'Ideas & Insights',
+  'card.ideasCount': '{count} new',
+  'card.ideasEmpty': 'No new ideas yet.',
+  'card.focusToday': "Today's focus",
+  'card.quickNote': 'Quick note',
+
+  'card.focusEmpty': 'Nothing due today.',
+  'card.fromAssistant': 'From the assistant',
+  'card.fromNotes': 'From notes',
+  'card.fromRecordings': 'From recordings',
+  'card.fromRecording': 'from "{title}"',
+  'card.markDone': 'Mark as done',
+  'card.markUndone': 'Mark as not done',
+
+  'import.button': 'Upload audio',
+  'import.notAudio': 'That is not an audio file. Pick an mp3, m4a, wav or ogg recording',
+  'import.badFormat': 'Format not supported. Try mp3, m4a, wav, ogg, webm, aac or flac',
+  'import.empty': 'The file is empty',
+  'import.tooBig': 'File is too large (max ~{limit})',
+  'import.slow': 'Large file — the upload will take a few minutes',
+
+  // ── Weekly digest ──────────────────────────────────────────────────────
+  'digest.title': 'Weekly digest',
+  'digest.period': '7 days · {count}',
+  'digest.refresh': 'Refresh the digest',
+  'digest.empty': 'No recordings this week yet',
+  'digest.emptyHint': 'Make a recording to get a digest',
+  'digest.startRecording': 'Start recording',
+  'digest.statRecordings': 'Recordings',
+  'digest.statTasks': 'Tasks',
+  'digest.statIdeas': 'Ideas',
+  'digest.weekTasks': 'Tasks this week',
+  'digest.noneDone': 'Nothing done yet',
+  'digest.allDone': '🎉 All tasks done!',
+  'digest.partlyDone': '{percent}% done · {left} left',
+  'digest.mainTheme': 'Theme of the week',
+  'digest.error': 'Could not generate the digest',
+  'digest.retry': 'Try again',
+  'digest.loading': 'Loading…',
+
   // ── Follow-up ──────────────────────────────────────────────────────────
   'followUp.title': 'Promised, not done',
   'followUp.overdue': '{count} past their deadline',

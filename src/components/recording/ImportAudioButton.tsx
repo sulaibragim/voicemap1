@@ -1,4 +1,5 @@
 import { useRef, useState, type ChangeEvent } from 'react';
+import { useT } from '../../i18n';
 import { FileAudio, Loader2 } from 'lucide-react';
 import { AUDIO_ACCEPT, isSupportedAudioMime, resolveAudioMime } from '../../lib/audioMime';
 
@@ -60,6 +61,7 @@ function readDurationSeconds(file: File): Promise<number> {
  * загрузка → транскрипция → индексация.
  */
 export const ImportAudioButton = ({ onImport, showToast, className }: ImportAudioButtonProps) => {
+  const t = useT();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isReading, setIsReading] = useState(false);
 
@@ -71,23 +73,23 @@ export const ImportAudioButton = ({ onImport, showToast, className }: ImportAudi
 
     const mime = resolveAudioMime(file.type, file.name);
     if (!mime) {
-      showToast('Это не аудиофайл. Выбери запись в формате mp3, m4a, wav или ogg', 'error');
+      showToast(t('import.notAudio'), 'error');
       return;
     }
     if (!isSupportedAudioMime(mime)) {
-      showToast('Формат не поддерживается. Подойдут mp3, m4a, wav, ogg, webm, aac, flac', 'error');
+      showToast(t('import.badFormat'), 'error');
       return;
     }
     if (file.size === 0) {
-      showToast('Файл пустой', 'error');
+      showToast(t('import.empty'), 'error');
       return;
     }
     if (file.size > MAX_FILE_BYTES) {
-      showToast(`Файл слишком большой (максимум ~${MAX_FILE_LABEL})`, 'error');
+      showToast(t('import.tooBig', { limit: MAX_FILE_LABEL }), 'error');
       return;
     }
     if (file.size > WARN_FILE_BYTES) {
-      showToast('Файл большой — загрузка займёт несколько минут', 'info');
+      showToast(t('import.slow'), 'info');
     }
 
     setIsReading(true);
@@ -124,7 +126,7 @@ export const ImportAudioButton = ({ onImport, showToast, className }: ImportAudi
         {isReading
           ? <Loader2 className="w-3.5 h-3.5 flex-shrink-0 animate-spin" />
           : <FileAudio className="w-3.5 h-3.5 flex-shrink-0" />}
-        <span className="truncate">Загрузить аудио</span>
+        <span className="truncate">{t('import.button')}</span>
       </button>
     </>
   );

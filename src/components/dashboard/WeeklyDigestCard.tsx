@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useT, useLang } from '../../i18n';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   TrendingUp, TrendingDown, Calendar, RefreshCw,
@@ -29,6 +30,8 @@ function trend(now: number, prev: number): TrendInfo | null {
 }
 
 export const WeeklyDigestCard = ({ recordings, setCurrentView }: WeeklyDigestCardProps) => {
+  const t = useT();
+  const lang = useLang();
   const [digest, setDigest] = useState<DigestAIResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -111,9 +114,9 @@ export const WeeklyDigestCard = ({ recordings, setCurrentView }: WeeklyDigestCar
   }, []);
 
   const statItems = [
-    { label: 'Записи', value: stats.recordings.now, prev: stats.recordings.prev, color: 'text-primary' },
-    { label: 'Задачи', value: stats.tasks.now, prev: stats.tasks.prev, color: 'text-secondary' },
-    { label: 'Идеи', value: stats.ideas.now, prev: stats.ideas.prev, color: 'text-tertiary' },
+    { label: t('digest.statRecordings'), value: stats.recordings.now, prev: stats.recordings.prev, color: 'text-primary' },
+    { label: t('digest.statTasks'), value: stats.tasks.now, prev: stats.tasks.prev, color: 'text-secondary' },
+    { label: t('digest.statIdeas'), value: stats.ideas.now, prev: stats.ideas.prev, color: 'text-tertiary' },
   ];
 
   return (
@@ -128,16 +131,16 @@ export const WeeklyDigestCard = ({ recordings, setCurrentView }: WeeklyDigestCar
         {/* Заголовок */}
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h3 className="font-headline text-xl md:text-3xl font-black leading-none">Недельный дайджест</h3>
+            <h3 className="font-headline text-xl md:text-3xl font-black leading-none">{t('digest.title')}</h3>
             <p className="text-xs text-on-surface-variant mt-1">
-              7 дней · {pluralWithNumber(thisWeek.length, ['запись', 'записи', 'записей'])}
+              {t('digest.period', { count: lang === 'en' ? `${thisWeek.length} ${thisWeek.length === 1 ? 'recording' : 'recordings'}` : pluralWithNumber(thisWeek.length, ['запись', 'записи', 'записей']) })}
             </p>
           </div>
           {digest && !isLoading && (
             <button
               onClick={() => void loadDigest(true)}
               className="p-2 rounded-xl text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition-colors cursor-pointer"
-              title="Обновить дайджест"
+              title={t('digest.refresh')}
             >
               <RefreshCw className="w-4 h-4" />
             </button>
@@ -148,15 +151,15 @@ export const WeeklyDigestCard = ({ recordings, setCurrentView }: WeeklyDigestCar
           /* Пустое состояние */
           <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
             <Calendar className="w-10 h-10 text-on-surface-variant opacity-40" />
-            <p className="text-on-surface-variant font-semibold text-sm">На этой неделе ещё нет записей</p>
+            <p className="text-on-surface-variant font-semibold text-sm">{t('digest.empty')}</p>
             <p className="text-xs text-on-surface-variant opacity-60">
-              Начни запись чтобы получить дайджест
+              {t('digest.emptyHint')}
             </p>
             <button
               onClick={() => setCurrentView('recording_session')}
               className="mt-2 px-4 py-2 bg-primary/15 text-primary rounded-xl text-xs font-bold hover:bg-primary/25 transition-colors cursor-pointer"
             >
-              Начать запись
+              {t('digest.startRecording')}
             </button>
           </div>
         ) : (
@@ -190,7 +193,7 @@ export const WeeklyDigestCard = ({ recordings, setCurrentView }: WeeklyDigestCar
             {tasksTotal > 0 && (
               <div className="bg-surface-container-low rounded-2xl p-4 flex flex-col gap-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-black tracking-[0.15em] uppercase text-on-surface-variant">Задачи за неделю</span>
+                  <span className="font-black tracking-[0.15em] uppercase text-on-surface-variant">{t('digest.weekTasks')}</span>
                   <span className="font-black text-secondary">{tasksDone} / {tasksTotal}</span>
                 </div>
                 <div className="h-2 rounded-full bg-surface-container overflow-hidden">
@@ -201,10 +204,10 @@ export const WeeklyDigestCard = ({ recordings, setCurrentView }: WeeklyDigestCar
                 </div>
                 <p className="text-[11px] text-on-surface-variant">
                   {tasksDone === 0
-                    ? 'Ещё ни одна задача не выполнена'
+                    ? t('digest.noneDone')
                     : tasksDone === tasksTotal
-                      ? '🎉 Все задачи выполнены!'
-                      : `${tasksPct}% выполнено · осталось ${tasksTotal - tasksDone}`}
+                      ? t('digest.allDone')
+                      : t('digest.partlyDone', { percent: tasksPct, left: tasksTotal - tasksDone })}
                 </p>
               </div>
             )}
@@ -214,7 +217,7 @@ export const WeeklyDigestCard = ({ recordings, setCurrentView }: WeeklyDigestCar
               <div className="flex items-center gap-2">
                 <Sparkles className="w-3.5 h-3.5 text-primary flex-shrink-0" />
                 <span className="text-[10px] font-black tracking-[0.18em] uppercase text-primary">
-                  Главная тема недели
+                  {t('digest.mainTheme')}
                 </span>
               </div>
 
@@ -251,13 +254,13 @@ export const WeeklyDigestCard = ({ recordings, setCurrentView }: WeeklyDigestCar
                 <div className="flex flex-col items-center gap-3 py-2">
                   {error ? (
                     <div className="flex flex-col items-center gap-2 text-center">
-                      <p className="text-xs text-error">Не удалось сгенерировать дайджест</p>
+                      <p className="text-xs text-error">{t('digest.error')}</p>
                       <button
                         onClick={() => void loadDigest(true)}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/15 text-primary rounded-lg text-xs font-bold hover:bg-primary/25 transition-colors cursor-pointer"
                       >
                         <RefreshCw className="w-3 h-3" />
-                        Попробовать снова
+                        {t('digest.retry')}
                       </button>
                     </div>
                   ) : (
@@ -266,7 +269,7 @@ export const WeeklyDigestCard = ({ recordings, setCurrentView }: WeeklyDigestCar
                       className="flex items-center gap-2 px-4 py-2 bg-primary/15 text-primary rounded-xl text-xs font-bold hover:bg-primary/25 transition-colors cursor-pointer"
                     >
                       <Loader2 className="w-3.5 h-3.5" />
-                      Загрузка...
+                      {t('digest.loading')}
                     </button>
                   )}
                 </div>

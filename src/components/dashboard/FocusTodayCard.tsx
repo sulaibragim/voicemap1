@@ -1,4 +1,5 @@
 import { motion } from 'motion/react';
+import { useT } from '../../i18n';
 import { Square, CheckSquare, Sparkles, StickyNote } from 'lucide-react';
 import type { Recording, Note } from '../../types';
 import { parseRecDate } from '../../lib/utils';
@@ -20,6 +21,7 @@ interface FocusTodayCardProps {
 }
 
 export const FocusTodayCard = ({ recordings, notes = [], assistantTasks = [], onOpenRecording, onToggleDone, onToggleAssistantTask, onToggleNoteTask }: FocusTodayCardProps) => {
+  const t = useT();
   const now = new Date();
   now.setHours(0, 0, 0, 0);
   const yesterday = new Date(now);
@@ -68,7 +70,7 @@ export const FocusTodayCard = ({ recordings, notes = [], assistantTasks = [], on
       className="col-span-12 md:col-span-4 bg-surface-container-low p-4 lg:p-8 rounded-3xl border border-outline-variant/10 md:h-[380px] flex flex-col"
     >
       <div className="flex items-center justify-between mb-6 flex-shrink-0">
-        <h3 className="font-label text-on-surface-variant text-[10px] font-black tracking-[0.2em] uppercase">Фокус на сегодня</h3>
+        <h3 className="font-label text-on-surface-variant text-[10px] font-black tracking-[0.2em] uppercase">{t('card.focusToday')}</h3>
         {totalCount > 0 && (
           <span className="text-[10px] text-on-surface-variant/50 font-bold">
             {doneCount}/{totalCount}
@@ -78,7 +80,7 @@ export const FocusTodayCard = ({ recordings, notes = [], assistantTasks = [], on
 
       <div className="space-y-4 lg:space-y-5 flex-1 overflow-y-auto pr-1">
         {isEmpty ? (
-          <div className="text-on-surface-variant text-sm">Нет задач на сегодня.</div>
+          <div className="text-on-surface-variant text-sm">{t('card.focusEmpty')}</div>
         ) : (
           <>
             {/* Задачи от ассистента */}
@@ -86,7 +88,7 @@ export const FocusTodayCard = ({ recordings, notes = [], assistantTasks = [], on
               <div className="space-y-3">
                 <div className="flex items-center gap-1.5">
                   <Sparkles className="w-3 h-3 text-primary" />
-                  <span className="text-[9px] font-black tracking-widest uppercase text-primary">От ассистента</span>
+                  <span className="text-[9px] font-black tracking-widest uppercase text-primary">{t('card.fromAssistant')}</span>
                 </div>
                 {sortedAssistantTasks.map((item) => (
                   <div key={item.id} className="flex items-start gap-3">
@@ -95,7 +97,7 @@ export const FocusTodayCard = ({ recordings, notes = [], assistantTasks = [], on
                       className={`flex-shrink-0 mt-0.5 transition-colors cursor-pointer ${
                         item.done ? 'text-secondary' : 'text-on-surface-variant/30 hover:text-on-surface-variant/60'
                       }`}
-                      title={item.done ? 'Отметить невыполненной' : 'Отметить выполненной'}
+                      title={item.done ? t('card.markUndone') : t('card.markDone')}
                     >
                       {item.done
                         ? <CheckSquare className="w-4 h-4" />
@@ -117,14 +119,14 @@ export const FocusTodayCard = ({ recordings, notes = [], assistantTasks = [], on
               <div className="space-y-3">
                 <div className="flex items-center gap-1.5">
                   <StickyNote className="w-3 h-3 text-tertiary" />
-                  <span className="text-[9px] font-black tracking-widest uppercase text-tertiary">Из заметок</span>
+                  <span className="text-[9px] font-black tracking-widest uppercase text-tertiary">{t('card.fromNotes')}</span>
                 </div>
                 {sortedNoteTasks.map((note) => (
                   <div key={note.id} className="flex items-start gap-3">
                     <button
                       onClick={() => onToggleNoteTask?.(note.id)}
                       className="flex-shrink-0 mt-0.5 transition-colors cursor-pointer text-on-surface-variant/30 hover:text-on-surface-variant/60"
-                      title="Отметить выполненной"
+                      title={t('card.markDone')}
                     >
                       <Square className="w-4 h-4" />
                     </button>
@@ -141,7 +143,7 @@ export const FocusTodayCard = ({ recordings, notes = [], assistantTasks = [], on
               <div className="space-y-4">
                 {(sortedAssistantTasks.length > 0 || sortedNoteTasks.length > 0) && (
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[9px] font-black tracking-widest uppercase text-on-surface-variant/50">Из записей</span>
+                    <span className="text-[9px] font-black tracking-widest uppercase text-on-surface-variant/50">{t('card.fromRecordings')}</span>
                   </div>
                 )}
                 {sortedRecTasks.map((item, i) => (
@@ -153,7 +155,7 @@ export const FocusTodayCard = ({ recordings, notes = [], assistantTasks = [], on
                           ? 'text-secondary'
                           : 'text-on-surface-variant/30 hover:text-on-surface-variant/60'
                       } ${!onToggleDone ? 'pointer-events-none' : ''}`}
-                      title={item.done ? 'Отметить невыполненной' : 'Отметить выполненной'}
+                      title={item.done ? t('card.markUndone') : t('card.markDone')}
                     >
                       {item.done
                         ? <CheckSquare className="w-4 h-4" />
@@ -173,10 +175,10 @@ export const FocusTodayCard = ({ recordings, notes = [], assistantTasks = [], on
                           onClick={() => onOpenRecording(item.id)}
                           className="text-[10px] text-on-surface-variant hover:text-primary transition-colors mt-0.5 text-left cursor-pointer"
                         >
-                          из «{item.title}»
+                          {t('card.fromRecording', { title: item.title })}
                         </button>
                       ) : (
-                        <p className="text-[10px] text-on-surface-variant mt-0.5">из «{item.title}»</p>
+                        <p className="text-[10px] text-on-surface-variant mt-0.5">{t('card.fromRecording', { title: item.title })}</p>
                       )}
                     </div>
                   </div>

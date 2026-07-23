@@ -90,6 +90,58 @@ export const ru = {
   'dashboard.processError': 'Ошибка обработки',
   'dashboard.quotaExceeded': 'Лимит исчерпан — без расшифровки',
 
+  // ── Типы заметок ───────────────────────────────────────────────────────
+  // ВНИМАНИЕ: сами значения NoteType ('Идея'/'Задача'/'Напоминание') — это идентификаторы
+  // в Firestore, они проверяются правилами безопасности. Переводятся ТОЛЬКО подписи.
+  'note.idea': 'Идея',
+  'note.ideaDesc': 'Творческая мысль или инсайт',
+  'note.task': 'Задача',
+  'note.taskDesc': 'Что нужно сделать',
+  'note.reminder': 'Напоминание',
+  'note.reminderDesc': 'Напомнит в нужное время',
+  'note.quickNote': 'Быстрая заметка',
+
+  // ── Карточки дашборда ──────────────────────────────────────────────────
+  'card.ideasTitle': 'Идеи & Инсайты',
+  'card.ideasCount': '{count} Новых',
+  'card.ideasEmpty': 'Нет новых идей.',
+  'card.focusToday': 'Фокус на сегодня',
+  'card.quickNote': 'Быстрая заметка',
+
+  'card.focusEmpty': 'Нет задач на сегодня.',
+  'card.fromAssistant': 'От ассистента',
+  'card.fromNotes': 'Из заметок',
+  'card.fromRecordings': 'Из записей',
+  'card.fromRecording': 'из «{title}»',
+  'card.markDone': 'Отметить выполненной',
+  'card.markUndone': 'Отметить невыполненной',
+
+  'import.button': 'Загрузить аудио',
+  'import.notAudio': 'Это не аудиофайл. Выбери запись в формате mp3, m4a, wav или ogg',
+  'import.badFormat': 'Формат не поддерживается. Подойдут mp3, m4a, wav, ogg, webm, aac, flac',
+  'import.empty': 'Файл пустой',
+  'import.tooBig': 'Файл слишком большой (максимум ~{limit})',
+  'import.slow': 'Файл большой — загрузка займёт несколько минут',
+
+  // ── Недельный дайджест ─────────────────────────────────────────────────
+  'digest.title': 'Недельный дайджест',
+  'digest.period': '7 дней · {count}',
+  'digest.refresh': 'Обновить дайджест',
+  'digest.empty': 'На этой неделе ещё нет записей',
+  'digest.emptyHint': 'Начни запись чтобы получить дайджест',
+  'digest.startRecording': 'Начать запись',
+  'digest.statRecordings': 'Записи',
+  'digest.statTasks': 'Задачи',
+  'digest.statIdeas': 'Идеи',
+  'digest.weekTasks': 'Задачи за неделю',
+  'digest.noneDone': 'Ещё ни одна задача не выполнена',
+  'digest.allDone': '🎉 Все задачи выполнены!',
+  'digest.partlyDone': '{percent}% выполнено · осталось {left}',
+  'digest.mainTheme': 'Главная тема недели',
+  'digest.error': 'Не удалось сгенерировать дайджест',
+  'digest.retry': 'Попробовать снова',
+  'digest.loading': 'Загрузка...',
+
   // ── Долги по задачам ───────────────────────────────────────────────────
   'followUp.title': 'Обещал и не сделал',
   'followUp.overdue': '{count} с прошедшим сроком',

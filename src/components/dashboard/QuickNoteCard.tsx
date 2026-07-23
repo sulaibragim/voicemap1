@@ -2,40 +2,24 @@ import { motion } from 'motion/react';
 import { Lightbulb, Check, Bell, ChevronRight } from 'lucide-react';
 import type { NoteType } from '../../types';
 import { NOTE_HEX } from '../../lib/noteTheme';
+import { noteTypeLabelKey, noteTypeDescriptionKey } from '../../lib/noteTypeLabel';
+import { useT } from '../../i18n';
 
 interface QuickNoteCardProps {
   onQuickNote: (type: NoteType) => void;
 }
 
-// Цвета берутся из единого источника NOTE_HEX (src/lib/noteTheme.ts)
+// Цвета берутся из единого источника NOTE_HEX (src/lib/noteTheme.ts).
+// type — это идентификатор в Firestore, он остаётся русским; подпись переводится.
 const NOTE_TYPES = [
-  {
-    type: 'Идея' as NoteType,
-    icon: Lightbulb,
-    label: 'Идея',
-    desc: 'Творческая мысль или инсайт',
-    accent: NOTE_HEX['Идея'],
-    bg: `${NOTE_HEX['Идея']}1F`, // ~12% альфа
-  },
-  {
-    type: 'Задача' as NoteType,
-    icon: Check,
-    label: 'Задача',
-    desc: 'Что нужно сделать',
-    accent: NOTE_HEX['Задача'],
-    bg: `${NOTE_HEX['Задача']}1F`,
-  },
-  {
-    type: 'Напоминание' as NoteType,
-    icon: Bell,
-    label: 'Напоминание',
-    desc: 'Напомнит в нужное время',
-    accent: NOTE_HEX['Напоминание'],
-    bg: `${NOTE_HEX['Напоминание']}1F`,
-  },
+  { type: 'Идея' as NoteType,        icon: Lightbulb, accent: NOTE_HEX['Идея'],        bg: `${NOTE_HEX['Идея']}1F` }, // ~12% альфа
+  { type: 'Задача' as NoteType,      icon: Check,     accent: NOTE_HEX['Задача'],      bg: `${NOTE_HEX['Задача']}1F` },
+  { type: 'Напоминание' as NoteType, icon: Bell,      accent: NOTE_HEX['Напоминание'], bg: `${NOTE_HEX['Напоминание']}1F` },
 ];
 
-export const QuickNoteCard = ({ onQuickNote }: QuickNoteCardProps) => (
+export const QuickNoteCard = ({ onQuickNote }: QuickNoteCardProps) => {
+  const t = useT();
+  return (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -73,8 +57,8 @@ export const QuickNoteCard = ({ onQuickNote }: QuickNoteCardProps) => (
 
         {/* Text */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold text-on-surface leading-none mb-0.5">{item.label}</p>
-          <p className="text-[10px] text-on-surface-variant/50 leading-none truncate">{item.desc}</p>
+          <p className="text-sm font-bold text-on-surface leading-none mb-0.5">{t(noteTypeLabelKey(item.type))}</p>
+          <p className="text-[10px] text-on-surface-variant/50 leading-none truncate">{t(noteTypeDescriptionKey(item.type))}</p>
         </div>
 
         {/* Arrow */}
@@ -83,3 +67,4 @@ export const QuickNoteCard = ({ onQuickNote }: QuickNoteCardProps) => (
     ))}
   </motion.div>
 );
+};
