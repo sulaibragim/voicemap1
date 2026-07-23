@@ -25,21 +25,36 @@ export function isOwnedKey(key: unknown, uid: string): key is string {
   const prefix = `audio/${uid}/`;
   if (!key.startsWith(prefix)) return false;
   const rest = key.slice(prefix.length);
-  return /^[A-Za-z0-9_-]{1,64}\.(webm|ogg|mp4|wav|m4a)$/.test(rest);
+  return /^[A-Za-z0-9_-]{1,64}\.(webm|ogg|mp4|wav|m4a|mp3|aac|flac)$/.test(rest);
 }
 
+// Whitelist форматов: браузерная запись (webm/ogg/mp4) + импорт готовых файлов
+// с внешних устройств (mp3 с диктофонов, m4a с умных очков, wav/flac/aac/ogg).
+// Ключи в нижнем регистре — resolveExt приводит входящий тип к нему.
 const ALLOWED_AUDIO_MIME: Record<string, string> = {
   'audio/webm': 'webm',
   'audio/webm;codecs=opus': 'webm',
   'audio/ogg': 'ogg',
   'audio/ogg;codecs=opus': 'ogg',
+  'audio/x-ogg': 'ogg',
+  'audio/opus': 'ogg',
   'audio/mp4': 'mp4',
   'audio/mp4;codecs=mp4a.40.2': 'mp4',
-  'audio/mpeg': 'mp4',
+  'audio/mpeg': 'mp3',
+  'audio/mp3': 'mp3',
+  'audio/x-mp3': 'mp3',
+  'audio/x-mpeg': 'mp3',
   'audio/wav': 'wav',
   'audio/x-wav': 'wav',
+  'audio/wave': 'wav',
+  'audio/vnd.wave': 'wav',
+  'audio/x-pn-wav': 'wav',
   'audio/m4a': 'm4a',
   'audio/x-m4a': 'm4a',
+  'audio/aac': 'aac',
+  'audio/x-aac': 'aac',
+  'audio/flac': 'flac',
+  'audio/x-flac': 'flac',
 };
 
 export function resolveExt(contentType: string): string | null {

@@ -1,13 +1,16 @@
 import { motion } from 'motion/react';
 import { Mic } from 'lucide-react';
+import type { ReactNode } from 'react';
 
 interface LiveSessionCardProps {
   onStartRecording: () => void;
+  /** Кнопка импорта готового аудиофайла — рендерится под кнопкой записи */
+  importSlot?: ReactNode;
 }
 
 const WAVE_HEIGHTS = [8, 16, 10, 24, 14, 32, 20, 12, 28, 18, 36, 14, 22, 10, 18, 26, 12, 30, 16, 8];
 
-export const LiveSessionCard = ({ onStartRecording }: LiveSessionCardProps) => (
+export const LiveSessionCard = ({ onStartRecording, importSlot }: LiveSessionCardProps) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -43,6 +46,16 @@ export const LiveSessionCard = ({ onStartRecording }: LiveSessionCardProps) => (
     <span className="relative z-10 mt-3 text-[10px] font-black tracking-[0.2em] uppercase text-on-surface-variant">
       Запись
     </span>
+
+    {/* Импорт готового аудио — вторичное действие. stopPropagation, чтобы клик не стартовал запись */}
+    {importSlot && (
+      <div
+        className="relative z-10 mt-4 mb-1 w-full max-w-[240px] px-4 cursor-default"
+        onClick={e => e.stopPropagation()}
+      >
+        {importSlot}
+      </div>
+    )}
 
     {/* Decorative waveform at bottom */}
     <div className="absolute bottom-0 left-0 right-0 flex items-end justify-center gap-[3px] px-6 pb-0 opacity-[0.07] pointer-events-none">

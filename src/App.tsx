@@ -7,6 +7,7 @@ import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Brain, Loader2 } from 'lucide-react';
 import { retranscribeFromUrl, deleteAudioFromR2, deleteRecordingChunks, processRecordingAsync } from './lib/api';
+import { guessAudioMimeFromUrl } from './lib/audioMime';
 import { useToast } from './hooks/useToast';
 
 import type { NoteType, Recording } from './types';
@@ -21,6 +22,7 @@ import { Header } from './components/layout/Header';
 import { BottomNav } from './components/layout/BottomNav';
 import { SearchHero } from './components/search/SearchHero';
 import { LiveSessionCard } from './components/dashboard/LiveSessionCard';
+import { ImportAudioButton } from './components/recording/ImportAudioButton';
 import { QuickNoteCard } from './components/dashboard/QuickNoteCard';
 import { FocusTodayCard } from './components/dashboard/FocusTodayCard';
 import { IdeasCard } from './components/dashboard/IdeasCard';
@@ -237,6 +239,14 @@ export default function App() {
     }
   };
 
+  // Импорт готового аудиофайла (умные очки, диктофон, ручка-рекордер, обычный файл).
+  // Никакой отдельной логики — File наследует Blob, поэтому гоним его через тот же
+  // конвейер, что и обычную запись: загрузка в R2 → транскрипция → индексация.
+  const handleImportAudio = (file: File, durationSeconds: number) => {
+    showToast('Файл загружается, идёт расшифровка', 'info');
+    void handleFinishRecording(file, durationSeconds);
+  };
+
   // ⚠️ Dev-only фича (кнопка видна только в dev-сборке, см. SettingsView):
   // пишет только в локальный state и localStorage, в Firestore НЕ сохраняет —
   // при активном Firestore-листенере следующий снапшот всё откатит.
@@ -315,11 +325,9 @@ export default function App() {
             showToast('Нет аудиофайла для транскрипции', 'error');
             return;
           }
-          // Определяем mimeType по URL или ключу R2
+          // Определяем mimeType по расширению в URL/ключе R2 (включая импортированные mp3/wav/flac)
           const url = recording.audioUrl;
-          const mimeType = url.includes('.webm') ? 'audio/webm'
-            : url.includes('.ogg') ? 'audio/ogg'
-            : 'audio/mp4';
+          const mimeType = guessAudioMimeFromUrl(url);
           try {
             const result = await retranscribeFromUrl(url, mimeType, getKnownNames());
             updateRecordingItem({ ...recording, ...result, title: result.title || recording.title });
@@ -400,7 +408,10 @@ export default function App() {
           {/* Голосовой поиск — главный герой-блок дашборда (шире), запись — рядом (уже) */}
           <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12">
             <SearchHero onOpenSource={(id, timestamp) => openRecording(id, timestamp)} />
-            <LiveSessionCard onStartRecording={() => setCurrentView('recording_session')} />
+            <LiveSessionCard
+              onStartRecording={() => setCurrentView('recording_session')}
+              importSlot={<ImportAudioButton onImport={handleImportAudio} showToast={showToast} />}
+            />
           </div>
           <RecentRecordings recordings={recordings} onOpenLibrary={() => setCurrentView('library')} onOpenDetail={openRecording} />
           <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12">
