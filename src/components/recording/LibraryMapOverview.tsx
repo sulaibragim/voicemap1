@@ -38,7 +38,6 @@ interface LibraryMapOverviewProps {
   onOpenRecClusters: () => void;
   onOpenNotesTypes: () => void;
   onOpenNotes: () => void;
-  onOpenSpaces: () => void;
 }
 
 export const LibraryMapOverview = ({
@@ -46,7 +45,7 @@ export const LibraryMapOverview = ({
   notes,
   totalTasks,
   incompleteTasks,
-  onOpenSpaces,
+  onOpenRecClusters,
   onOpenNotesTypes,
 }: LibraryMapOverviewProps) => {
   return (
@@ -79,7 +78,7 @@ export const LibraryMapOverview = ({
         color="#7B61FF"
         glowColor="#7B61FF"
         icon={<Mic className="w-9 h-9" style={{ color: '#7B61FF' }} />}
-        onClick={onOpenSpaces}
+        onClick={onOpenRecClusters}
         delay={0}
       />
 

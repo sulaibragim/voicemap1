@@ -1,4 +1,4 @@
-import type { Recording, Note, Space } from '../types';
+import type { Recording, Note } from '../types';
 
 export interface AssistantProfile {
   name: string;
@@ -22,7 +22,6 @@ export interface ChatMessage {
 interface AssistantContext {
   recordings: Recording[];
   notes?: Note[];
-  spaces?: Space[];
   currentView: string;
   profile?: AssistantProfile;
   recentMessages?: ChatMessage[];
@@ -60,7 +59,6 @@ export function buildAssistantPrompt(userMessage: string, ctx: AssistantContext)
     ideas: r.ideas?.slice(0, 6),
     actionItems: r.actionItems,
     actionItemsDone: r.actionItemsDone,
-    spaceId: r.spaceId,
   }));
 
   const notesCtx = (ctx.notes ?? [])
@@ -73,12 +71,6 @@ export function buildAssistantPrompt(userMessage: string, ctx: AssistantContext)
       dueDate: n.dueDate,
       dueTime: n.dueTime,
     }));
-
-  const spacesCtx = (ctx.spaces ?? []).map(s => ({
-    id: s.id,
-    name: s.name,
-    emoji: s.emoji,
-  }));
 
   const customRulesBlock = profile.customRules.length > 0
     ? `\n## Персональные правила (выучены из разговора — соблюдай строго)\n${profile.customRules.slice(-10).map((r, i) => `${i + 1}. ${r}`).join('\n')}\n`
@@ -136,12 +128,9 @@ ${JSON.stringify(recordingsCtx, null, 2)}
 Активные заметки:
 ${JSON.stringify(notesCtx, null, 2)}
 
-Пространства:
-${JSON.stringify(spacesCtx, null, 2)}
-
 Сегодня: ${currentDate}
 Текущий раздел: ${ctx.currentView}
-Доступные разделы: dashboard, library, library_spaces, analytics, focus, gallery, recording_session
+Доступные разделы: dashboard, library, analytics, focus, gallery, recording_session
 
 Примеры NAVIGATE (переход в раздел):
 - "открой/перейди/покажи раздел" → NAVIGATE

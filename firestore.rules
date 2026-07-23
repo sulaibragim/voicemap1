@@ -2,7 +2,7 @@ rules_version = '2';
 
 // ================================================================
 // VoiceMap — Firestore Security Rules
-// Структура: users/{uid}/recordings, notes, spaces (subcollections)
+// Структура: users/{uid}/recordings, notes (subcollections)
 // Владелец определяется по uid в пути — userId в полях не нужен.
 // ================================================================
 
@@ -69,13 +69,6 @@ service cloud.firestore {
              ('type' in data && data.type in ['Идея', 'Задача', 'Напоминание']);
     }
 
-    function isValidSpace(data) {
-      return validStr(data, 'id',    100) &&
-             validStr(data, 'name',  100) &&
-             validStr(data, 'emoji',  10) &&
-             validStr(data, 'color',  50);
-    }
-
     // ── Правила доступа к документам ─────────────────────────────
 
     // Пользователь может читать свой профиль-документ (если понадобится)
@@ -96,14 +89,6 @@ service cloud.firestore {
       allow read:   if isOwner(uid);
       allow create: if isOwner(uid) && isValidNote(request.resource.data);
       allow update: if isOwner(uid) && isValidNote(request.resource.data);
-      allow delete: if isOwner(uid);
-    }
-
-    // Spaces
-    match /users/{uid}/spaces/{spaceId} {
-      allow read:   if isOwner(uid);
-      allow create: if isOwner(uid) && isValidSpace(request.resource.data);
-      allow update: if isOwner(uid) && isValidSpace(request.resource.data);
       allow delete: if isOwner(uid);
     }
 

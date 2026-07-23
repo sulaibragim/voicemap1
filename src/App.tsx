@@ -10,7 +10,7 @@ import { retranscribeFromUrl, deleteAudioFromR2, processRecordingAsync } from '.
 import { useToast } from './hooks/useToast';
 import { useDailyTip } from './hooks/useDailyTip';
 
-import type { Note, NoteType, Recording, Space } from './types';
+import type { Note, NoteType, Recording } from './types';
 import { useReminders } from './hooks/useReminders';
 import { useAuth } from './hooks/useAuth';
 import { useFirestoreData } from './hooks/useFirestoreData';
@@ -42,12 +42,6 @@ const QuickNoteModal = lazy(() =>
 );
 const RecordingsLibrary = lazy(() =>
   import('./components/recording/RecordingsLibrary').then(m => ({ default: m.RecordingsLibrary }))
-);
-const SpacesLibrary = lazy(() =>
-  import('./components/recording/SpacesLibrary').then(m => ({ default: m.SpacesLibrary }))
-);
-const SpacePickerModal = lazy(() =>
-  import('./components/recording/SpacePickerModal').then(m => ({ default: m.SpacePickerModal }))
 );
 const RecordingSession = lazy(() =>
   import('./components/recording/RecordingSession').then(m => ({ default: m.RecordingSession }))
@@ -82,15 +76,6 @@ const ViewLoader = () => (
 // Активируется только в dev-сборке (import.meta.env.DEV) по кнопке на экране входа.
 const DEMO_USER = { uid: 'demo-local', displayName: 'Демо', email: 'demo@voicemap.local', photoURL: null };
 
-function suggestSpaceId(recording: Recording, spaces: Space[]): string | undefined {
-  for (const space of spaces) {
-    const nl = space.name.toLowerCase();
-    if (recording.tags.some(t => t.toLowerCase().includes(nl) || nl.includes(t.replace('#', '').toLowerCase()))) return space.id;
-    if (recording.title.toLowerCase().includes(nl) || recording.summary.toLowerCase().includes(nl)) return space.id;
-  }
-  return undefined;
-}
-
 export default function App() {
   const { user: authUser, loading: authLoading, signInWithGoogle, logout } = useAuth();
 
@@ -102,19 +87,16 @@ export default function App() {
   } = useUserProfile(authUser?.uid ?? null);
 
   const {
-    recordings, notes, spaces, loading: dataLoading,
+    recordings, notes, loading: dataLoading,
     addRecording, updateRecordingItem, patchRecordingItem, deleteRecordingItem, clearAllRecordings, setRecordingsLocal,
     addNote, updateNoteItem, deleteNoteItem, clearAllNotes, setNotesLocal,
-    addSpace, updateSpaceItem, deleteSpaceItem,
   } = useFirestoreData(authUser?.uid ?? null);
 
   const [currentView, setCurrentView] = useState('dashboard');
-  type NavEntry = { view: string; spaceMapActiveId?: string | null };
+  type NavEntry = { view: string };
   const [navStack, setNavStack] = useState<NavEntry[]>([]);
-  const [spaceMapActiveId, setSpaceMapActiveId] = useState<string | null>(null);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [quickNoteType, setQuickNoteType] = useState<NoteType | null>(null);
-  const [spacePickerRecordingId, setSpacePickerRecordingId] = useState<string | null>(null);
   const [selectedRecordingId, setSelectedRecordingId] = useState<string | null>(null);
 
   // Dev-only демо-просмотр без входа. effectiveUser проходит гейт логина, но uid в хуки
@@ -174,7 +156,7 @@ export default function App() {
 
   // Открыть запись с сохранением откуда пришли (для кнопки «Назад»)
   const openRecording = (id: string) => {
-    setNavStack(prev => [...prev, { view: currentView, spaceMapActiveId }]);
+    setNavStack(prev => [...prev, { view: currentView }]);
     setSelectedRecordingId(id);
     setCurrentView('recording_detail');
   };
@@ -184,7 +166,6 @@ export default function App() {
     if (entry) {
       setNavStack(prev => prev.slice(0, -1));
       setCurrentView(entry.view);
-      if (entry.spaceMapActiveId !== undefined) setSpaceMapActiveId(entry.spaceMapActiveId);
     } else {
       setCurrentView('dashboard');
     }
@@ -229,9 +210,7 @@ export default function App() {
     // pending-данными уже готовую транскрипцию.
     await addRecording(pendingRecording);
     addPersonFromRecording(pendingRecording);
-    setNavStack(prev => [...prev, { view: 'dashboard', spaceMapActiveId: null }]);
     setSelectedRecordingId(recordingId);
-    setSpacePickerRecordingId(recordingId);
     setIsProcessing(false);
 
     // Загружаем на сервер в фоне — сервер сам обновит Firestore после транскрипции.
@@ -309,30 +288,6 @@ export default function App() {
           onDeleteRecording={removeRecording}
           onUpdateRecording={(updated) => updateRecordingItem(updated)}
         />
-      );
-    }
-
-    if (currentView === 'library_spaces') {
-      return (
-        <div className="flex h-screen w-full">
-          <SpacesLibrary
-            recordings={recordings}
-            spaces={spaces}
-            onBack={() => setCurrentView('library')}
-            onOpenDetail={openRecording}
-            activeSpaceId={spaceMapActiveId}
-            onSetActiveSpaceId={setSpaceMapActiveId}
-            onUpdateSpace={(updated) => updateSpaceItem(updated)}
-            onDeleteRecording={removeRecording}
-            onUpdateRecording={(updated) => updateRecordingItem(updated)}
-            onCreateSpace={(data) => {
-              const newSpace: Space = { ...data, id: 'space-' + Date.now(), createdAt: new Date().toISOString() };
-              addSpace(newSpace);
-            }}
-            onDeleteSpace={(id) => deleteSpaceItem(id)}
-            onMoveRecording={(recId, spaceId) => { const rec = recordings.find(r => r.id === recId); if (rec) updateRecordingItem({ ...rec, spaceId: spaceId ?? undefined }); }}
-          />
-        </div>
       );
     }
 
@@ -560,7 +515,6 @@ export default function App() {
         onClose={() => setIsAssistantOpen(false)}
         recordings={recordings}
         notes={notes}
-        spaces={spaces}
         profile={assistantProfile}
         onOpenRecording={openRecording}
         currentView={currentView}
@@ -594,31 +548,6 @@ export default function App() {
           });
         }}
       />
-
-      {spacePickerRecordingId && (() => {
-        const rec = recordings.find(r => r.id === spacePickerRecordingId);
-        if (!rec) return null;
-        return (
-          // Suspense без fallback — модалка появится после загрузки chunk'а, без промежуточного UI
-          <Suspense fallback={null}>
-            <SpacePickerModal
-              recording={rec}
-              spaces={spaces}
-              suggestedSpaceId={suggestSpaceId(rec, spaces)}
-              onAssign={(spaceId) => {
-                if (spaceId) { const rec = recordings.find(r => r.id === spacePickerRecordingId); if (rec) updateRecordingItem({ ...rec, spaceId }); }
-                setSpacePickerRecordingId(null);
-                setCurrentView('recording_detail');
-              }}
-              onCreateAndAssign={(data) => {
-                const id = 'space-' + Date.now();
-                addSpace({ ...data, id, createdAt: new Date().toISOString() });
-                return id;
-              }}
-            />
-          </Suspense>
-        );
-      })()}
 
       {isProcessing && (
         <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center">

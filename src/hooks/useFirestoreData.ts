@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
-import type { Recording, Note, Space } from '../types';
+import type { Recording, Note } from '../types';
 import * as fs from '../lib/firestoreService';
 import type { Unsubscribe } from 'firebase/firestore';
 
 interface UseFirestoreDataReturn {
   recordings: Recording[];
   notes: Note[];
-  spaces: Space[];
   loading: boolean;
   // Recording CRUD
   addRecording: (rec: Recording) => Promise<void>;
@@ -21,16 +20,11 @@ interface UseFirestoreDataReturn {
   deleteNoteItem: (id: string) => Promise<void>;
   clearAllNotes: () => Promise<void>;
   setNotesLocal: (notes: Note[]) => void;
-  // Space CRUD
-  addSpace: (space: Space) => Promise<void>;
-  updateSpaceItem: (space: Space) => Promise<void>;
-  deleteSpaceItem: (id: string) => Promise<void>;
 }
 
 export function useFirestoreData(uid: string | null): UseFirestoreDataReturn {
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
-  const [spaces, setSpaces] = useState<Space[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -41,7 +35,6 @@ export function useFirestoreData(uid: string | null): UseFirestoreDataReturn {
       /* eslint-disable react-hooks/set-state-in-effect */
       setRecordings([]);
       setNotes([]);
-      setSpaces([]);
       setLoading(false);
       /* eslint-enable react-hooks/set-state-in-effect */
       return;
@@ -60,10 +53,8 @@ export function useFirestoreData(uid: string | null): UseFirestoreDataReturn {
       try {
         const r = localStorage.getItem('voicemap_recordings');
         const n = localStorage.getItem('voicemap_notes');
-        const s = localStorage.getItem('voicemap_spaces');
         if (r) setRecordings(JSON.parse(r));
         if (n) setNotes(JSON.parse(n));
-        if (s) setSpaces(JSON.parse(s));
       } catch { /* ignore */ }
       setLoading(false);
     };
@@ -90,9 +81,6 @@ export function useFirestoreData(uid: string | null): UseFirestoreDataReturn {
         setNotes(updated);
         maybeFinishLoading();
       }, handleSubscribeError));
-      unsubs.push(fs.subscribeToSpaces(uid, (updated) => {
-        setSpaces(updated);
-      }));
     })();
 
     return () => {
@@ -154,26 +142,9 @@ export function useFirestoreData(uid: string | null): UseFirestoreDataReturn {
 
   const setNotesLocal = (nts: Note[]) => setNotes(nts);
 
-  // --- Space CRUD ---
-  const addSpace = async (space: Space) => {
-    setSpaces(prev => [...prev, space]);
-    if (uid) await fs.saveSpace(uid, space).catch(e => console.warn('Firestore write failed:', e));
-  };
-
-  const updateSpaceItem = async (space: Space) => {
-    setSpaces(prev => prev.map(s => s.id === space.id ? space : s));
-    if (uid) await fs.updateSpace(uid, space).catch(e => console.warn('Firestore write failed:', e));
-  };
-
-  const deleteSpaceItem = async (id: string) => {
-    setSpaces(prev => prev.filter(s => s.id !== id));
-    if (uid) await fs.deleteSpace(uid, id).catch(e => console.warn('Firestore write failed:', e));
-  };
-
   return {
-    recordings, notes, spaces, loading,
+    recordings, notes, loading,
     addRecording, updateRecordingItem, patchRecordingItem, deleteRecordingItem, clearAllRecordings, setRecordingsLocal,
     addNote, updateNoteItem, deleteNoteItem, clearAllNotes, setNotesLocal,
-    addSpace, updateSpaceItem, deleteSpaceItem,
   };
 }

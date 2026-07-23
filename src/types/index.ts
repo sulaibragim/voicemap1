@@ -30,14 +30,6 @@ export interface Note {
   isPinned?: boolean;
 }
 
-export interface Space {
-  id: string;
-  name: string;
-  emoji: string;
-  color: string;
-  createdAt: string;
-}
-
 export interface Recording {
   id: string;
   title: string;
@@ -57,7 +49,6 @@ export interface Recording {
   actionItemsDone?: boolean[];
   openQuestions?: string[];
   pinned?: boolean;
-  spaceId?: string;
   taskReminders?: Record<number, { date: string; time: string; notified?: boolean }>;
   appendAudios?: Array<{ url: string; label: string; addedAt: string; r2Key?: string }>;
   participants?: Participant[];

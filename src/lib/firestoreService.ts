@@ -4,7 +4,7 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import type { Recording, Note, Space, AppSettings, KnownPerson } from '../types';
+import type { Recording, Note, AppSettings, KnownPerson } from '../types';
 import type { AssistantProfile } from './assistantPrompt';
 
 // --- User Profile (settings, assistantProfile, people) ---
@@ -35,10 +35,8 @@ export async function saveUserProfile(uid: string, data: Partial<UserProfileDoc>
 // Пути коллекций
 const recCol = (uid: string) => collection(db, 'users', uid, 'recordings');
 const noteCol = (uid: string) => collection(db, 'users', uid, 'notes');
-const spaceCol = (uid: string) => collection(db, 'users', uid, 'spaces');
 const recDoc = (uid: string, id: string) => doc(db, 'users', uid, 'recordings', id);
 const noteDoc = (uid: string, id: string) => doc(db, 'users', uid, 'notes', id);
-const spaceDoc = (uid: string, id: string) => doc(db, 'users', uid, 'spaces', id);
 
 // --- Recordings ---
 
@@ -145,58 +143,26 @@ export function subscribeToNotes(
   });
 }
 
-// --- Spaces ---
-export async function saveSpace(uid: string, space: Space): Promise<void> {
-  // Как и у recordings/notes: setDoc + merge (не падает, если документа нет) + stripUndefined
-  await setDoc(spaceDoc(uid, space.id), stripUndefined(space), { merge: true });
-}
-
-export async function updateSpace(uid: string, space: Space): Promise<void> {
-  await setDoc(spaceDoc(uid, space.id), stripUndefined(space), { merge: true });
-}
-
-export async function deleteSpace(uid: string, id: string): Promise<void> {
-  await deleteDoc(spaceDoc(uid, id));
-}
-
-// Real-time listener на spaces
-export function subscribeToSpaces(
-  uid: string,
-  onUpdate: (spaces: Space[]) => void,
-  onError?: (err: unknown) => void,
-): Unsubscribe {
-  return onSnapshot(spaceCol(uid), (snap) => {
-    onUpdate(snap.docs.map(d => ({ ...(d.data() as Space), id: d.id })));
-  }, (err) => {
-    console.warn('[Firestore] subscribeToSpaces error:', err);
-    onError?.(err);
-  });
-}
-
 // --- Batch migration from localStorage ---
-export async function migrateFromLocalStorage(uid: string): Promise<{ recordings: Recording[]; notes: Note[]; spaces: Space[] } | null> {
+export async function migrateFromLocalStorage(uid: string): Promise<{ recordings: Recording[]; notes: Note[] } | null> {
   try {
     const rawRec = localStorage.getItem('voicemap_recordings');
     const rawNote = localStorage.getItem('voicemap_notes');
-    const rawSpace = localStorage.getItem('voicemap_spaces');
     if (!rawRec && !rawNote) return null;
 
     const recordings: Recording[] = rawRec ? JSON.parse(rawRec) : [];
     const notes: Note[] = rawNote ? JSON.parse(rawNote) : [];
-    const spaces: Space[] = rawSpace ? JSON.parse(rawSpace) : [];
 
     const batch = writeBatch(db);
     recordings.forEach(r => batch.set(recDoc(uid, r.id), { ...r, createdAt: serverTimestamp() }));
     notes.forEach(n => batch.set(noteDoc(uid, n.id), { ...n, createdAt: serverTimestamp() }));
-    spaces.forEach(s => batch.set(spaceDoc(uid, s.id), s));
     await batch.commit();
 
     // Очищаем localStorage после миграции
     localStorage.removeItem('voicemap_recordings');
     localStorage.removeItem('voicemap_notes');
-    localStorage.removeItem('voicemap_spaces');
 
-    return { recordings, notes, spaces };
+    return { recordings, notes };
   } catch (e) {
     console.warn('Migration failed:', e);
     return null;

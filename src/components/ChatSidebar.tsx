@@ -5,14 +5,13 @@ import { chatWithAI, transcribeChatVoice } from '../lib/api';
 import { buildAssistantPrompt, ASSISTANT_WELCOME, type AssistantProfile } from '../lib/assistantPrompt';
 import { useChatRecording } from '../hooks/useChatRecording';
 import { ChatMessageBubble } from './ChatMessageBubble';
-import type { Recording, Note, Space, Message } from '../types';
+import type { Recording, Note, Message } from '../types';
 
 interface ChatSidebarProps {
   isOpen: boolean;
   onClose: () => void;
   recordings: Recording[];
   notes?: Note[];
-  spaces?: Space[];
   profile?: AssistantProfile;
   onOpenRecording: (id: string) => void;
   currentView: string;
@@ -33,7 +32,7 @@ const QUICK_ACTIONS = [
 const makeId = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 export const ChatSidebar: React.FC<ChatSidebarProps> = ({
-  isOpen, onClose, recordings, notes, spaces, profile,
+  isOpen, onClose, recordings, notes, profile,
   onOpenRecording, currentView, setCurrentView,
   onSetFocusTasks, onCreateNote, onUpdateRecording, onLearnRule,
 }) => {
@@ -87,7 +86,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
       const prompt = buildAssistantPrompt(text, {
         recordings,
         notes,
-        spaces,
         currentView,
         profile,
         recentMessages,

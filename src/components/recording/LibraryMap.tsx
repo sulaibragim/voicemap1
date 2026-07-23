@@ -28,7 +28,6 @@ interface LibraryMapProps {
   onOpenDetail: (id: string) => void;
   onBack: () => void;
   onOpenNotes: () => void;
-  onOpenSpaces: () => void;
   onUpdateNote?: (note: Note) => void;
 }
 
@@ -38,7 +37,6 @@ export const LibraryMap = ({
   onOpenDetail,
   onBack,
   onOpenNotes,
-  onOpenSpaces,
   onUpdateNote,
 }: LibraryMapProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -394,7 +392,6 @@ export const LibraryMap = ({
                   onOpenRecClusters={() => setView('rec-clusters')}
                   onOpenNotesTypes={() => setView('note-types')}
                   onOpenNotes={onOpenNotes}
-                  onOpenSpaces={onOpenSpaces}
                 />
               )}
 
