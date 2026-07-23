@@ -40,7 +40,7 @@ export const QuickNoteCard = ({ onQuickNote }: QuickNoteCardProps) => (
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay: 0.1 }}
-    className="col-span-12 md:col-span-6 lg:col-span-6 rounded-3xl overflow-hidden border border-white/[0.06] flex flex-col justify-center min-h-[160px] lg:min-h-0"
+    className="col-span-12 lg:col-span-4 rounded-3xl overflow-hidden border border-white/[0.06] flex flex-col justify-center min-h-[160px] lg:min-h-0"
     style={{ background: 'rgba(22,22,28,0.95)' }}
   >
     {NOTE_TYPES.map((item, i) => (

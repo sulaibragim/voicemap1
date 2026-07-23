@@ -8,7 +8,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Brain, Loader2 } from 'lucide-react';
 import { retranscribeFromUrl, deleteAudioFromR2, deleteRecordingChunks, processRecordingAsync } from './lib/api';
 import { useToast } from './hooks/useToast';
-import { useDailyTip } from './hooks/useDailyTip';
 
 import type { NoteType, Recording } from './types';
 import { useReminders } from './hooks/useReminders';
@@ -20,11 +19,11 @@ import { LoginScreen } from './components/auth/LoginScreen';
 // Eager — нужны на первом экране (Dashboard)
 import { Header } from './components/layout/Header';
 import { BottomNav } from './components/layout/BottomNav';
+import { SearchHero } from './components/search/SearchHero';
 import { LiveSessionCard } from './components/dashboard/LiveSessionCard';
 import { QuickNoteCard } from './components/dashboard/QuickNoteCard';
 import { FocusTodayCard } from './components/dashboard/FocusTodayCard';
 import { IdeasCard } from './components/dashboard/IdeasCard';
-import { AITipCard } from './components/dashboard/AITipCard';
 import { WeeklyDigestCard } from './components/dashboard/WeeklyDigestCard';
 import { RecentRecordings } from './components/dashboard/RecentRecordings';
 import { ChatSidebar } from './components/ChatSidebar';
@@ -141,7 +140,6 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
 
   const { toast, showToast } = useToast();
-  const { dailyTip, isGeneratingTip } = useDailyTip(recordings);
 
   useReminders({
     notes,
@@ -399,10 +397,12 @@ export default function App() {
       <div className="min-h-screen bg-background text-on-surface pb-32 font-body selection:bg-primary/30 relative">
         <Header currentView={currentView} setCurrentView={setCurrentView} onLogout={handleLogout} onReset={handleResetDemo} user={effectiveUser ?? undefined} />
         <main className="max-w-[1440px] mx-auto px-4 pt-6 lg:px-8 lg:pt-12">
+          {/* Голосовой поиск — главный герой-блок дашборда (шире), запись — рядом (уже) */}
           <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12">
+            <SearchHero onOpenSource={(id, timestamp) => openRecording(id, timestamp)} />
             <LiveSessionCard onStartRecording={() => setCurrentView('recording_session')} />
-            <QuickNoteCard onQuickNote={(type) => setQuickNoteType(type)} />
           </div>
+          <RecentRecordings recordings={recordings} onOpenLibrary={() => setCurrentView('library')} onOpenDetail={openRecording} />
           <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12">
             <FocusTodayCard
               recordings={recordings}
@@ -427,12 +427,11 @@ export default function App() {
             />
             <IdeasCard recordings={recordings} notes={notes} onOpenRecording={openRecording} />
           </div>
-          {/* Совет дня + недельный дайджест в одном ряду: AITipCard (lg:4) + WeeklyDigestCard (lg:8) = 12 колонок */}
+          {/* Быстрая заметка + недельный дайджест в одном ряду: QuickNoteCard (lg:4) + WeeklyDigestCard (lg:8) = 12 колонок */}
           <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12 items-stretch">
-            <AITipCard dailyTip={dailyTip} isGeneratingTip={isGeneratingTip} />
+            <QuickNoteCard onQuickNote={(type) => setQuickNoteType(type)} />
             <WeeklyDigestCard recordings={recordings} setCurrentView={setCurrentView} />
           </div>
-          <RecentRecordings recordings={recordings} onOpenLibrary={() => setCurrentView('library')} onOpenDetail={openRecording} />
         </main>
         <BottomNav currentView={currentView} setCurrentView={setCurrentView} />
 
@@ -484,7 +483,11 @@ export default function App() {
         <button
           onClick={() => setIsAssistantOpen(true)}
           aria-label="Открыть ассистента"
-          className={`fixed bottom-24 md:bottom-32 right-4 md:right-8 w-14 h-14 bg-primary text-on-primary-fixed rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(175,162,255,0.4)] hover:scale-110 transition-transform z-[150] cursor-pointer ${isAssistantOpen ? 'hidden' : currentView === 'recording_detail' ? 'hidden md:flex' : ''}`}
+          className={`fixed bottom-24 md:bottom-32 right-4 md:right-8 w-14 h-14 bg-primary text-on-primary-fixed rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(175,162,255,0.4)] hover:scale-110 transition-transform z-[150] cursor-pointer ${
+            // На дашборде поиск уже есть крупным блоком (SearchHero) — плавающая кнопка там лишняя
+            // и перекрывала контент. На остальных экранах она остаётся быстрым входом в поиск.
+            isAssistantOpen || currentView === 'dashboard' ? 'hidden' : currentView === 'recording_detail' ? 'hidden md:flex' : ''
+          }`}
         >
           <Brain className="w-6 h-6" />
         </button>
