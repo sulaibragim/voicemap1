@@ -4,10 +4,10 @@ import type { Recording, Note, NoteType } from '../../types';
 import { parseRecDate } from '../../lib/utils';
 import {
   CW, CH, CX, CY,
-  NOTE_COLORS, NOTE_TYPES, MOOD_COLORS,
+  NOTE_COLORS, NOTE_TYPES,
   circleLayout, spiralLayout, noteLayout,
   buildTagClusters, buildConnections,
-  extractMoodEmoji, hasIncompleteTasks, getNoteReminderStatus,
+  hasIncompleteTasks, getNoteReminderStatus,
   type View, type DateFilter, type NoteStatusFilter,
   type NoteViewMode, type RecViewMode,
 } from '../../lib/mapUtils';
@@ -439,8 +439,6 @@ export const LibraryMap = ({
                   <MapConnections hoveredId={hoveredId} connections={connections}
                     positions={nodePositions} canvasWidth={CW} canvasHeight={CH} />
                   {recNodes.map(({ rec, x, y }, i) => {
-                    const moodEmoji = extractMoodEmoji(rec.mood);
-                    const moodColor = moodEmoji ? MOOD_COLORS[moodEmoji] : undefined;
                     const incomplete = hasIncompleteTasks(rec);
                     const isDimmed = combinedRecDimmed.has(rec.id);
                     return (
@@ -448,7 +446,6 @@ export const LibraryMap = ({
                         isHovered={hoveredId === rec.id}
                         hasConnections={(connections.get(rec.id)?.length ?? 0) > 0}
                         onHover={setHoveredId} onClick={onOpenDetail} delay={i * 0.045}
-                        moodColor={moodColor}
                         hasIncompleteTasks={incomplete}
                         dimmed={isDimmed} />
                     );

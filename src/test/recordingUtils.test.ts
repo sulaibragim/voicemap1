@@ -192,9 +192,10 @@ describe('groupByDate', () => {
   // Для "Сегодня"/"Вчера" нужно передавать ISO-дату, которую new Date() распарсит верно
 
   it('группирует сегодняшние записи под меткой "Сегодня"', () => {
-    // Используем ISO с временем (T12:00:00) чтобы парсинг был в локальном времени,
-    // а не UTC (UTC полночь может сдвинуться на предыдущий день в западных зонах)
-    const todayISO = new Date().toISOString().slice(0, 10);
+    // Дату берём из ЛОКАЛЬНЫХ компонентов (не toISOString/UTC): groupByDate сравнивает
+    // с локальной датой, а вечером в западных зонах UTC-дата уже «завтра» → тест флакал.
+    const now = new Date();
+    const todayISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const todayWithTime = `${todayISO}T12:00:00`;
     const recordings = [makeRecording({ id: 'today', date: todayWithTime })];
     const groups = groupByDate(recordings);
@@ -206,7 +207,7 @@ describe('groupByDate', () => {
   it('группирует вчерашние записи под меткой "Вчера"', () => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayISO = yesterday.toISOString().slice(0, 10);
+    const yesterdayISO = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
     const yesterdayWithTime = `${yesterdayISO}T12:00:00`;
     const recordings = [makeRecording({ id: 'yesterday', date: yesterdayWithTime })];
     const groups = groupByDate(recordings);

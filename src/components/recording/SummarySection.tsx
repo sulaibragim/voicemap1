@@ -52,18 +52,6 @@ export const SummarySection = ({
         <h2 className="font-headline text-lg md:text-2xl font-bold">AI Саммари</h2>
       </div>
 
-      {/* Настроение */}
-      {recording.mood && (
-        <div className="mb-6">
-          <h3 className="flex items-center gap-2 font-bold text-sm mb-3 text-on-surface">
-            <span className="text-xl">✨</span> Настроение
-          </h3>
-          <div className="inline-block px-4 py-2 bg-surface-container rounded-xl text-sm font-bold text-primary">
-            {recording.mood}
-          </div>
-        </div>
-      )}
-
       {/* Упоминания */}
       {recording.mentions && recording.mentions.length > 0 && (
         <div className="mb-6">

@@ -49,7 +49,6 @@ service cloud.firestore {
              validStr(data, 'summary', 50000) &&
              ('transcript' in data && data.transcript is list && data.transcript.size() <= 5000) &&
              validOptStr(data, 'audioUrl', 2000) &&
-             validOptStr(data, 'mood', 100) &&
              validOptList(data, 'ideas', 200) &&
              validOptList(data, 'actionItems', 200) &&
              validOptList(data, 'mentions', 200) &&

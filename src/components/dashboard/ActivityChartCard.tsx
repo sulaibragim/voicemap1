@@ -242,7 +242,7 @@ export const ActivityChartCard = ({ recordings, notes, onOpenRecording }: Activi
                           <div className="min-w-0">
                             <p className="text-sm font-bold line-clamp-1">{rec.title}</p>
                             <p className="text-[11px] text-on-surface-variant">
-                              {rec.duration}{rec.mood ? ` · ${rec.mood}` : ''}
+                              {rec.duration}
                             </p>
                           </div>
                         </div>

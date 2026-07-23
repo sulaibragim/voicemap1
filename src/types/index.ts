@@ -50,7 +50,6 @@ export interface Recording {
   keyMoments?: string[];
   audioUrl?: string;
   r2Key?: string;           // Ключ файла в Cloudflare R2 (для удаления)
-  mood?: string;
   ideas?: string[];
   actionItems?: string[];
   mentions?: string[];

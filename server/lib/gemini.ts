@@ -42,9 +42,9 @@ export function buildTranscribePayload(knownPeople: string[] = []): { prompt: st
     'SPEAKER DIARIZATION: Listen for voice changes. Label as "Участник 1", "Участник 2" etc. Replace with actual name if heard. ' +
     'Each speaker change = new transcript item. Solo = "Я". ' +
     '2. Short Russian summary. 3. 3-5 key moments in Russian. 4. ALL action items in Russian. ' +
-    '5. Mood in Russian. 6. Creative ideas in Russian. 7. Mentions (names, tools, places). ' +
-    '8. Open questions. 9. Map names to speaker labels. 10. Rich action items with assignee/deadline. ' +
-    '11. Big strategic questions. Return JSON.';
+    '5. Creative ideas in Russian. 6. Mentions (names, tools, places). ' +
+    '7. Open questions. 8. Map names to speaker labels. 9. Rich action items with assignee/deadline. ' +
+    '10. Big strategic questions. Return JSON.';
 
   const config = {
     responseMimeType: 'application/json',
@@ -55,7 +55,6 @@ export function buildTranscribePayload(knownPeople: string[] = []): { prompt: st
         summary: { type: 'STRING' },
         keyMoments: { type: 'ARRAY', items: { type: 'STRING' } },
         actionItems: { type: 'ARRAY', items: { type: 'STRING' } },
-        mood: { type: 'STRING' },
         ideas: { type: 'ARRAY', items: { type: 'STRING' } },
         mentions: { type: 'ARRAY', items: { type: 'STRING' } },
         transcript: { type: 'ARRAY', items: { type: 'OBJECT', properties: { speaker: { type: 'STRING' }, timestamp: { type: 'STRING' }, text: { type: 'STRING' } } } },
@@ -65,7 +64,7 @@ export function buildTranscribePayload(knownPeople: string[] = []): { prompt: st
         richActionItems: { type: 'ARRAY', items: { type: 'OBJECT', properties: { text: { type: 'STRING' }, assignee: { type: 'STRING' }, deadline: { type: 'STRING' } } } },
         bigQuestions: { type: 'ARRAY', items: { type: 'STRING' } },
       },
-      required: ['title', 'summary', 'transcript', 'actionItems', 'ideas', 'keyMoments', 'mood', 'tags'],
+      required: ['title', 'summary', 'transcript', 'actionItems', 'ideas', 'keyMoments', 'tags'],
     },
   };
 

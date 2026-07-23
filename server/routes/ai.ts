@@ -321,7 +321,7 @@ router.post('/parse-tasks', requireAuth, async (req, res) => {
 router.post('/weekly-review', requireAuth, async (req, res) => {
   try {
     const { recordings } = req.body as {
-      recordings: Array<{ title: string; summary: string; ideas?: string[]; actionItems?: string[]; mood?: string; tags?: string[] }>;
+      recordings: Array<{ title: string; summary: string; ideas?: string[]; actionItems?: string[]; tags?: string[] }>;
     };
     const ai = getAI();
     const context = recordings.map(r =>

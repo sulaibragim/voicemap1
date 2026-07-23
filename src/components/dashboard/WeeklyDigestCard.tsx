@@ -91,7 +91,6 @@ export const WeeklyDigestCard = ({ recordings, setCurrentView }: WeeklyDigestCar
         summary: r.summary,
         ideas: r.ideas,
         actionItems: r.actionItems,
-        mood: r.mood,
         tags: r.tags,
       }));
       const result = await weeklyReview(payload);

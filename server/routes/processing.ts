@@ -84,7 +84,6 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
         transcript: parsed.transcript || [],
         keyMoments: parsed.keyMoments || [],
         actionItems: parsed.actionItems || [],
-        mood: parsed.mood || '',
         ideas: parsed.ideas || [],
         mentions: parsed.mentions || [],
         tags: parsed.tags || [],

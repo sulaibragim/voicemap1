@@ -43,9 +43,6 @@ const QuickNoteModal = lazy(() =>
 const RecordingsLibrary = lazy(() =>
   import('./components/recording/RecordingsLibrary').then(m => ({ default: m.RecordingsLibrary }))
 );
-const LibraryMap = lazy(() =>
-  import('./components/recording/LibraryMap').then(m => ({ default: m.LibraryMap }))
-);
 const SpacesLibrary = lazy(() =>
   import('./components/recording/SpacesLibrary').then(m => ({ default: m.SpacesLibrary }))
 );
@@ -214,7 +211,6 @@ export default function App() {
       transcript: [],
       keyMoments: [],
       actionItems: [],
-      mood: '',
       ideas: [],
       mentions: [],
       openQuestions: [],
@@ -303,31 +299,16 @@ export default function App() {
 
     if (currentView === 'library') {
       const openDetail = (id: string) => openRecording(id);
+      // Список записей + поиск — главный экран библиотеки на всех размерах.
+      // Карта-космос убрана как обязательные «ворота»: пользователь ищет, а не листает глазами.
       return (
-        <>
-          {/* Desktop: interactive map */}
-          <div className="hidden md:flex h-screen w-full">
-            <LibraryMap
-              recordings={recordings}
-              notes={notes}
-              onOpenDetail={openDetail}
-              onBack={() => setCurrentView('dashboard')}
-              onOpenNotes={() => setCurrentView('gallery')}
-              onOpenSpaces={() => setCurrentView('library_spaces')}
-              onUpdateNote={(updated) => updateNoteItem(updated)}
-            />
-          </div>
-          {/* Mobile: classic list */}
-          <div className="flex md:hidden w-full">
-            <RecordingsLibrary
-              recordings={recordings}
-              onBack={() => setCurrentView('dashboard')}
-              onOpenDetail={openDetail}
-              onDeleteRecording={removeRecording}
-              onUpdateRecording={(updated) => updateRecordingItem(updated)}
-            />
-          </div>
-        </>
+        <RecordingsLibrary
+          recordings={recordings}
+          onBack={() => setCurrentView('dashboard')}
+          onOpenDetail={openDetail}
+          onDeleteRecording={removeRecording}
+          onUpdateRecording={(updated) => updateRecordingItem(updated)}
+        />
       );
     }
 

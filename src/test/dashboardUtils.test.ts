@@ -1,26 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import type { Recording } from '../types';
 import {
   parseDuration,
   formatTotalTime,
-  getMostFrequentMood,
   parseRecDate,
 } from '../lib/dashboardUtils';
-
-// ─── Вспомогательная фабрика записи ────────────────────────────────────────
-
-function makeRecording(overrides: Partial<Recording> = {}): Recording {
-  return {
-    id: 'rec-1',
-    title: 'Запись',
-    date: '01.05.2025',
-    duration: '00:30',
-    tags: [],
-    summary: '',
-    transcript: [],
-    ...overrides,
-  };
-}
 
 // ─── parseDuration ────────────────────────────────────────────────────────────
 
@@ -67,46 +50,6 @@ describe('formatTotalTime', () => {
 
   it('форматирует 3 часа 15 минут как "3ч 15м"', () => {
     expect(formatTotalTime((3 * 60 + 15) * 60)).toBe('3ч 15м');
-  });
-});
-
-// ─── getMostFrequentMood ─────────────────────────────────────────────────────
-
-describe('getMostFrequentMood', () => {
-  it('возвращает null для пустого массива', () => {
-    expect(getMostFrequentMood([])).toBeNull();
-  });
-
-  it('возвращает null если ни у одной записи нет mood', () => {
-    const recordings = [
-      makeRecording({ mood: undefined }),
-      makeRecording({ mood: undefined }),
-    ];
-    expect(getMostFrequentMood(recordings)).toBeNull();
-  });
-
-  it('возвращает единственный mood при одной записи', () => {
-    const recordings = [makeRecording({ mood: 'продуктивный' })];
-    expect(getMostFrequentMood(recordings)).toBe('продуктивный');
-  });
-
-  it('возвращает наиболее часто встречающийся mood', () => {
-    const recordings = [
-      makeRecording({ id: 'a', mood: 'продуктивный' }),
-      makeRecording({ id: 'b', mood: 'усталый' }),
-      makeRecording({ id: 'c', mood: 'продуктивный' }),
-      makeRecording({ id: 'd', mood: 'продуктивный' }),
-    ];
-    expect(getMostFrequentMood(recordings)).toBe('продуктивный');
-  });
-
-  it('игнорирует записи без mood при подсчёте', () => {
-    const recordings = [
-      makeRecording({ id: 'a', mood: 'вдохновлённый' }),
-      makeRecording({ id: 'b', mood: undefined }),
-      makeRecording({ id: 'c', mood: undefined }),
-    ];
-    expect(getMostFrequentMood(recordings)).toBe('вдохновлённый');
   });
 });
 

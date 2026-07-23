@@ -43,7 +43,6 @@ interface TranscribeResult {
   summary?: string;
   keyMoments?: string[];
   actionItems?: string[];
-  mood?: string;
   ideas?: string[];
   mentions?: string[];
   transcript?: TranscriptItem[];
@@ -68,7 +67,6 @@ export async function transcribeRecording(
     summary: parsed.summary,
     keyMoments: parsed.keyMoments,
     actionItems: parsed.actionItems,
-    mood: parsed.mood,
     ideas: parsed.ideas,
     mentions: parsed.mentions,
     transcript: parsed.transcript,
@@ -94,7 +92,6 @@ export async function retranscribeFromUrl(
     summary: parsed.summary,
     keyMoments: parsed.keyMoments,
     actionItems: parsed.actionItems,
-    mood: parsed.mood,
     ideas: parsed.ideas,
     mentions: parsed.mentions,
     transcript: parsed.transcript,
@@ -171,7 +168,7 @@ export interface DigestAIResult {
 
 /** Weekly AI review — theme and insight based on week's recordings */
 export async function weeklyReview(
-  recordings: Array<{ title: string; summary: string; ideas?: string[]; actionItems?: string[]; mood?: string; tags?: string[] }>
+  recordings: Array<{ title: string; summary: string; ideas?: string[]; actionItems?: string[]; tags?: string[] }>
 ): Promise<DigestAIResult> {
   const res = await post<AITextResponse>('/weekly-review', { recordings });
   return safeJsonParse<DigestAIResult>(res.text || '{}', { mainTheme: '', themeSummary: '', insight: '' });

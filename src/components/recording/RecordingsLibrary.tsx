@@ -19,7 +19,6 @@ const SORT_LABELS: Record<SortMode, string> = {
   date: 'По дате',
   duration: 'По длительности',
   tasks: 'По задачам',
-  mood: 'По настроению',
 };
 
 export const RecordingsLibrary = ({
@@ -142,7 +141,6 @@ export const RecordingsLibrary = ({
               <div className="flex items-center gap-3 text-[11px] text-on-surface-variant mb-2">
                 <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{rec.date}</span>
                 <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{rec.duration}</span>
-                {rec.mood && <span>{rec.mood}</span>}
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex gap-1.5 flex-wrap items-center">

@@ -74,11 +74,6 @@ export const RecordingMobileSummaryTab = ({
           </div>
         )}
       </div>
-      {recording.mood && (
-        <div><p className="text-xs font-bold text-on-surface-variant mb-1">✨ Настроение</p>
-          <span className="px-3 py-1 bg-surface-container rounded-xl text-sm font-bold text-primary">{recording.mood}</span>
-        </div>
-      )}
       {recording.mentions && recording.mentions.length > 0 && (
         <div><p className="text-xs font-bold text-on-surface-variant mb-1">Упоминания</p>
           <div className="flex flex-wrap gap-1.5">{recording.mentions.map((m, i) => <span key={i} className="px-2.5 py-1 bg-tertiary/10 text-tertiary rounded-full text-xs font-bold">{m}</span>)}</div>

@@ -17,7 +17,6 @@ interface RecordingMapCardProps {
 export const RecordingMapCard = ({
   rec, x, y, isHovered, onHover, onClick, delay = 0, color,
 }: RecordingMapCardProps) => {
-  const moodEmoji = rec.mood?.match(/\p{Emoji_Presentation}|\p{Extended_Pictographic}/u)?.[0] ?? '🎙';
   const title = rec.title.slice(0, 50);
   const summary = rec.summary?.slice(0, 100) ?? '';
 
@@ -50,7 +49,7 @@ export const RecordingMapCard = ({
               className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 text-[10px]"
               style={{ background: isHovered ? color : color + '30' }}
             >
-              {moodEmoji}
+              🎙
             </div>
             <span className="text-[9px] font-bold tracking-widest uppercase flex-1" style={{ color }}>
               {rec.duration}

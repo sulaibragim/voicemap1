@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mic, CheckSquare, Lightbulb, Smile, Bell, ChevronRight, ChevronDown } from 'lucide-react';
+import { Mic, CheckSquare, Lightbulb, Bell, ChevronRight, ChevronDown } from 'lucide-react';
 import type { Recording, Note } from '../../types';
 import { StatRow, Divider } from './StatRow';
-import { parseDuration, formatTotalTime, getMostFrequentMood, snoozeNote } from '../../lib/dashboardUtils';
+import { parseDuration, formatTotalTime, snoozeNote } from '../../lib/dashboardUtils';
 import { plural } from '../../lib/plural';
 
 interface BrainStatsCardProps {
@@ -32,7 +32,6 @@ export const BrainStatsCard = ({ recordings, notes, onNavigate, onUpdateNote, on
   }
 
   const totalIdeas = recordings.reduce((a, r) => a + (r.ideas?.length ?? 0), 0);
-  const topMood = getMostFrequentMood(recordings);
 
   const now = new Date();
   const pendingNoteReminders = notes
@@ -154,20 +153,6 @@ export const BrainStatsCard = ({ recordings, notes, onNavigate, onUpdateNote, on
               <span className="text-xl font-bold text-tertiary">{totalIdeas}</span>
               <span className="text-sm text-on-surface-variant ml-1">{ideaWord}</span>
             </StatRow>
-
-            {topMood && (
-              <>
-                <Divider />
-                <StatRow
-                  icon={<Smile className="w-3.5 h-3.5" />}
-                  iconBg="bg-amber-400/15"
-                  iconColor="text-amber-400"
-                >
-                  <span className="text-xl font-bold text-amber-400 capitalize">{topMood}</span>
-                  <span className="text-xs text-on-surface-variant ml-1.5">чаще всего</span>
-                </StatRow>
-              </>
-            )}
 
             <Divider />
 

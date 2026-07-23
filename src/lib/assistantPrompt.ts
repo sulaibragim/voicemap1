@@ -56,7 +56,6 @@ export function buildAssistantPrompt(userMessage: string, ctx: AssistantContext)
     date: r.date,
     duration: r.duration,
     tags: r.tags,
-    mood: r.mood,
     summary: r.summary,
     ideas: r.ideas?.slice(0, 6),
     actionItems: r.actionItems,
@@ -119,7 +118,7 @@ ${TONE_INSTRUCTIONS[profile.tone]}
 ${emojiRule}
 ${customRulesBlock}${emptyDataBlock}
 ## Что ты умеешь
-- Искать записи по теме, дате, тегам, настроению, людям, идеям, задачам
+- Искать записи по теме, дате, тегам, людям, идеям, задачам
 - Анализировать паттерны: что часто упоминается, какие темы повторяются
 - Делать дайджест / резюме за период
 - Считать статистику: сколько записей, задач, идей за любой период

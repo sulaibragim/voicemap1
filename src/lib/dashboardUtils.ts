@@ -1,4 +1,4 @@
-import type { Recording, Note } from '../types';
+import type { Note } from '../types';
 
 // Парсит "MM:SS" → секунды
 export function parseDuration(d: string): number {
@@ -13,17 +13,6 @@ export function formatTotalTime(sec: number): string {
   const h = Math.floor(m / 60);
   const rem = m % 60;
   return rem > 0 ? `${h}ч ${rem}м` : `${h}ч`;
-}
-
-// Самое частое mood среди записей или null
-export function getMostFrequentMood(recordings: Recording[]): string | null {
-  const counts: Record<string, number> = {};
-  for (const r of recordings) {
-    if (r.mood) counts[r.mood] = (counts[r.mood] || 0) + 1;
-  }
-  const entries = Object.entries(counts);
-  if (!entries.length) return null;
-  return entries.reduce((a, b) => (b[1] > a[1] ? b : a))[0];
 }
 
 export function snoozeNote(note: Note, hours: number): Note {

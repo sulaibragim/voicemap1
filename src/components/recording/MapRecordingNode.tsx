@@ -11,7 +11,6 @@ interface MapRecordingNodeProps {
   onHover: (id: string | null) => void;
   onClick: (id: string) => void;
   delay?: number;
-  moodColor?: string;
   hasIncompleteTasks?: boolean;
   dimmed?: boolean;
 }
@@ -27,7 +26,6 @@ export const MapRecordingNode = ({
   onHover,
   onClick,
   delay = 0,
-  moodColor,
   hasIncompleteTasks = false,
   dimmed = false,
 }: MapRecordingNodeProps) => {
@@ -41,8 +39,8 @@ export const MapRecordingNode = ({
     ? recording.summary.split(/[.!?]/)[0]?.trim().slice(0, 70) ?? recording.summary.slice(0, 70)
     : null;
 
-  // Active accent color: moodColor overrides the default purple
-  const accentColor = moodColor ?? '#7B61FF';
+  // Акцентный цвет карточки записи
+  const accentColor = '#7B61FF';
 
   return (
     <motion.div
@@ -85,14 +83,10 @@ export const MapRecordingNode = ({
               : 'rgba(28,28,33,0.78)',
             borderColor: isHovered
               ? `${accentColor}99`
-              : moodColor
-                ? `${moodColor}30`
-                : 'rgba(255,255,255,0.08)',
+              : 'rgba(255,255,255,0.08)',
             boxShadow: isHovered
               ? `0 0 28px ${accentColor}40`
-              : moodColor
-                ? `0 0 12px ${moodColor}18`
-                : 'none',
+              : 'none',
           }}
         >
           {/* Top row: mic icon + duration + connection indicator */}
@@ -140,13 +134,6 @@ export const MapRecordingNode = ({
                   {participants.join(', ')}
                 </span>
               </div>
-            )}
-
-            {/* Mood */}
-            {recording.mood && (
-              <p className="text-[8px] text-on-surface-variant opacity-60 mt-1">
-                {recording.mood}
-              </p>
             )}
 
             {/* Tags */}

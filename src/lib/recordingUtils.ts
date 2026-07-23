@@ -63,7 +63,7 @@ export const TAG_TEXT: Record<string, string> = {
   '#Задачи': 'text-[#81C784]',
 };
 
-export type SortMode = 'date' | 'duration' | 'tasks' | 'mood';
+export type SortMode = 'date' | 'duration' | 'tasks';
 
 export function getTagColor(tags: string[]): string {
   for (const t of tags) { if (TAG_COLORS[t]) return TAG_COLORS[t]; }
@@ -89,8 +89,6 @@ export function sortItems(items: Recording[], mode: SortMode): Recording[] {
     sorted.sort((a, b) => parseDurationToSeconds(b.duration) - parseDurationToSeconds(a.duration));
   } else if (mode === 'tasks') {
     sorted.sort((a, b) => (b.actionItems?.length ?? 0) - (a.actionItems?.length ?? 0));
-  } else if (mode === 'mood') {
-    sorted.sort((a, b) => (a.mood ?? '').localeCompare(b.mood ?? ''));
   }
   return sorted;
 }

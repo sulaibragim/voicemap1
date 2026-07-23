@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import type { Recording } from '../../types';
-import { MOOD_COLORS, extractMoodEmoji, hasIncompleteTasks } from '../../lib/mapUtils';
+import { hasIncompleteTasks } from '../../lib/mapUtils';
 
 interface RecGridViewProps {
   recordings: Recording[];
@@ -13,8 +13,6 @@ export const RecGridView = ({ recordings, onOpenDetail }: RecGridViewProps) => {
       {recordings.length === 0 ? (
         <p className="col-span-full text-center text-on-surface-variant mt-20">Записей нет</p>
       ) : recordings.map((rec, i) => {
-        const moodEmoji = extractMoodEmoji(rec.mood);
-        const moodColor = moodEmoji ? MOOD_COLORS[moodEmoji] : undefined;
         const incomplete = hasIncompleteTasks(rec);
         const dateStr = new Date(rec.date.replace(/\./g, '-')).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
         return (
@@ -26,12 +24,12 @@ export const RecGridView = ({ recordings, onOpenDetail }: RecGridViewProps) => {
             className="rounded-2xl border p-4 cursor-pointer group transition-all hover:border-primary/30"
             style={{
               background: 'rgba(28,28,33,0.75)',
-              borderColor: moodColor ? `${moodColor}20` : 'rgba(123,97,255,0.12)',
+              borderColor: 'rgba(123,97,255,0.12)',
             }}
             onClick={() => onOpenDetail(rec.id)}
           >
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-xl">{moodEmoji ?? '🎙'}</span>
+              <span className="text-xl">🎙</span>
               {incomplete && (
                 <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full ml-auto" style={{ background: '#4FC3F715', color: '#4FC3F7' }}>
                   задачи

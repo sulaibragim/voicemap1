@@ -39,7 +39,6 @@ export function useRecordingExport({ recording, showToast }: UseRecordingExportO
       `Название: ${recording.title}`,
       `Дата: ${recording.date}`,
       `Длительность: ${recording.duration}`,
-      `Настроение: ${recording.mood || 'Неизвестно'}`,
       '',
       'Саммари:',
       recording.summary,
@@ -87,7 +86,6 @@ export function useRecordingExport({ recording, showToast }: UseRecordingExportO
   const handleExportPDF = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) { showToast('Разрешите всплывающие окна', 'error'); return; }
-    const mood = recording.mood ? ` · ${recording.mood}` : '';
     const tags = recording.tags?.length ? `<p style="color:#888;font-size:13px">${recording.tags.join(' ')}</p>` : '';
     const actionItemsHtml = recording.actionItems?.length
       ? `<h2>Задачи</h2><ul>${recording.actionItems.map(i => `<li>${i}</li>`).join('')}</ul>`
@@ -107,7 +105,7 @@ h1{font-size:22px;margin-bottom:4px}h2{font-size:15px;font-weight:600;margin-top
 .meta{color:#666;font-size:13px;margin-bottom:20px}ul{margin:0;padding-left:20px}li{margin-bottom:5px}
 @media print{body{margin:0}}</style></head>
 <body><h1>${recording.title}</h1>
-<div class="meta">${recording.date} · ${recording.duration}${mood}</div>
+<div class="meta">${recording.date} · ${recording.duration}</div>
 ${tags}
 <h2>Краткое содержание</h2><p>${recording.summary}</p>
 ${actionItemsHtml}${ideasHtml}${keyMomentsHtml}${transcriptHtml}

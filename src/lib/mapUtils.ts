@@ -12,18 +12,6 @@ export const NOTE_COLORS: Record<NoteType, string> = NOTE_HEX;
 
 export const NOTE_TYPES: NoteType[] = ['Идея', 'Задача', 'Напоминание'];
 
-// Mood emoji → color mapping
-export const MOOD_COLORS: Record<string, string> = {
-  '😊': '#81C784',
-  '😃': '#4FC3F7',
-  '🤔': '#FFB74D',
-  '😤': '#F06292',
-  '😴': '#90A4AE',
-  '🔥': '#FF7043',
-  '💡': '#7B61FF',
-  '🎯': '#AB47BC',
-};
-
 // View types
 export type View = 'overview' | 'rec-clusters' | 'note-types' | 'rec-nodes' | 'note-nodes';
 export type DateFilter = 'all' | 'week' | 'month';
@@ -104,13 +92,6 @@ export function buildConnections(recordings: Recording[]) {
     result.set(rec.id, conns);
   });
   return result;
-}
-
-// Get first emoji from mood string
-export function extractMoodEmoji(mood: string | undefined): string | null {
-  if (!mood) return null;
-  const match = mood.match(/\p{Emoji_Presentation}|\p{Extended_Pictographic}/u);
-  return match ? match[0] : null;
 }
 
 // Returns true if recording has at least one incomplete action item

@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import type { Recording } from '../../types';
-import { MOOD_COLORS, extractMoodEmoji, hasIncompleteTasks } from '../../lib/mapUtils';
+import { hasIncompleteTasks } from '../../lib/mapUtils';
 
 interface RecListViewProps {
   recordings: Recording[];
@@ -13,8 +13,6 @@ export const RecListView = ({ recordings, onOpenDetail }: RecListViewProps) => {
       {recordings.length === 0 ? (
         <p className="text-center text-on-surface-variant mt-20">Записей нет</p>
       ) : recordings.map((rec, i) => {
-        const moodEmoji = extractMoodEmoji(rec.mood);
-        const moodColor = moodEmoji ? MOOD_COLORS[moodEmoji] : undefined;
         const incomplete = hasIncompleteTasks(rec);
         const dateStr = new Date(rec.date.replace(/\./g, '-')).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
         return (
@@ -29,9 +27,9 @@ export const RecListView = ({ recordings, onOpenDetail }: RecListViewProps) => {
           >
             <div
               className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-lg mt-0.5"
-              style={{ background: moodColor ? `${moodColor}18` : 'rgba(123,97,255,0.1)' }}
+              style={{ background: 'rgba(123,97,255,0.1)' }}
             >
-              {moodEmoji ?? '🎙'}
+              🎙
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-start justify-between gap-2">
