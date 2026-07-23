@@ -14,7 +14,7 @@ export const LiveSessionCard = ({ onStartRecording }: LiveSessionCardProps) => (
     onClick={onStartRecording}
     whileHover={{ scale: 1.015 }}
     transition={{ duration: 0.2 }}
-    className="col-span-12 md:col-span-6 lg:col-span-6 rounded-3xl relative overflow-hidden flex flex-col items-center justify-center min-h-[160px] lg:min-h-0 cursor-pointer border border-white/[0.07] group"
+    className="col-span-12 md:col-span-4 lg:col-span-4 rounded-3xl relative overflow-hidden flex flex-col items-center justify-center min-h-[160px] lg:min-h-0 cursor-pointer border border-white/[0.07] group"
     style={{ background: 'linear-gradient(145deg, rgba(123,97,255,0.14) 0%, rgba(18,18,24,1) 65%)' }}
   >
     {/* Ambient glow */}
