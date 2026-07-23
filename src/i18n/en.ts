@@ -167,8 +167,7 @@ export const en: Record<TKey, string> = {
   'upgrade.benefitSearch': 'Voice search across your whole archive',
   'upgrade.benefitQuotes': 'Quote export with timecodes',
   'upgrade.benefitPriority': 'Priority support',
-  'upgrade.request': 'Request Pro',
-  'upgrade.manualNote': 'Automatic payment is not set up yet — drop me a line and I will enable the plan by hand within a day.',
+  'upgrade.comingSoon': 'The Pro plan is in the works. The free limit applies for now.',
   'upgrade.openButton': 'Upgrade to Pro',
 
   // ── Quotes ─────────────────────────────────────────────────────────────

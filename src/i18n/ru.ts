@@ -168,8 +168,7 @@ export const ru = {
   'upgrade.benefitSearch': 'Голосовой поиск по всему архиву',
   'upgrade.benefitQuotes': 'Экспорт цитат с таймкодами',
   'upgrade.benefitPriority': 'Приоритетная поддержка',
-  'upgrade.request': 'Запросить Pro',
-  'upgrade.manualNote': 'Автоматической оплаты пока нет — напиши, и я подключу тариф вручную в течение дня.',
+  'upgrade.comingSoon': 'Тариф Pro в разработке. Пока действует бесплатный лимит.',
   'upgrade.openButton': 'Перейти на Pro',
 
   // ── Цитаты ─────────────────────────────────────────────────────────────

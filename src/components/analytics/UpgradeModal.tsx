@@ -15,15 +15,12 @@ interface UpgradeModalProps {
 const PRO_HOURS = 20;
 const PRO_PRICE = '$15';
 
-// Оплаты пока нет — апгрейд делается вручную по письму. Честно говорим об этом,
-// вместо того чтобы вести на несуществующую кнопку «Оплатить».
-const UPGRADE_EMAIL = 'mailto:sulaibragim@gmail.com?subject=VoiceMap%20Pro';
-
 /**
- * Экран апгрейда: показывается, когда пользователь упёрся в месячный лимит.
+ * Экран Pro: что даст тариф, когда он появится.
  *
- * Раньше тост говорил «после апгрейда тарифа», но вести было некуда — воронка
- * упиралась в тупик. Биллинга ещё нет, поэтому здесь честная заявка почтой.
+ * Кнопки действия здесь НЕТ намеренно. Биллинга нет, а вести на почту
+ * бессмысленно — писать пока некому. Это витрина будущего тарифа, а не форма
+ * заявки: показать ценность, не имитируя работающую покупку.
  */
 export const UpgradeModal = ({ usage, onClose }: UpgradeModalProps) => {
   const t = useT();
@@ -84,14 +81,8 @@ export const UpgradeModal = ({ usage, onClose }: UpgradeModalProps) => {
           </ul>
         </div>
 
-        <a
-          href={UPGRADE_EMAIL}
-          className="block w-full px-4 py-3 rounded-2xl text-sm font-bold bg-primary text-on-primary-fixed hover:opacity-90 transition-opacity cursor-pointer text-center"
-        >
-          {t('upgrade.request')}
-        </a>
-        <p className="text-xs text-on-surface-variant text-center mt-3 leading-relaxed">
-          {t('upgrade.manualNote')}
+        <p className="text-xs text-on-surface-variant text-center leading-relaxed">
+          {t('upgrade.comingSoon')}
         </p>
       </motion.div>
     </div>
