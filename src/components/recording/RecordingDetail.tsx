@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useMemo } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useRecordingAudio } from '../../hooks/useRecordingAudio';
 import { condenseTranscript } from '../../lib/api';
 import { Loader2, RefreshCw } from 'lucide-react';
@@ -6,14 +6,15 @@ import { RecordingDetailHeader } from './RecordingDetailHeader';
 import { AppendPanel } from './AppendPanel';
 import { AudioPlayer, parseTimestamp } from './AudioPlayer';
 import { SummarySection } from './SummarySection';
-import { TranscriptSection, SPEAKER_PALETTE } from './TranscriptSection';
+import { TranscriptSection } from './TranscriptSection';
 import { AppendAudioPlayer } from './AppendAudioPlayer';
 import { RecordingMobileTabs } from './RecordingMobileTabs';
 import { MobileActionSheet } from './MobileActionSheet';
-import { findRelated } from '../../lib/recordingUtils';
-import { findActiveTranscriptIndex } from '../../lib/timestamp';
 import type { Recording } from '../../types';
 import { useRecordingExport } from '../../hooks/useRecordingExport';
+import { useSearchHighlight } from '../../hooks/useSearchHighlight';
+import { useRecordingEdits } from '../../hooks/useRecordingEdits';
+import { useTranscriptView } from '../../hooks/useTranscriptView';
 
 interface RecordingDetailProps {
   recording: Recording;
@@ -57,13 +58,8 @@ export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToa
   const [editingMobileSpeaker, setEditingMobileSpeaker] = useState<string | null>(null);
   const [editingMobileSpeakerName, setEditingMobileSpeakerName] = useState('');
   const handleMobileRenameSpeaker = (oldName: string, newName: string) => {
-    const trimmed = newName.trim();
     setEditingMobileSpeaker(null);
-    if (!trimmed || trimmed === oldName) return;
-    const newTranscript = recording.transcript.map(item => item.speaker === oldName ? { ...item, speaker: trimmed } : item);
-    const newCondensed = recording.condensedTranscript?.map(item => item.speaker === oldName ? { ...item, speaker: trimmed } : item);
-    onUpdate({ ...recording, transcript: newTranscript, condensedTranscript: newCondensed, speakerNames: { ...(recording.speakerNames || {}), [oldName]: trimmed } });
-    showToast(`${oldName} → ${trimmed}`, 'success');
+    renameSpeaker(oldName, newName);
   };
 
   const handleTimestampClick = (timestamp: string) => {
@@ -73,66 +69,19 @@ export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToa
     }
   };
 
-  // Реплика, к которой привёл голосовой поиск — подсвечивается заметнее обычной активной,
-  // гаснет через несколько секунд или как только пользователь запускает воспроизведение
-  const [searchHighlightIndex, setSearchHighlightIndex] = useState<number | null>(null);
+  // Прыжок к моменту из голосового поиска + подсветка найденной реплики
+  const searchHighlightIndex = useSearchHighlight({
+    initialSeek,
+    transcript: recording.transcript,
+    duration,
+    isPlaying,
+    parseTimestamp,
+    onSeek: handleSeek,
+  });
 
-  // Перемотка на таймкод из голосового поиска — строго один раз за монтирование.
-  // Ждём duration > 0: аудио с R2 грузится асинхронно, до loadedmetadata seek бесполезен.
-  const didInitialSeekRef = useRef(false);
-  useEffect(() => {
-    if (!initialSeek || didInitialSeekRef.current || duration <= 0) return;
-    const seconds = parseTimestamp(initialSeek);
-    if (!Number.isFinite(seconds) || seconds < 0) return;
-    didInitialSeekRef.current = true;
-    // Клампим: модель могла вернуть таймкод за пределами длительности
-    const clamped = Math.min(seconds, Math.max(duration - 1, 0));
-    handleSeek(clamped);
-    // Помечаем реплику, ближайшую к моменту поиска, для отдельной подсветки
-    const idx = findActiveTranscriptIndex(recording.transcript, clamped);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (idx >= 0) setSearchHighlightIndex(idx);
-  // handleSeek пересоздаётся каждый рендер — в депы не берём, защита от повтора на ref
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialSeek, duration]);
-
-  // Особая подсветка из поиска гаснет через несколько секунд...
-  useEffect(() => {
-    if (searchHighlightIndex === null) return;
-    const timer = setTimeout(() => setSearchHighlightIndex(null), 4000);
-    return () => clearTimeout(timer);
-  }, [searchHighlightIndex]);
-
-  // ...или сразу, как только пользователь начал воспроизведение
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (isPlaying) setSearchHighlightIndex(null);
-  }, [isPlaying]);
-
-  const handleTitleSave = () => {
-    const trimmed = editTitleValue.trim();
-    setIsEditingTitle(false);
-    if (!trimmed || trimmed === recording.title) return;
-    onUpdate({ ...recording, title: trimmed });
-    showToast('Название обновлено', 'success');
-  };
-
-  const handleAddTag = (value: string) => {
-    const trimmed = value.trim().toLowerCase();
-    if (!trimmed || recording.tags.includes(trimmed)) return;
-    onUpdate({ ...recording, tags: [...recording.tags, trimmed] });
-  };
-
-  const handleRemoveTag = (tag: string) => {
-    onUpdate({ ...recording, tags: recording.tags.filter(t => t !== tag) });
-  };
-
-  const handleSetReminder = (idx: number, date: string, time: string) => {
-    const reminders = { ...(recording.taskReminders ?? {}) };
-    reminders[idx] = { date, time, notified: false };
-    onUpdate({ ...recording, taskReminders: reminders });
-    showToast(`Напоминание установлено на ${date} в ${time}`, 'success');
-  };
+  const { saveTitle, addTag, removeTag, setReminder, renameSpeaker } = useRecordingEdits({
+    recording, onUpdate, showToast,
+  });
 
   const handleCondense = async () => {
     if (recording.condensedTranscript) { setTranscriptMode('condensed'); return; }
@@ -190,46 +139,10 @@ export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToa
   }, [recording.taskReminders, recording.actionItems]);
 
   // Вычисления для плеера и транскрипта
-  const keyMomentMarkers = useMemo(() => {
-    if (!recording.keyMoments?.length || !recording.transcript?.length) return [];
-    return recording.keyMoments.map(moment => {
-      const momentWords = new Set(moment.toLowerCase().split(/\s+/).filter(w => w.length > 3));
-      let bestIdx = 0; let bestScore = 0;
-      recording.transcript.forEach((item, idx) => {
-        const score = item.text.toLowerCase().split(/\s+/).filter(w => momentWords.has(w)).length;
-        if (score > bestScore) { bestScore = score; bestIdx = idx; }
-      });
-      return { timestamp: recording.transcript[bestIdx].timestamp, label: moment };
-    });
-  }, [recording.keyMoments, recording.transcript]);
-
-  const appendBoundaryTimestamp = useMemo(() => {
-    const first = recording.transcript.find(t => t.isAppended && t.timestamp !== '--:--');
-    return first ? parseTimestamp(first.timestamp) : null;
-  }, [recording.transcript]);
-
-  const uniqueSpeakers = useMemo(() =>
-    [...new Set(recording.transcript.map(t => t.speaker))],
-    [recording.transcript]
-  );
-
-  const shouldColorSpeakers = uniqueSpeakers.length >= 2;
-
-  const speakerColorMap = useMemo(() => {
-    const map: Record<string, string> = {};
-    let idx = 1;
-    uniqueSpeakers.forEach(speaker => {
-      if (speaker === 'Я' || speaker === 'I' || speaker === 'Me') {
-        map[speaker] = SPEAKER_PALETTE[0];
-      } else {
-        map[speaker] = SPEAKER_PALETTE[idx % SPEAKER_PALETTE.length];
-        idx++;
-      }
-    });
-    return map;
-  }, [uniqueSpeakers]);
-
-  const relatedRecordings = useMemo(() => findRelated(recording, allRecordings), [recording, allRecordings]);
+  const {
+    keyMomentMarkers, appendBoundaryTimestamp, uniqueSpeakers,
+    shouldColorSpeakers, speakerColorMap, relatedRecordings,
+  } = useTranscriptView({ recording, allRecordings, parseTimestamp });
 
   return (
     <div className="h-dvh overflow-hidden bg-background text-on-surface flex flex-col font-body selection:bg-primary/30 w-full">
@@ -240,9 +153,9 @@ export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToa
         setIsEditingTitle={setIsEditingTitle}
         editTitleValue={editTitleValue}
         setEditTitleValue={setEditTitleValue}
-        handleTitleSave={handleTitleSave}
-        handleAddTag={handleAddTag}
-        handleRemoveTag={handleRemoveTag}
+        handleTitleSave={() => saveTitle(editTitleValue)}
+        handleAddTag={addTag}
+        handleRemoveTag={removeTag}
         onOpenTag={onOpenTag}
         showExportMenu={showExportMenu}
         setShowExportMenu={setShowExportMenu}
@@ -291,7 +204,7 @@ export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToa
           handleMobileRenameSpeaker={handleMobileRenameSpeaker}
           onUpdate={onUpdate}
           showToast={showToast}
-          handleSetReminder={handleSetReminder}
+          handleSetReminder={setReminder}
           keyMomentMarkers={keyMomentMarkers}
           appendBoundaryTimestamp={appendBoundaryTimestamp}
           touchStartXRef={touchStartXRef}
@@ -356,7 +269,7 @@ export const RecordingDetail = ({ recording, onBack, onDelete, onUpdate, showToa
             uniqueSpeakers={uniqueSpeakers}
             speakerColorMap={speakerColorMap}
             shouldColorSpeakers={shouldColorSpeakers}
-            handleSetReminder={handleSetReminder}
+            handleSetReminder={setReminder}
           />
         </div>
 
