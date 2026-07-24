@@ -234,6 +234,7 @@ export default function App() {
           onOpenDetail={openDetail}
           onDeleteRecording={removeRecording}
           onUpdateRecording={(updated) => updateRecordingItem(updated)}
+          showToast={showToast}
         />
       );
     }

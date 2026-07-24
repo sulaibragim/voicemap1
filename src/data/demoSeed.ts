@@ -5,6 +5,37 @@
 import type { Recording, Note } from '../types';
 
 export const initialRecordings: Recording[] = [
+  // Мусор от случайных нажатий — такое накапливается у всех. Демо показывает
+  // реальную ситуацию, а не идеальный архив: по ним видно работу подсказки
+  // «убрать записи без речи» в библиотеке.
+  {
+    id: 'empty-1',
+    title: '[Тишина]',
+    date: 'Вчера, 09:12',
+    duration: '00:25',
+    tags: [],
+    summary: '',
+    transcript: [],
+    keyMoments: [],
+    actionItems: [],
+    ideas: [],
+    mentions: [],
+    aiStatus: 'done',
+  },
+  {
+    id: 'empty-2',
+    title: 'Запись',
+    date: 'Вчера, 09:14',
+    duration: '00:02',
+    tags: [],
+    summary: '',
+    transcript: [],
+    keyMoments: [],
+    actionItems: [],
+    ideas: [],
+    mentions: [],
+    aiStatus: 'done',
+  },
   {
     id: '1',
     title: 'Стратегический митинг: Запуск VoiceMap Pro',

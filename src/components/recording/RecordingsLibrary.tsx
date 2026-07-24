@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { EmptyRecordingsBanner } from './EmptyRecordingsBanner';
 import type * as React from 'react';
 import { Search, ArrowLeft, Calendar, Clock, Trash2, ChevronRight, AudioLines, X, Pin } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -13,6 +14,7 @@ interface RecordingsLibraryProps {
   onBack: () => void;
   onOpenDetail: (id: string) => void;
   onDeleteRecording: (id: string) => void;
+  showToast?: (msg: string, type: 'success' | 'error' | 'info') => void;
   onUpdateRecording?: (updated: Recording) => void;
   /** Тег, по которому библиотека открывается сразу отфильтрованной (клик по тегу в записи) */
   initialTag?: string;
@@ -30,6 +32,7 @@ export const RecordingsLibrary = ({
   onOpenDetail,
   onDeleteRecording,
   onUpdateRecording,
+  showToast,
   initialTag,
 }: RecordingsLibraryProps) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -249,6 +252,15 @@ export const RecordingsLibrary = ({
 
       {/* Content */}
       <main className="flex-1 overflow-y-auto px-4 md:px-12 py-4 pb-28 md:pb-4 max-w-3xl mx-auto w-full">
+        {/* Предложение убрать записи без речи — считаем по всему архиву, а не по фильтру */}
+        {showToast && (
+          <EmptyRecordingsBanner
+            recordings={recordings}
+            onDelete={onDeleteRecording}
+            showToast={showToast}
+          />
+        )}
+
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4 text-on-surface-variant">
             <AudioLines className="w-12 h-12 opacity-30" />
