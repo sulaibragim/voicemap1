@@ -177,10 +177,16 @@
 ✅ **`server/lib/auth.ts` покрыт** — 14 тестов. Главное: неподписанный JWT не проходит в проде,
 дев-фолбэк не просачивается туда, где подделанный payload открыл бы чужие записи.
 
+✅ **Ещё разделено:** `App.tsx` 619 → 428 (вынесены `DashboardView`, `useRetranscribe`,
+`useRecordingPipeline`, `useAppNavigation`), `SettingsView.tsx` 384 → 250
+(`SettingsStats`, `SettingsBackfill`, `SettingsDangerZone`).
+
 ⬜ **Осталось:**
-- **19 файлов больше 200 строк**. Худшие: `App.tsx` 489 (в основном renderView),
-  `RecordingDetail.tsx` 426, `SettingsView.tsx` 384, `ActionItemsSection.tsx` 327.
+- **19 файлов больше 200 строк**. Худшие: `App.tsx` 428 (роутер экранов),
+  `RecordingDetail.tsx` 426, `ActionItemsSection.tsx` 327, `NoteDetailModal.tsx` 317,
+  `QuickNoteModal.tsx` 316.
 - Оффлайн-синхронизации Firestore нет (SW есть, persistence не подключён).
+- Хвост локализации: ~90 файлов с русскими строками (отложено — на рынок не выходим).
 - Оффлайн-синхронизации Firestore нет (SW есть, persistence не подключён).
 - Миграция localStorage использует `batch.set` без merge — узкий edge-case.
 
