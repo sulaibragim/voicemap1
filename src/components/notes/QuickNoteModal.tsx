@@ -6,6 +6,7 @@ import { formatTime } from '../../lib/utils';
 import { useQuickNoteRecording } from '../../hooks/useQuickNoteRecording';
 import { QuickNoteDetailsStep } from './QuickNoteDetailsStep';
 import type { Note, NoteType, Priority, RecurringPattern } from '../../types';
+import { buildNote, defaultReminderTime } from '../../lib/noteBuilder';
 
 interface QuickNoteModalProps {
   type: NoteType;
@@ -44,30 +45,24 @@ export const QuickNoteModal = ({ type, onClose, onSave, showToast }: QuickNoteMo
   const dateButtonRef = useRef<HTMLButtonElement>(null);
   const timeButtonRef = useRef<HTMLButtonElement>(null);
 
+  /** Ставит «завтра в 9 утра», когда AI не распознал срок из речи */
+  const applyDefaultReminderTime = () => {
+    const { date, time } = defaultReminderTime();
+    setDueDate(date);
+    setDueTime(time);
+    setAiDetectedTime(false);
+  };
+
   const saveNote = (content?: string) => {
-    const noteContent = content || transcribedText;
-    const newNote: Note = {
-      id: Date.now().toString(),
+    onSave(buildNote({
       type,
-      content: noteContent,
-      date: new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-      ...(type === 'Задача' && {
-        priority,
-        isCompleted: false,
-        kanbanStatus: 'new' as const,
-        ...(dueDate && { dueDate }),
-        ...(dueTime && { dueTime }),
-      }),
-      ...(type === 'Напоминание' && {
-        dueDate: dueDate || undefined,
-        dueTime: dueTime || undefined,
-        isRecurring,
-        recurringPattern: isRecurring ? recurringPattern : 'none' as const,
-        notifiedOneHour: false,
-        notifiedFiveMin: false,
-      }),
-    };
-    onSave(newNote);
+      content: content || transcribedText,
+      dueDate,
+      dueTime,
+      priority,
+      isRecurring,
+      recurringPattern,
+    }));
     onClose();
   };
 
@@ -89,25 +84,15 @@ export const QuickNoteModal = ({ type, onClose, onSave, showToast }: QuickNoteMo
             setTranscribedText(parsed.summary || text);
             setAiDetectedTime(true);
           } else {
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            setDueDate(tomorrow.toISOString().split('T')[0]);
-            setDueTime('09:00');
-            setAiDetectedTime(false);
+            applyDefaultReminderTime();
           }
         } catch {
-          const tomorrow = new Date();
-          tomorrow.setDate(tomorrow.getDate() + 1);
-          setDueDate(tomorrow.toISOString().split('T')[0]);
-          setDueTime('09:00');
-          setAiDetectedTime(false);
+          // AI не разобрал срок — не бросаем пользователя без времени вовсе
+          applyDefaultReminderTime();
         }
         setStep('details');
       } else {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        setDueDate(tomorrow.toISOString().split('T')[0]);
-        setDueTime('09:00');
+        applyDefaultReminderTime();
         setStep('details');
       }
     },
