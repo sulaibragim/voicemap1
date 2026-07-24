@@ -45,7 +45,7 @@
 | Обложки записей | Шесть текстур, выбор по хешу id — запись всегда выглядит одинаково |
 | Надёжность загрузки | Ретраи при сбое сети + статус ошибки не затирает готовую расшифровку |
 
-Состояние кода: `tsc`, `eslint`, **302 теста**, сборка — зелёные.
+Состояние кода: `tsc`, `eslint`, **316 тестов**, сборка — зелёные.
 
 ---
 
@@ -177,18 +177,30 @@
 ✅ **`server/lib/auth.ts` покрыт** — 14 тестов. Главное: неподписанный JWT не проходит в проде,
 дев-фолбэк не просачивается туда, где подделанный payload открыл бы чужие записи.
 
-✅ **Ещё разделено:** `App.tsx` 619 → 428 (вынесены `DashboardView`, `useRetranscribe`,
-`useRecordingPipeline`, `useAppNavigation`), `SettingsView.tsx` 384 → 250
-(`SettingsStats`, `SettingsBackfill`, `SettingsDangerZone`).
+✅ **Разделены крупные модули** (23 июля). Везде по назначению, не по размеру:
+
+| Было | Стало |
+|---|---|
+| `server/routes/ai.ts` 607 | шесть файлов, макс. 154 |
+| `src/lib/api.ts` 496 | шесть файлов, макс. 150 |
+| `App.tsx` 619 | 428 + `DashboardView`, `useRecordingPipeline`, `useAppNavigation`, `useRetranscribe` |
+| `SettingsView.tsx` 384 | 250 + `SettingsStats`, `SettingsBackfill`, `SettingsDangerZone` |
+| `RecordingDetail.tsx` 426 | 339 + `useSearchHighlight`, `useRecordingEdits`, `useTranscriptView` |
+| `ActionItemsSection.tsx` 327 | 255 + `useActionItems` |
+
+Что нашлось попутно:
+- Мёртвая функция `_saveRichField` — префикс с подчёркиванием глушил линтер, поэтому она
+  пережила несколько правок незамеченной.
+- Баг в переименовании спикера: реплика собиралась как `{ speaker }` и теряла `timestamp`
+  с `text`. Компилятор поймал это при выносе в хук.
+- Тройной дубль «завтра в 9:00» в `QuickNoteModal` — теперь `defaultReminderTime`.
 
 ⬜ **Осталось:**
-- **19 файлов больше 200 строк**. Худшие: `App.tsx` 428 (роутер экранов),
-  `RecordingDetail.tsx` 426, `ActionItemsSection.tsx` 327, `NoteDetailModal.tsx` 317,
-  `QuickNoteModal.tsx` 316.
+- **19 файлов больше 200 строк.** Потолок упал с 619 до 428, но вынесенные куски сами
+  становятся файлами — счётчик не падает. Худшие: `App.tsx` 428 (роутер экранов),
+  `RecordingDetail.tsx` 339, `QuickNoteModal.tsx` 301, `RemindersView.tsx` 304.
 - Оффлайн-синхронизации Firestore нет (SW есть, persistence не подключён).
 - Хвост локализации: ~90 файлов с русскими строками (отложено — на рынок не выходим).
-- Оффлайн-синхронизации Firestore нет (SW есть, persistence не подключён).
-- Миграция localStorage использует `batch.set` без merge — узкий edge-case.
 
 ---
 
