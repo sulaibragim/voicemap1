@@ -3,7 +3,7 @@
 // `from '../../lib/api'` по всему проекту продолжали работать без правок.
 export {
   setApiLanguage, getApiLanguage, toApiError,
-  QuotaExceededError, fetchTranscriptionUsage,
+  QuotaExceededError, AiRequestError, fetchTranscriptionUsage,
   type OutputLang, type TranscriptionUsage,
 } from './client';
 

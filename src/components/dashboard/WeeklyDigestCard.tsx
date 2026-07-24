@@ -5,7 +5,7 @@ import {
   TrendingUp, TrendingDown, Calendar, RefreshCw,
   Loader2, Sparkles,
 } from 'lucide-react';
-import { weeklyReview, type DigestAIResult } from '../../lib/api';
+import { AiRequestError, weeklyReview, type DigestAIResult } from '../../lib/api';
 import type { Recording } from '../../types';
 import { parseRecDate, getWeekKey } from '../../lib/dashboardUtils';
 import { pluralWithNumber } from '../../lib/plural';
@@ -34,7 +34,7 @@ export const WeeklyDigestCard = ({ recordings, setCurrentView }: WeeklyDigestCar
   const lang = useLang();
   const [digest, setDigest] = useState<DigestAIResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Вычислить границы недель
   const now = new Date();
@@ -87,7 +87,7 @@ export const WeeklyDigestCard = ({ recordings, setCurrentView }: WeeklyDigestCar
       localStorage.removeItem(CACHE_KEY);
     }
     setIsLoading(true);
-    setError(false);
+    setError(null);
     try {
       const payload = thisWeek.slice(0, 10).map(r => ({
         title: r.title,
@@ -99,8 +99,10 @@ export const WeeklyDigestCard = ({ recordings, setCurrentView }: WeeklyDigestCar
       const result = await weeklyReview(payload);
       setDigest(result);
       localStorage.setItem(CACHE_KEY, JSON.stringify(result));
-    } catch {
-      setError(true);
+    } catch (e) {
+      // Показываем причину от сервера: «ключ недействителен», «лимит исчерпан».
+      // Глухое «не удалось» заставляло гадать, что чинить.
+      setError(e instanceof AiRequestError ? e.message : t('digest.error'));
     } finally {
       setIsLoading(false);
     }
@@ -254,7 +256,7 @@ export const WeeklyDigestCard = ({ recordings, setCurrentView }: WeeklyDigestCar
                 <div className="flex flex-col items-center gap-3 py-2">
                   {error ? (
                     <div className="flex flex-col items-center gap-2 text-center">
-                      <p className="text-xs text-error">{t('digest.error')}</p>
+                      <p className="text-xs text-error">{error}</p>
                       <button
                         onClick={() => void loadDigest(true)}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/15 text-primary rounded-lg text-xs font-bold hover:bg-primary/25 transition-colors cursor-pointer"

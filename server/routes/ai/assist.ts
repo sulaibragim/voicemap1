@@ -2,6 +2,7 @@
 // дополнение записи, недельный дайджест.
 // Аудио не трогают, поэтому лимит расшифровки здесь не проверяется.
 import { Router } from 'express';
+import { aiErrorResponse } from '../../lib/aiError';
 import { Type } from '@google/genai';
 import { requireAuth } from '../../lib/auth';
 import { getAI } from '../../lib/gemini';
@@ -30,8 +31,8 @@ router.post('/tip', requireAuth, async (req, res) => {
     });
     res.json({ text: response.text });
   } catch (error) {
-    console.error('[/ai/tip]', error);
-    res.status(500).json({ error: 'AI request failed' });
+    const info = aiErrorResponse('/ai/tip', error);
+    res.status(info.status).json({ error: info.message, reason: info.reason });
   }
 });
 
@@ -57,8 +58,8 @@ router.post('/append', requireAuth, async (req, res) => {
     });
     res.json({ text: response.text });
   } catch (error) {
-    console.error('[/ai/append]', error);
-    res.status(500).json({ error: 'AI request failed' });
+    const info = aiErrorResponse('/ai/append', error);
+    res.status(info.status).json({ error: info.message, reason: info.reason });
   }
 });
 
@@ -77,8 +78,8 @@ Develop this idea in 3-5 sentences. Be specific, practical, and thought-provokin
     });
     res.json({ text: response.text });
   } catch (error) {
-    console.error('[/ai/develop-idea]', error);
-    res.status(500).json({ error: 'AI request failed' });
+    const info = aiErrorResponse('/ai/develop-idea', error);
+    res.status(info.status).json({ error: info.message, reason: info.reason });
   }
 });
 
@@ -112,8 +113,8 @@ router.post('/weekly-review', requireAuth, async (req, res) => {
     });
     res.json({ text: response.text });
   } catch (error) {
-    console.error('[/ai/weekly-review]', error);
-    res.status(500).json({ error: 'AI request failed' });
+    const info = aiErrorResponse('/ai/weekly-review', error);
+    res.status(info.status).json({ error: info.message, reason: info.reason });
   }
 });
 

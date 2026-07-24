@@ -75,17 +75,41 @@ export function isTranscriptionUsage(value: unknown): value is TranscriptionUsag
  * (error: 'quota_exceeded') и общего rate-limit'а сервера. Различаем по телу —
  * иначе «слишком часто» показывалось бы пользователю как «лимит исчерпан».
  */
-export async function toApiError(res: Response): Promise<Error> {
-  if (res.status !== 429) return new Error(`API error: ${res.status}`);
-  try {
-    const body = await res.json() as { error?: unknown; usage?: unknown };
-    if (body.error === 'quota_exceeded') {
-      return new QuotaExceededError(isTranscriptionUsage(body.usage) ? body.usage : undefined);
-    }
-  } catch {
-    // Тело не JSON — трактуем как обычный rate-limit ниже
+/**
+ * Ошибка AI с понятной причиной от сервера: мёртвый ключ, исчерпанная квота,
+ * недоступная модель. Раньше всё это выглядело одинаково — «не удалось», —
+ * и разобраться, что чинить, можно было только по логам.
+ */
+export class AiRequestError extends Error {
+  readonly reason: string;
+
+  constructor(message: string, reason: string) {
+    super(message);
+    this.name = 'AiRequestError';
+    this.reason = reason;
   }
-  return new Error('API error: 429');
+}
+
+export async function toApiError(res: Response): Promise<Error> {
+  type ErrorBody = { error?: unknown; usage?: unknown; reason?: unknown };
+  let body: ErrorBody | null = null;
+  try {
+    body = await res.json() as ErrorBody;
+  } catch {
+    // Тело не JSON — разберём по одному коду ниже
+  }
+
+  // Месячный лимит расшифровки — отдельный случай: аудио сохранено, это не сбой
+  if (res.status === 429 && body?.error === 'quota_exceeded') {
+    return new QuotaExceededError(isTranscriptionUsage(body.usage) ? body.usage : undefined);
+  }
+
+  // Сервер объяснил причину — показываем её пользователю как есть
+  if (typeof body?.error === 'string' && typeof body?.reason === 'string') {
+    return new AiRequestError(body.error, body.reason);
+  }
+
+  return new Error(`API error: ${res.status}`);
 }
 
 export async function post<T>(endpoint: string, body: Record<string, unknown>): Promise<T> {

@@ -4,6 +4,7 @@
 // проверяет месячный лимит ДО вызова модели и списывает фактический расход
 // после (см. server/lib/quotaGuard.ts).
 import { Router, type Request, type Response } from 'express';
+import { aiErrorResponse } from '../../lib/aiError';
 import { requireAuth, type AuthRequest } from '../../lib/auth';
 import { getAI, uploadAudioToFileAPI, buildTranscribePayload, sanitizeKnownPeople } from '../../lib/gemini';
 import { checkQuota, chargeUsage, sendQuotaExceeded } from '../../lib/quotaGuard';
@@ -19,8 +20,8 @@ router.get('/usage', requireAuth, async (req: Request, res: Response) => {
     const { uid } = req as AuthRequest;
     res.json(await getUsage(uid));
   } catch (error) {
-    console.error('[/ai/usage]', error);
-    res.status(500).json({ error: 'Failed to load usage' });
+    const info = aiErrorResponse('/ai/usage', error);
+    res.status(info.status).json({ error: info.message, reason: info.reason });
   }
 });
 
@@ -65,8 +66,8 @@ router.post('/transcribe', requireAuth, async (req, res) => {
     await chargeUsage(uid, response.usageMetadata, clientSeconds);
     res.json({ text: response.text });
   } catch (error) {
-    console.error('[/ai/transcribe]', error);
-    res.status(500).json({ error: 'AI request failed' });
+    const info = aiErrorResponse('/ai/transcribe', error);
+    res.status(info.status).json({ error: info.message, reason: info.reason });
   }
 });
 
@@ -110,8 +111,8 @@ router.post('/retranscribe', requireAuth, async (req, res) => {
     await chargeUsage(uid, response.usageMetadata, clientSeconds);
     res.json({ text: response.text });
   } catch (error) {
-    console.error('[/ai/retranscribe]', error);
-    res.status(500).json({ error: 'AI request failed' });
+    const info = aiErrorResponse('/ai/retranscribe', error);
+    res.status(info.status).json({ error: info.message, reason: info.reason });
   }
 });
 
@@ -140,8 +141,8 @@ router.post('/chat-voice', requireAuth, async (req, res) => {
     });
     res.json({ text: response.text });
   } catch (error) {
-    console.error('[/ai/chat-voice]', error);
-    res.status(500).json({ error: 'AI request failed' });
+    const info = aiErrorResponse('/ai/chat-voice', error);
+    res.status(info.status).json({ error: info.message, reason: info.reason });
   }
 });
 

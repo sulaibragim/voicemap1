@@ -1,5 +1,6 @@
 // Голосовой/текстовый RAG-поиск по собственным записям пользователя.
 import { Router, type Request, type Response } from 'express';
+import { aiErrorResponse } from '../../lib/aiError';
 import { Type } from '@google/genai';
 import { requireAuth, type AuthRequest } from '../../lib/auth';
 import { getAI } from '../../lib/gemini';
@@ -129,8 +130,8 @@ router.post('/search', requireAuth, async (req: Request, res: Response) => {
 
     res.json(parsed);
   } catch (error) {
-    console.error('[/ai/search]', error);
-    res.status(500).json({ error: 'AI request failed' });
+    const info = aiErrorResponse('/ai/search', error);
+    res.status(info.status).json({ error: info.message, reason: info.reason });
   }
 });
 
@@ -146,8 +147,8 @@ router.post('/chunks/delete', requireAuth, async (req: Request, res: Response) =
     await deleteChunksForRecording(uid, recordingId);
     res.json({ ok: true });
   } catch (error) {
-    console.error('[/ai/chunks/delete]', error);
-    res.status(500).json({ error: 'Failed to delete chunks' });
+    const info = aiErrorResponse('/ai/chunks/delete', error);
+    res.status(info.status).json({ error: info.message, reason: info.reason });
   }
 });
 

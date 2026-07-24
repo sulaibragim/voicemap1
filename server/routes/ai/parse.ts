@@ -2,6 +2,7 @@
 // фразы, список задач из речи, сжатие транскрипта до сути.
 // Общее у них — на выходе строгая схема, а не свободный текст.
 import { Router } from 'express';
+import { aiErrorResponse } from '../../lib/aiError';
 import { Type } from '@google/genai';
 import { requireAuth } from '../../lib/auth';
 import { getAI } from '../../lib/gemini';
@@ -50,8 +51,8 @@ Extract the desired reminder date and time. Return JSON:
     });
     res.json({ text: response.text });
   } catch (error) {
-    console.error('[/ai/parse-reminder]', error);
-    res.status(500).json({ error: 'AI request failed' });
+    const info = aiErrorResponse('/ai/parse-reminder', error);
+    res.status(info.status).json({ error: info.message, reason: info.reason });
   }
 });
 
@@ -69,8 +70,8 @@ router.post('/parse-tasks', requireAuth, async (req, res) => {
     });
     res.json({ text: response.text });
   } catch (error) {
-    console.error('[/ai/parse-tasks]', error);
-    res.status(500).json({ error: 'AI request failed' });
+    const info = aiErrorResponse('/ai/parse-tasks', error);
+    res.status(info.status).json({ error: info.message, reason: info.reason });
   }
 });
 
@@ -115,8 +116,8 @@ ${JSON.stringify(transcript)}`,
     });
     res.json({ text: response.text });
   } catch (error) {
-    console.error('[/ai/condense-transcript]', error);
-    res.status(500).json({ error: 'AI request failed' });
+    const info = aiErrorResponse('/ai/condense-transcript', error);
+    res.status(info.status).json({ error: info.message, reason: info.reason });
   }
 });
 
