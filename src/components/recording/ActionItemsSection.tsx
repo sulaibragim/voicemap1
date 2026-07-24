@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ListTodo, Plus, Pencil, Trash2, Check, X, Square, CheckSquare } from 'lucide-react';
 import { TaskReminderButton } from './TaskReminderButton';
@@ -6,6 +6,7 @@ import { DatePicker } from '../ui/DatePicker';
 import { VoiceInput } from '../ui/VoiceInput';
 import { formatDeadlineDisplay, toIsoDate } from '../../lib/recordingUtils';
 import type { RichActionItem } from '../../types';
+import { useActionItems, getAssignees } from '../../hooks/useActionItems';
 
 interface TaskReminder {
   date: string;
@@ -26,87 +27,18 @@ interface ActionItemsSectionProps {
 }
 
 export const ActionItemsSection = ({ items, done, onUpdate, onToggleDone, showToast, taskReminders, onSetReminder, richItems, onUpdateRichItems }: ActionItemsSectionProps) => {
-  const [editingIdx, setEditingIdx] = useState<number | null>(null);
-  const [editingText, setEditingText] = useState('');
-  const [isAdding, setIsAdding] = useState(false);
-  const [newTaskText, setNewTaskText] = useState('');
-  const [editingRich, setEditingRich] = useState<{ idx: number; field: 'assignee' | 'deadline'; assigneeIdx?: number } | null>(null);
-  const [editingRichValue, setEditingRichValue] = useState('');
   const deadlineAnchorRef = useRef<HTMLButtonElement | null>(null);
 
-  // Get assignees array (supports legacy single assignee field)
-  const getAssignees = (item: { assignees?: string[]; assignee?: string }): string[] => {
-    if (item.assignees && item.assignees.length > 0) return item.assignees;
-    if (item.assignee) return [item.assignee];
-    return [];
-  };
-
-  const saveAssignee = () => {
-    if (!editingRich || editingRich.field !== 'assignee' || !richItems || !onUpdateRichItems) return;
-    const item = richItems[editingRich.idx];
-    const current = getAssignees(item);
-    const val = editingRichValue.trim();
-    let next: string[];
-    if (editingRich.assigneeIdx === undefined) {
-      // Adding new
-      next = val ? [...current, val] : current;
-    } else {
-      // Editing existing
-      if (!val) {
-        next = current.filter((_, i) => i !== editingRich.assigneeIdx);
-      } else {
-        next = current.map((a, i) => i === editingRich.assigneeIdx ? val : a);
-      }
-    }
-    onUpdateRichItems(richItems.map((r, i) =>
-      i === editingRich.idx ? { ...r, assignees: next.length ? next : undefined, assignee: undefined } : r
-    ));
-    setEditingRich(null);
-  };
-
-  const removeAssignee = (taskIdx: number, assigneeIdx: number) => {
-    if (!richItems || !onUpdateRichItems) return;
-    const current = getAssignees(richItems[taskIdx]);
-    const next = current.filter((_, i) => i !== assigneeIdx);
-    onUpdateRichItems(richItems.map((r, i) =>
-      i === taskIdx ? { ...r, assignees: next.length ? next : undefined, assignee: undefined } : r
-    ));
-  };
-
-  const _saveRichField = () => {
-    if (!editingRich || !richItems || !onUpdateRichItems) return;
-    if (editingRich.field === 'assignee') { saveAssignee(); return; }
-    const updated = richItems.map((r, i) =>
-      i === editingRich.idx ? { ...r, [editingRich.field]: editingRichValue.trim() || undefined } : r
-    );
-    onUpdateRichItems(updated);
-    setEditingRich(null);
-  };
-
-  const saveEdit = () => {
-    if (editingIdx === null) return;
-    const updated = [...items];
-    updated[editingIdx] = editingText.trim();
-    onUpdate(updated.filter(Boolean));
-    setEditingIdx(null);
-  };
-
-  const deleteTask = (idx: number) => {
-    onUpdate(items.filter((_, i) => i !== idx));
-  };
-
-  const addTask = () => {
-    if (!newTaskText.trim()) return;
-    onUpdate([...items, newTaskText.trim()]);
-    setNewTaskText('');
-    setIsAdding(false);
-    showToast('Задача добавлена', 'success');
-  };
-
-  const openAdd = () => {
-    setIsAdding(true);
-    setNewTaskText('');
-  };
+  const {
+    editingIdx, setEditingIdx,
+    editingText, setEditingText,
+    isAdding, setIsAdding,
+    newTaskText, setNewTaskText,
+    editingRich, setEditingRich,
+    editingRichValue, setEditingRichValue,
+    saveAssignee, removeAssignee, setDeadline,
+    saveEdit, deleteTask, addTask, openAdd,
+  } = useActionItems({ items, onUpdate, richItems, onUpdateRichItems, showToast });
 
   return (
     <div>
@@ -307,11 +239,7 @@ export const ActionItemsSection = ({ items, done, onUpdate, onToggleDone, showTo
                       <DatePicker
                         value={editingRichValue}
                         anchorRef={deadlineAnchorRef}
-                        onChange={(date) => {
-                          if (richItems && onUpdateRichItems) {
-                            onUpdateRichItems(richItems.map((r, ri) => ri === i ? { ...r, deadline: date } : r));
-                          }
-                        }}
+                        onChange={(date) => setDeadline(i, date)}
                         onClose={() => setEditingRich(null)}
                       />
                     )}
