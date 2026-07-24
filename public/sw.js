@@ -5,7 +5,10 @@
 // - API (/api/): всегда network, без кэша (всё динамика, аудио/AI)
 // - Firestore/R2/Google API: пропускаем (они сами управляют кэшем)
 
-const CACHE_VERSION = 'v1';
+// Версию поднимаем при каждом изменении стратегии кэширования. Сам по себе номер
+// не спасает от устаревших чанков — за это отвечает проверка ниже, — но позволяет
+// разом выбросить кэш, если стратегия оказалась неверной.
+const CACHE_VERSION = 'v2';
 const STATIC_CACHE = `voicemap-static-${CACHE_VERSION}`;
 const RUNTIME_CACHE = `voicemap-runtime-${CACHE_VERSION}`;
 
@@ -68,12 +71,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Остальные статические ресурсы (assets, иконки) — cache-first
+  // Остальные статические ресурсы (assets, иконки) — cache-first.
+  // Имена файлов сборки содержат хэш, поэтому содержимое по одному адресу
+  // не меняется и кэшировать его безопасно.
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
       return fetch(request).then((res) => {
-        // Кэшируем только успешные ответы
+        // Файл из старой сборки, которого больше нет на сервере. Это значит,
+        // что в браузере остался устаревший index.html: он ссылается на чанки,
+        // удалённые при деплое. Чистим кэш целиком — следующая загрузка
+        // возьмёт свежую версию. Без этого пользователь видит ошибки при
+        // каждом переходе, пока не почистит кэш руками.
+        if (res.status === 404 && url.pathname.startsWith('/assets/')) {
+          caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))));
+          return res;
+        }
         if (res.ok && res.status === 200) {
           const clone = res.clone();
           caches.open(RUNTIME_CACHE).then((c) => c.put(request, clone));
