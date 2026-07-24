@@ -6,34 +6,22 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, Brain, Loader2 } from 'lucide-react';
-import { retranscribeFromUrl, deleteAudioFromR2, deleteRecordingChunks, QuotaExceededError, setApiLanguage } from './lib/api';
-import { quotaToastMessage } from './lib/usageFormat';
+import { deleteAudioFromR2, deleteRecordingChunks, setApiLanguage } from './lib/api';
 import { LangProvider, readStoredLang, storeLang } from './i18n';
-import { guessAudioMimeFromUrl } from './lib/audioMime';
-import { parseDurationToSeconds } from './lib/recordingUtils';
 import { useToast } from './hooks/useToast';
 import { useRecordingPipeline } from './hooks/useRecordingPipeline';
 import { useAppNavigation } from './hooks/useAppNavigation';
+import { useRetranscribe } from './hooks/useRetranscribe';
 
-import type { NoteType, Recording } from './types';
+import type { NoteType } from './types';
 import { useReminders } from './hooks/useReminders';
 import { useAuth } from './hooks/useAuth';
 import { useFirestoreData } from './hooks/useFirestoreData';
 import { useUserProfile } from './hooks/useUserProfile';
 import { LoginScreen } from './components/auth/LoginScreen';
 
-// Eager — нужны на первом экране (Dashboard)
-import { Header } from './components/layout/Header';
-import { BottomNav } from './components/layout/BottomNav';
-import { SearchHero } from './components/search/SearchHero';
-import { LiveSessionCard } from './components/dashboard/LiveSessionCard';
-import { ImportAudioButton } from './components/recording/ImportAudioButton';
-import { QuickNoteCard } from './components/dashboard/QuickNoteCard';
-import { FocusTodayCard } from './components/dashboard/FocusTodayCard';
-import { IdeasCard } from './components/dashboard/IdeasCard';
-import { WeeklyDigestCard } from './components/dashboard/WeeklyDigestCard';
-import { RecentRecordings } from './components/dashboard/RecentRecordings';
-import { FollowUpCard } from './components/dashboard/FollowUpCard';
+// Eager — нужны сразу: дашборд и боковой ассистент
+import { DashboardView } from './components/dashboard/DashboardView';
 import { ChatSidebar } from './components/ChatSidebar';
 
 // Lazy — view-экраны и модалки. Грузятся только когда юзер на них переходит.
@@ -156,6 +144,13 @@ export default function App() {
     await logout();
   };
 
+  const handleRetranscribe = useRetranscribe({
+    updateRecordingItem,
+    getKnownNames,
+    language: appSettings.language,
+    showToast,
+  });
+
   const { handleFinishRecording, handleImportAudio } = useRecordingPipeline({
     addRecording,
     patchRecordingItem,
@@ -254,36 +249,7 @@ export default function App() {
           goBack();
         }} onUpdate={(updatedRec) => {
           updateRecordingItem(updatedRec);
-        }} showToast={showToast} allRecordings={recordings} onOpenRecording={(id) => openRecording(id)} onOpenTag={openLibraryWithTag} onRetranscribe={async () => {
-          // Повторная транскрипция: фетчим аудио с R2 через сервер и обрабатываем Gemini File API
-          const recording = recordings.find(r => r.id === selectedRecordingId);
-          if (!recording?.audioUrl) {
-            showToast('Нет аудиофайла для транскрипции', 'error');
-            return;
-          }
-          // Определяем mimeType по расширению в URL/ключе R2 (включая импортированные mp3/wav/flac)
-          const url = recording.audioUrl;
-          const mimeType = guessAudioMimeFromUrl(url);
-          try {
-            // Длительность нужна серверу для предпроверки месячного лимита расшифровки
-            const durationSeconds = parseDurationToSeconds(recording.duration);
-            const result = await retranscribeFromUrl(url, mimeType, getKnownNames(), durationSeconds);
-            updateRecordingItem({
-              ...recording,
-              ...result,
-              title: result.title || recording.title,
-              aiStatus: 'done',
-            });
-            showToast('Транскрипция готова ✓', 'success');
-          } catch (err) {
-            if (err instanceof QuotaExceededError) {
-              showToast(quotaToastMessage(err.usage, appSettings.language), 'error');
-              return;
-            }
-            console.error('[retranscribe] failed:', err);
-            showToast('Ошибка повторной транскрипции', 'error');
-          }
-        }} />;
+        }} showToast={showToast} allRecordings={recordings} onOpenRecording={(id) => openRecording(id)} onOpenTag={openLibraryWithTag} onRetranscribe={() => handleRetranscribe(rec)} />;
       }
       // Запись ещё грузится из Firestore — показываем спиннер
       return (
@@ -344,61 +310,22 @@ export default function App() {
 
     // Dashboard
     return (
-      <div className="min-h-screen bg-background text-on-surface pb-32 font-body selection:bg-primary/30 relative">
-        <Header currentView={currentView} setCurrentView={setCurrentView} onLogout={handleLogout} onReset={handleResetDemo} user={effectiveUser ?? undefined} />
-        <main className="max-w-[1440px] mx-auto px-4 pt-6 lg:px-8 lg:pt-12">
-          {/* Голосовой поиск — главный герой-блок дашборда (шире), запись — рядом (уже) */}
-          <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12">
-            <SearchHero onOpenSource={(id, timestamp) => openRecording(id, timestamp)} />
-            <LiveSessionCard
-              onStartRecording={() => setCurrentView('recording_session')}
-              importSlot={<ImportAudioButton onImport={handleImportAudio} showToast={showToast} />}
-            />
-          </div>
-          <RecentRecordings recordings={recordings} onOpenLibrary={() => setCurrentView('library')} onOpenDetail={openRecording} />
-          {/* Долги по обещаниям. Карточка сама не рендерится, когда всё чисто */}
-          <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12 empty:mb-0">
-            <FollowUpCard
-              recordings={recordings}
-              onOpenRecording={openRecording}
-              onToggleDone={toggleRecordingTask}
-            />
-          </div>
-          <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12">
-            <FocusTodayCard
-              recordings={recordings}
-              notes={notes}
-              assistantTasks={dailyFocus}
-              onToggleAssistantTask={(id) => setDailyFocus(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))}
-              onOpenRecording={openRecording}
-              onToggleDone={toggleRecordingTask}
-              onToggleNoteTask={(noteId) => {
-                const note = notes.find(n => n.id === noteId);
-                if (note) updateNoteItem({ ...note, isCompleted: true });
-              }}
-            />
-            <IdeasCard recordings={recordings} notes={notes} onOpenRecording={openRecording} />
-          </div>
-          {/* Быстрая заметка + недельный дайджест в одном ряду: QuickNoteCard (lg:4) + WeeklyDigestCard (lg:8) = 12 колонок */}
-          <div className="grid grid-cols-12 gap-4 lg:gap-8 mb-6 lg:mb-12 items-stretch">
-            <QuickNoteCard onQuickNote={(type) => setQuickNoteType(type)} />
-            <WeeklyDigestCard recordings={recordings} setCurrentView={setCurrentView} />
-          </div>
-        </main>
-        <BottomNav currentView={currentView} setCurrentView={setCurrentView} />
-
-        {quickNoteType && (
-          <QuickNoteModal
-            type={quickNoteType}
-            onClose={() => setQuickNoteType(null)}
-            onSave={(note) => {
-              addNote(note);
-              showToast('Заметка сохранена', 'success');
-            }}
-            showToast={showToast}
-          />
-        )}
-      </div>
+      <DashboardView
+        recordings={recordings}
+        notes={notes}
+        user={effectiveUser ?? undefined}
+        setCurrentView={setCurrentView}
+        openRecording={openRecording}
+        onToggleRecordingTask={toggleRecordingTask}
+        onUpdateNote={updateNoteItem}
+        onImportAudio={handleImportAudio}
+        onQuickNote={setQuickNoteType}
+        onLogout={handleLogout}
+        onResetDemo={handleResetDemo}
+        showToast={showToast}
+        dailyFocus={dailyFocus}
+        onToggleAssistantTask={(id) => setDailyFocus(prev => prev.map(t => t.id === id ? { ...t, done: !t.done } : t))}
+      />
     );
   };
 
@@ -475,6 +402,18 @@ export default function App() {
         onClose={() => setIsAssistantOpen(false)}
         onOpenRecording={openRecording}
       />
+
+      {quickNoteType && (
+        <QuickNoteModal
+          type={quickNoteType}
+          onClose={() => setQuickNoteType(null)}
+          onSave={(note) => {
+            addNote(note);
+            showToast('Заметка сохранена', 'success');
+          }}
+          showToast={showToast}
+        />
+      )}
 
       {isProcessing && (
         <div className="fixed inset-0 z-[400] bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center">
